@@ -1,0 +1,79 @@
+cabal-version:      3.0
+
+name:               encoins-relay
+version:            0.1.0.0
+
+maintainer:         encoins.crypto@ud.me
+
+-- Plutus language settings
+common lang
+    default-language:   Haskell2010
+    ghc-options:
+      -fwarn-redundant-constraints
+      -Wall
+      -Widentities
+      -Wincomplete-uni-patterns
+      -Wincomplete-record-updates
+      -Wnoncanonical-monad-instances
+      -Wredundant-constraints
+      
+      -- See Plutus Tx readme
+      -fno-ignore-interface-pragmas
+      -fno-omit-interface-pragmas
+      -fno-specialise
+      -fno-strictness
+      -fobject-code       
+      -fplugin-opt PlutusTx.Plugin:defer-errors
+
+library
+    import: lang
+    exposed-modules:
+      App
+      Test.OnChain
+      Test.OffChain
+    build-depends:
+      base                          >= 4.9 && < 5,
+      base16-bytestring                      -any,
+      base64                                 -any,
+      aeson                                  -any,
+      bytestring                             -any,
+      cardano-api                            -any,
+      cardano-ledger-alonzo                  -any,
+      cardano-ledger-core                    -any,
+      cardano-mixer-common                   -any,
+      cborg                                  -any,
+      containers                             -any,
+      data-default                           -any,
+      directory                              -any,
+      extra                                  -any,
+      file-embed                             -any,
+      freer-extras                           -any,
+      freer-simple                           -any,
+      flat                                   -any,
+      generic-arbitrary                      -any,
+      lens                                   -any,
+      mtl                                    -any,
+      openapi3                               -any,
+      optparse-applicative                   -any,
+      playground-common                      -any,
+      plutus-common                          -any,
+      plutus-contract                        -any,
+      plutus-chain-index                     -any,
+      plutus-chain-index-core                -any,
+      plutus-tx-plugin                       -any,
+      plutus-tx                              -any,
+      plutus-ledger                          -any,
+      plutus-ledger-api                      -any,
+      plutus-ledger-constraints              -any,
+      plutus-script-utils                    -any,
+      plutus-use-cases                       -any,
+      prettyprinter                          -any,
+      purescript-bridge                      -any,
+      QuickCheck                             -any,
+      random                                 -any,
+      req                                    -any,
+      serialise                              -any,
+      text                                   -any,
+      uuid                                   -any
+
+    hs-source-dirs: src
