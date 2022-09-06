@@ -6,7 +6,7 @@ packages: ./.
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-common.git
-  tag: 79567b8b804a82775ca054ded9cd7aa838582ac7
+  tag: 191fca0cf60ad697a6c2ffa3241fb0ac43e733ea
 
 source-repository-package
   type: git
