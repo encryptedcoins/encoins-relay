@@ -42,8 +42,8 @@ testMintTx bss = tokensMintedTx testPolicy bss (sum $ map testToken bss)
 
 ------------------------------------- Testing Validator --------------------------------------
 
-testingValidator :: Validator
-testingValidator = validatorScript testTypedValidator
+testValidator :: Validator
+testValidator = validatorScript testTypedValidator
 
 testValidatorHash :: ValidatorHash
-testValidatorHash = validatorHash testingValidator
+testValidatorHash = validatorHash testValidator

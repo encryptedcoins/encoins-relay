@@ -6,7 +6,7 @@ packages: ./.
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-common.git
-  tag: 79567b8b804a82775ca054ded9cd7aa838582ac7
+  tag: c6d431131490da5c7249ec2b44d6beb286a4939b
 
 source-repository-package
   type: git
@@ -20,7 +20,7 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/cardmix/plutus-apps.git
+  location: https://github.com/input-output-hk/plutus-apps.git
   subdir:
     doc
     freer-extras
@@ -29,7 +29,6 @@ source-repository-package
     plutus-chain-index-core
     plutus-contract
     plutus-example
-    plutus-hysterical-screams
     plutus-contract-certification
     plutus-ledger
     plutus-ledger-constraints
@@ -40,8 +39,9 @@ source-repository-package
     plutus-tx-constraints
     plutus-use-cases
     plutus-streaming
+    rewindable-index
     web-ghc  
-  tag: 9214591e723916948c4cf77fd881ef17b9b3ca4b
+  tag: 97a2b78c062338a69b1a91d19802b24b8a6daa92
 
 -- We never, ever, want this.
 write-ghc-environment-files: never
@@ -262,7 +262,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/input-output-hk/cardano-node
-    tag: 1.35.3-rc1
+    tag: 1.35.3
     subdir:
       cardano-api
       cardano-git-rev

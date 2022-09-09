@@ -66,3 +66,11 @@ runTest = do
     print signedTx
     print ("Submitting..." :: String)
     submitTxConfirmed signedTx
+
+
+
+
+
+
+
+

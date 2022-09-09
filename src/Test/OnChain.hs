@@ -41,8 +41,7 @@ testPolicyCheck bss ctx = cond1
     cond1 = tokensMinted ctx $ fromList $ map (, 1) names
 
 testPolicy :: MintingPolicy
-testPolicy = mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| mkUntypedMintingPolicy testPolicyCheck ||])
+testPolicy = mkMintingPolicyScript $$(PlutusTx.compile [|| mkUntypedMintingPolicy testPolicyCheck ||])
 
 ------------------------------------- Test Validator --------------------------------------
 
