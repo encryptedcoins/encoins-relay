@@ -1,17 +1,18 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Server.Ping where
 
-import Servant
-import Server.Internal
+import Common.Logger   (HasLogger(logMsg))
+import Servant         (type (:>), NoContent(..), JSON, Get)
+import Server.Internal (AppM)
 
 type PingApi = "relayRequestPing" :> Get '[JSON] NoContent
 
 pingHandler :: AppM NoContent
-pingHandler = NoContent <$ logDebug "Recieved ping request."
+pingHandler = NoContent <$ logMsg "Received ping request."

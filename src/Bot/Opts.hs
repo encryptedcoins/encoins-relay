@@ -1,6 +1,6 @@
 module Bot.Opts where
 
-import Options.Applicative
+import Options.Applicative (Parser, (<**>), auto, fullDesc, help, info, long, option, short, value, execParser, helper)
 
 type Inteval = Int
 
@@ -14,6 +14,7 @@ intervalParser = option auto
     (  long  "interval"
     <> short 'i'
     <> help  "Average bot request interval in seconds."
+    <> value 30
     )
 
 maxTokensParser :: Parser Int
