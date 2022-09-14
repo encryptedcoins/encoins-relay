@@ -16,6 +16,7 @@ common lang
       -Wincomplete-record-updates
       -Wnoncanonical-monad-instances
       -Wredundant-constraints
+      -Wno-unused-do-bind
       
       -- See Plutus Tx readme
       -fno-ignore-interface-pragmas
@@ -29,8 +30,20 @@ library
     import: lang
     exposed-modules:
       App
+      Bot.Main
+      Server.Main
+    other-modules:
+      Bot.Opts
+      Common.Logger
+      Common.Tokens
+      Common.Wait
+      Server.Internal 
+      Server.Mint 
+      Server.Ping
       Test.OnChain
       Test.OffChain
+    default-extensions:
+      PartialTypeSignatures
     build-depends:
       base                          >= 4.9 && < 5,
       base16-bytestring                      -any,
@@ -51,8 +64,10 @@ library
       freer-simple                           -any,
       flat                                   -any,
       generic-arbitrary                      -any,
+      http-types                             -any,
       lens                                   -any,
       mtl                                    -any,
+      http-client                            -any,
       openapi3                               -any,
       optparse-applicative                   -any,
       playground-common                      -any,
@@ -73,7 +88,27 @@ library
       random                                 -any,
       req                                    -any,
       serialise                              -any,
+      servant-server                         -any,
       text                                   -any,
-      uuid                                   -any
+      text-class                             -any,
+      time                                   -any,
+      uuid                                   -any,
+      warp                                   -any,
 
     hs-source-dirs: src
+
+executable encoinsRelayServer
+  default-language: Haskell2010
+  hs-source-dirs: app/Server
+  main-is: Main.hs
+  build-depends: 
+    base                          >= 4.9 && < 5,
+    encoins-relay                              ,
+
+executable encoinsRelayBot
+  default-language: Haskell2010
+  hs-source-dirs: app/Bot
+  main-is: Main.hs
+  build-depends: 
+    base                          >= 4.9 && < 5,
+    encoins-relay                              ,
