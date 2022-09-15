@@ -6,17 +6,7 @@ packages: ./.
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-common.git
-  tag: c6d431131490da5c7249ec2b44d6beb286a4939b
-
-source-repository-package
-  type: git
-  location: https://github.com/Plutonomicon/plutarch-plutus.git
-  tag: d429ede282cda6d7757cf2c0968e21c5b3474eb2
-
-source-repository-package
-  type: git
-  location: https://github.com/cardmix/Cardano-Mixer-Lib.git
-  tag: 8a42e16963a436444bfbc2c7e73a05aeb3159c55
+  tag: ff838d181670cd2559b6e530fdbdcd369f0393e0
 
 source-repository-package
   type: git
