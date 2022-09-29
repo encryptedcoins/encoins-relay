@@ -18,13 +18,15 @@
 
 module Test.OnChain where
 
+import           Cardano.Ledger.Alonzo.Language       (Language(PlutusV2))
+import           Ledger                               (Versioned(..), Validator)
 import           Plutus.Script.Utils.V2.Typed.Scripts (ValidatorTypes (..), TypedValidator,
-                                                        mkTypedValidator, mkUntypedValidator, mkUntypedMintingPolicy)
-import           Plutus.V2.Ledger.Api                 (ScriptContext(..), MintingPolicy, TokenName (..), mkMintingPolicyScript)
+                                                        mkTypedValidator, mkUntypedValidator, mkUntypedMintingPolicy, validatorScript)
+import           Plutus.V2.Ledger.Api                 (ScriptContext(..), MintingPolicy, TokenName (..), mkMintingPolicyScript, ScriptHash, unMintingPolicyScript)
 import           PlutusTx                             (compile)
 import           PlutusTx.AssocMap                    (fromList)
 import           PlutusTx.Prelude                     (BuiltinByteString, Bool (..), ($), map)
-
+import           Plutus.Script.Utils.V2.Scripts       (scriptHash)
 import           Scripts.Constraints                  (tokensMinted)
 
 ------------------------------------- Test Minting Policy --------------------------------------
@@ -60,3 +62,9 @@ testTypedValidator = mkTypedValidator @Testing
     $$(PlutusTx.compile [|| wrap ||])
   where
     wrap = mkUntypedValidator @() @()
+
+testScriptHash :: ScriptHash
+testScriptHash = scriptHash $ unMintingPolicyScript testPolicy
+
+serverValidator :: Versioned Validator
+serverValidator = Versioned (validatorScript testTypedValidator) PlutusV2

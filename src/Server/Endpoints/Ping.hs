@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module Server.Ping where
+module Server.Endpoints.Ping where
 
 import Common.Logger   (HasLogger(logMsg))
 import Servant         (type (:>), NoContent(..), JSON, Get)

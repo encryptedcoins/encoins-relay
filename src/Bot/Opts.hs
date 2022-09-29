@@ -5,9 +5,9 @@ import Options.Applicative (Parser, (<**>), auto, fullDesc, help, info, long, op
 type Inteval = Int
 
 data Options = Options
-  { averageRequestInterval :: Inteval
-  , maxTokensInReq :: Int
-  }
+    { averageRequestInterval :: Inteval
+    , maxTokensInReq         :: Int
+    }
 
 intervalParser :: Parser Int
 intervalParser = option auto
@@ -22,11 +22,13 @@ maxTokensParser = option auto
     (  long "max"
     <> short 'm'
     <> help "Upper bound on the number of generated tokens in a request."
-    <> value 20
+    <> value 1
     )
 
 optionsParser :: Parser Options
-optionsParser = Options <$> intervalParser <*> maxTokensParser
+optionsParser = Options
+            <$> intervalParser
+            <*> maxTokensParser
 
 runWithOpts :: IO Options
 runWithOpts = execParser $ info (optionsParser <**> helper) fullDesc
