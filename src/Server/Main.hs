@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 
@@ -18,8 +19,10 @@ import qualified Network.Wai.Handler.Warp as Warp
 import Servant                            (Proxy(..), type (:<|>)(..), HasServer(ServerT), Context(EmptyContext), hoistServer, serveWithContext, 
                                            Handler(runHandler'), Application)
 import Server.Internal                    (Env(Env), AppM(unAppM))
-import Server.Mint                        (MintApi, mintHandler, processQueue)
-import Server.Ping                        (PingApi, pingHandler)
+import Server.Endpoints.Mint              (MintApi, mintHandler, processQueue)
+import Server.Endpoints.Ping              (PingApi, pingHandler)
+import Server.Opts                        (runWithOpts, Options(..), ServerMode(..))
+import Server.PostScripts.PostScripts     (postScripts)
 import System.IO                          (stdout, BufferMode(LineBuffering), hSetBuffering)
 
 type ServerAPI
@@ -37,6 +40,13 @@ port = 3000
 
 main :: IO ()
 main = do
+    Options{..} <- runWithOpts
+    case serverMode of
+        ServerRun   -> runServer
+        ServerSetup -> postScripts
+
+runServer :: IO ()
+runServer = do
         hSetBuffering stdout LineBuffering
         ref <- newIORef empty
         forkIO $ processQueue ref

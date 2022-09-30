@@ -10,7 +10,7 @@ import           PlutusTx.Prelude (BuiltinByteString, toBuiltin, fromBuiltin)
 
 newtype Token = Token
     { unToken :: BuiltinByteString
-    } deriving newtype (Show, IsString)
+    } deriving newtype (Show, IsString, Eq)
 
 type Tokens = [Token]
 

@@ -37,9 +37,13 @@ library
       Common.Logger
       Common.Tokens
       Common.Wait
+      Server.Endpoints.Mint 
+      Server.Endpoints.Ping
+      Server.PostScripts.MintingPolicy
+      Server.PostScripts.OnChain
+      Server.PostScripts.PostScripts
+      Server.Opts
       Server.Internal 
-      Server.Mint 
-      Server.Ping
       Test.OnChain
       Test.OffChain
     default-extensions:
