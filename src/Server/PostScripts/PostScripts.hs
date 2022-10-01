@@ -61,7 +61,7 @@ postScripts = unPostScriptsM $ do
     logSmth bech32
     utxos <- liftIO $ mconcatMapM getUtxosAt [addrWallet]
     let constrInit = mkTxConstructor (walletPKH, walletSKH) ct () utxos :: TestTransaction
-        txs = [postMintingPolicyTx addrWallet serverMintingPolicy Nothing (Ada.adaValueOf 1)]
+        txs = [postMintingPolicyTx addrWallet serverMintingPolicy (Nothing :: Maybe ()) (Ada.adaValueOf 10)]
         constr = fromJust $ execTxs txs constrInit
         (lookups, cons) = fromJust $ txConstructorResult constr
 

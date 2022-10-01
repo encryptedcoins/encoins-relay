@@ -22,12 +22,16 @@ import           Cardano.Api.Shelley              (NetworkMagic(..), NetworkId (
 import           Control.Monad.Extra              (mconcatMapM)
 import           Control.Monad.State              (execState, put)
 import           Data.Aeson                       (decode)
-import           Data.Either                      (fromRight)                       
-import           Data.Maybe                       (fromJust)
 import           Data.ByteString.Lazy             (fromStrict)
 import           Data.Default                     (Default(..))
+import           Data.Either                      (fromRight)                       
 import           Data.FileEmbed                   (embedFile)
+import           Data.Maybe                       (fromJust)
+import           Data.Text.Class                  (FromText(..))       
 import           Ledger                           (Params (..))
+import qualified Ledger.Ada                       as Ada
+import           Ledger.Constraints.OffChain      (plutusV2OtherScript)
+import           Ledger.Constraints.TxConstraints (mustPayToAddressWithReferenceValidator)
 
 import           PlutusTx.Prelude                 hiding (Semigroup(..), Eq (..), (<$>), unless, mapMaybe, find, toList, fromInteger, mempty, concatMap)
 import           Prelude                          (IO, print, (<$>), putStrLn)
@@ -35,16 +39,12 @@ import           Prelude                          (IO, print, (<$>), putStrLn)
 import           IO.ChainIndex                    (getUtxosAt)
 import           IO.Time                          (currentTime)
 import           IO.Wallet                        (signTx, balanceTx, submitTxConfirmed, getWalletAddr)
+import           Server.PostScripts.PostScripts
+import           Server.Endpoints.Mint            (processTokens, QueueM(..))
 import           Test.OffChain                    (TestTransaction, TestTransactionBuilder, testValidatorHash, testValidator)
 import           Types.TxConstructor              (TxConstructor (..), selectTxConstructor, mkTxConstructor)
 import           Utils.Address                    (bech32ToKeyHashes, bech32ToAddress)
-import           Data.Text.Class                  (FromText(..))       
 
-import           Server.PostScripts.PostScripts
-import           Server.Endpoints.Mint (processTokens, QueueM(..))
-import qualified Ledger.Ada                       as Ada
-import           Ledger.Constraints.TxConstraints (mustPayToAddressWithReferenceValidator)
-import           Ledger.Constraints.OffChain (plutusV2OtherScript)
 
 post :: IO ()
 post = postScripts
@@ -68,7 +68,7 @@ runTest = do
     ct <- currentTime
     utxos <- mconcatMapM getUtxosAt [addrWallet']
     let constrInit = mkTxConstructor (walletPKH, walletSKH) ct () utxos :: TestTransaction
-        c = mustPayToAddressWithReferenceValidator addrWallet' testValidatorHash Nothing (Ada.adaValueOf 2)
+        c = mustPayToAddressWithReferenceValidator addrWallet' testValidatorHash Nothing (Ada.adaValueOf 10)
         l = plutusV2OtherScript testValidator
         txs = (:[]) $ do
             put constrInit {txConstructorResult = Just (l, c)}
