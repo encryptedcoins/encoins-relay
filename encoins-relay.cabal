@@ -62,6 +62,7 @@ library
       data-default                           -any,
       directory                              -any,
       exceptions                             -any,
+      encoins-core                           -any,
       extra                                  -any,
       file-embed                             -any,
       filepath                               -any,
