@@ -44,14 +44,6 @@ import           Server.Endpoints.Mint            (processTokens, QueueM(..))
 import           Test.OffChain                    (TestTransaction, TestTransactionBuilder, testValidatorHash, testValidator)
 import           Types.TxConstructor              (TxConstructor (..), selectTxConstructor, mkTxConstructor)
 import           Utils.Address                    (bech32ToKeyHashes, bech32ToAddress)
-
-
-post :: IO ()
-post = postScripts
-
-run :: IO ()
-run = unQueueM $ processTokens ["a"]
-
 import           Server.PostScripts.PostScripts
 import           Server.Endpoints.Mint (processTokens, QueueM(..))
 import qualified Ledger.Ada                       as Ada
