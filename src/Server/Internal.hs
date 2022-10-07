@@ -5,6 +5,7 @@ module Server.Internal where
 
 import Common.Logger          (HasLogger(..))
 import Common.Tokens          (Tokens)
+import Control.Monad.Catch    (MonadThrow, MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader   (ReaderT(ReaderT), MonadReader, asks)
 import Data.IORef             (IORef)
@@ -12,7 +13,7 @@ import Data.Sequence          (Seq)
 import Servant                (Handler)
 
 newtype AppM a = AppM { unAppM :: ReaderT Env Handler a }
-    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Env)
+    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadThrow, MonadCatch)
 
 instance HasLogger AppM where
     loggerFilePath = "server.log"

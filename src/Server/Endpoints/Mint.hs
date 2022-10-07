@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
@@ -19,7 +20,9 @@
 module Server.Endpoints.Mint where
 
 import           Cardano.Api.Shelley              (NetworkMagic(..), NetworkId (..))
-import           Control.Monad.Extra              (mconcatMapM, forever)
+import           Control.Monad                    (when)
+import           Control.Monad.Catch              (Exception, handle, throwM)
+import           Control.Monad.Extra              (forever, mconcatMapM, unlessM)
 import           Control.Monad.IO.Class           (MonadIO(..))
 import           Control.Monad.State              (execState)
 import           Common.Logger                    (HasLogger(..), (.<))
@@ -31,41 +34,62 @@ import           Data.ByteString.Lazy             (fromStrict)
 import           Data.Default                     (Default(..))
 import           Data.FileEmbed                   (embedFile)
 import           Data.Text                        (Text)
+import           Data.Text.Class                  (FromText(fromText))
 import           Data.IORef                       (atomicWriteIORef, atomicModifyIORef, readIORef)
 import           Data.List                        (nub)
 import qualified Data.Map                         as M
 import           Data.Sequence                    (Seq(..), (|>))
-import           Ledger                           (Params (..))
-import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), UVerb, Union)
-import           Server.Internal                  (AppM, Ref, getRef)
+import           GHC.TypeNats                     (Nat)
 import           IO.ChainIndex                    (getUtxosAt)
 import           IO.Time                          (currentTime)
-import           IO.Wallet                        (signTx, balanceTx, submitTxConfirmed, getWalletAddr)
+import           IO.Wallet                        (signTx, balanceTx, submitTxConfirmed, getWalletAddr, hasCleanUtxos)
+import           Ledger                           (Params (..))
+import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), UVerb, Union, IsMember)
+import           Servant.API.Status               (KnownStatus)
+import           Server.Internal                  (AppM, Ref, getRef)
 import           Server.PostScripts.MintingPolicy (TestTransaction, TestTransactionBuilder, referenceServerPolicy)
 import           Types.TxConstructor              (TxConstructor (..), selectTxConstructor, mkTxConstructor)
 import           Utils.Address                    (bech32ToKeyHashes, bech32ToAddress)
-import           Data.Text.Class                  (FromText(fromText))
 
 type MintApi = "relayRequestMint"
             :> ReqBody '[JSON] Tokens
-            :> UVerb 'POST '[JSON] '[NoContent, WithStatus 422 Text]
+            :> UVerb 'POST '[JSON] MintApiResult
 
-mintHandler :: Tokens -> AppM (Union '[NoContent, WithStatus 422 Text])
-mintHandler tokens = do
+type MintApiResult = '[NoContent, WithStatus 422 Text]
+
+mintHandler :: Tokens -> AppM (Union MintApiResult)
+mintHandler tokens = handle mintErrorHandler $ do
     logMsg $ "New mint request received:" .< tokens
-    if hasDuplicates
+    when            hasDuplicates  $ throwM DuplicateTokens
+    unlessM (liftIO hasCleanUtxos) $ throwM NoCleanUtxos
+    ref <- getRef
+    liftIO $ atomicModifyIORef ref ((,()) . (|> tokens))
+    respond NoContent
+  where
+    hasDuplicates = length (nub tokens) /= length tokens
 
-    then do
-        let msg = "The request contains duplicate tokens and will not be processed."
+data MintError 
+    = DuplicateTokens
+    | NoCleanUtxos
+    deriving (Show, Exception)
+
+mintErrorHandler :: MintError -> AppM (Union MintApiResult)
+mintErrorHandler = \case
+
+    DuplicateTokens -> throwWithStatus @422 $ 
+        "The request contains duplicate tokens and will not be processed."
+    
+    NoCleanUtxos -> throwWithStatus @422 $
+        "Balance of pure ada UTxOs in your wallet insufficient to cover \
+        \the minimum amount of collateral reuqired."
+  where 
+    throwWithStatus :: forall (s :: Nat). 
+        ( IsMember (WithStatus s Text) MintApiResult
+        , KnownStatus s
+        ) => Text -> AppM (Union MintApiResult)
+    throwWithStatus msg = do
         logMsg msg
-        respond (WithStatus @422 msg)
-
-    else do
-        ref <- getRef
-        liftIO $ atomicModifyIORef ref ((,()) . (|> tokens))
-        respond NoContent
-    where
-        hasDuplicates = length (nub tokens) /= length tokens
+        respond (WithStatus @s msg)
 
 newtype QueueM a = QueueM { unQueueM :: IO a }
     deriving newtype (Functor, Applicative, Monad, MonadIO)
