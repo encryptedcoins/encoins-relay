@@ -42,6 +42,7 @@ library
       Server.PostScripts.MintingPolicy
       Server.PostScripts.OnChain
       Server.PostScripts.PostScripts
+      Server.ServerTx
       Server.Opts
       Server.Internal 
       Test.OnChain
