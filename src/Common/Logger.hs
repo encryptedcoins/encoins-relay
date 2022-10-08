@@ -13,18 +13,28 @@ import qualified Data.Text              as T
 import qualified Data.Text.IO           as T
 import qualified Data.Time              as Time
 import           GHC.IO.Exception       (IOException(..), IOErrorType(NoSuchThing))
+import           Prettyprinter
 import           System.Directory       (createDirectoryIfMissing)
 import           System.FilePath.Posix  (takeDirectory)
 
 class MonadIO m => HasLogger m where
     
     loggerFilePath :: FilePath
+    loggerFilePath = ""
 
     logMsg :: Text -> m ()
     logMsg msg = liftIO $ logMsgIO msg $ loggerFilePath @m
 
-    logSmth :: Show a => a -> m ()
-    logSmth smth = liftIO $ logSmthIO smth $ loggerFilePath @m
+    {-# MINIMAL loggerFilePath | logMsg #-}
+
+instance HasLogger IO where
+    logMsg = T.putStrLn
+
+logSmth :: forall a m. (HasLogger m, Show a) => a -> m ()
+logSmth a = liftIO $ logMsg $ T.pack $ show a
+
+logPretty :: forall a m. (HasLogger m, Pretty a) => a -> m ()
+logPretty a = liftIO $ logMsg $ T.pack $ show $ pretty a
 
 logMsgIO :: Text -> FilePath -> IO ()
 logMsgIO msg fileName = handle (handler msg fileName) $ do
@@ -44,9 +54,6 @@ handler msg fileName err
 
 mkFullPath :: FilePath -> FilePath
 mkFullPath = ("logs/" <>)
-
-logSmthIO :: Show a => a -> FilePath -> IO ()
-logSmthIO smth = logMsgIO (T.pack $ show smth)
 
 (.<) :: (Show a) => T.Text -> a -> T.Text
 text .< a = text <> "\n" <> T.pack (show a)

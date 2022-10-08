@@ -4,6 +4,7 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams             #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -19,7 +20,6 @@ import           Control.Monad                    (when)
 import           Control.Monad.Catch              (Exception, handle, throwM)
 import           Control.Monad.Extra              (forever, unlessM)
 import           Control.Monad.IO.Class           (MonadIO(..))
-import           Control.Monad.Reader             (ask)
 import           Common.Logger                    (HasLogger(..), (.<))
 import           Common.Tokens                    (Tokens, Token(..))
 import           Common.Wait                      (waitTime)
@@ -94,7 +94,4 @@ processQueue ref = unQueueM $ do
             processTokens tokens
 
 processTokens :: Tokens -> QueueM ()
-processTokens ts = mkTxWithConstraints $ do
-    TxEnv{..} <- ask
-    let bss = map unToken ts
-    pure [referenceServerPolicy (fst $ (!!0) $ M.toList txEnvUtxos) bss]
+processTokens ts = mkTxWithConstraints [referenceServerPolicy (head $ M.keys $ ?txUtxos) $ map unToken ts]

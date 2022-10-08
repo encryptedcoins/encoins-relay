@@ -1,12 +1,12 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams             #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeApplications           #-}
 
 module Server.PostScripts.PostScripts where
 
 import           Control.Monad.IO.Class           (MonadIO(..))
-import           Control.Monad.Reader             (ask)
 import           Common.Logger                    (HasLogger(..))
 import qualified Ledger.Ada                       as Ada
 import           Ledger.Typed.Scripts             (Any)
@@ -21,11 +21,8 @@ instance HasLogger PostScriptsM where
     loggerFilePath = "server.log"
 
 postScripts :: IO ()
-postScripts = unPostScriptsM $ mkTxWithConstraints @Any $ do
-    TxEnv{..} <- ask
-    let c = postMintingPolicyTx
-            txEnvWalletAddr
-            serverMintingPolicy
-            (Nothing :: Maybe ())
-            (Ada.adaValueOf 10)
-    pure [c]
+postScripts = unPostScriptsM $ mkTxWithConstraints @Any $ (:[]) $ postMintingPolicyTx
+    ?txWalletAddr
+    serverMintingPolicy
+    (Nothing :: Maybe ())
+    (Ada.adaValueOf 10)
