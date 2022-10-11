@@ -62,18 +62,18 @@ data MintError
 mintErrorHandler :: MintError -> AppM (Union MintApiResult)
 mintErrorHandler = \case
 
-    DuplicateTokens -> throwWithStatus @422 $ 
+    DuplicateTokens -> respondWithStatus @422 
         "The request contains duplicate tokens and will not be processed."
     
-    NoCleanUtxos -> throwWithStatus @422 $
+    NoCleanUtxos -> respondWithStatus @422 
         "Balance of pure ada UTxOs in your wallet insufficient to cover \
         \the minimum amount of collateral reuqired."
   where 
-    throwWithStatus :: forall (s :: Nat). 
+    respondWithStatus :: forall (s :: Nat). 
         ( IsMember (WithStatus s Text) MintApiResult
         , KnownStatus s
         ) => Text -> AppM (Union MintApiResult)
-    throwWithStatus msg = do
+    respondWithStatus msg = do
         logMsg msg
         respond (WithStatus @s msg)
 
@@ -94,4 +94,5 @@ processQueue ref = unQueueM $ do
             processTokens tokens
 
 processTokens :: Tokens -> QueueM ()
-processTokens ts = mkTxWithConstraints [referenceServerPolicy (head $ M.keys $ ?txUtxos) $ map unToken ts]
+processTokens ts = mkTxWithConstraints 
+    [referenceServerPolicy (head $ M.keys $ ?txUtxos) $ map unToken ts]

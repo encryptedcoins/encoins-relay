@@ -20,14 +20,14 @@ import           System.FilePath.Posix  (takeDirectory)
 class MonadIO m => HasLogger m where
     
     loggerFilePath :: FilePath
-    loggerFilePath = ""
 
     logMsg :: Text -> m ()
     logMsg msg = liftIO $ logMsgIO msg $ loggerFilePath @m
 
-    {-# MINIMAL loggerFilePath | logMsg #-}
-
 instance HasLogger IO where
+
+    loggerFilePath = ""
+    
     logMsg = T.putStrLn
 
 logSmth :: forall a m. (HasLogger m, Show a) => a -> m ()

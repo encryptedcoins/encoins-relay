@@ -12,7 +12,7 @@ import qualified Ledger.Ada                       as Ada
 import           Ledger.Typed.Scripts             (Any)
 import           Scripts.Constraints              (postMintingPolicyTx)
 import           Server.PostScripts.MintingPolicy (serverMintingPolicy)
-import           Server.ServerTx
+import           Server.ServerTx                  (mkTxWithConstraints)
 
 newtype PostScriptsM a = PostScriptsM { unPostScriptsM :: IO a }
     deriving newtype (Functor, Applicative, Monad, MonadIO)
