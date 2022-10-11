@@ -34,7 +34,7 @@ import           Servant                          (NoContent(..), JSON, (:>), Re
                                                    UVerb, Union, IsMember)
 import           Servant.API.Status               (KnownStatus)
 import           Server.Internal                  (AppM, Ref, getRef)
-import           Server.PostScripts.MintingPolicy (referenceServerPolicy)
+import           Server.PostScripts.MintingPolicy (referenceServerPolicy, mintWOReferencing)
 import           Server.ServerTx
 
 type MintApi = "relayRequestMint"
@@ -91,8 +91,12 @@ processQueue ref = unQueueM $ do
         tokens :<| tss -> do
             liftIO $ atomicWriteIORef ref tss
             logMsg $ "New tokens to process:" .< tokens
-            processTokens tokens
+            processTokensWOReferencing tokens
 
 processTokens :: Tokens -> QueueM ()
 processTokens ts = mkTxWithConstraints 
     [referenceServerPolicy (head $ M.keys $ ?txUtxos) $ map unToken ts]
+
+processTokensWOReferencing :: Tokens -> QueueM ()
+processTokensWOReferencing ts = mkTxWithConstraints
+    [mintWOReferencing $ map unToken ts]

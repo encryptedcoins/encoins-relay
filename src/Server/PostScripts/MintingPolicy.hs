@@ -15,7 +15,7 @@ import           PlutusTx.Prelude
 import           Plutus.Script.Utils.V2.Typed.Scripts (mkUntypedMintingPolicy)
 import           Plutus.Script.Utils.V2.Typed.Scripts (ValidatorTypes(..))
 import           Plutus.V2.Ledger.Api                 (MintingPolicy, mkMintingPolicyScript)
-import           Scripts.Constraints                  (referenceMintingPolicyTx)
+import           Scripts.Constraints                  (referenceMintingPolicyTx, tokensMintedTx)
 import           Server.PostScripts.OnChain           (testPolicyCheck, testTokenName)
 import           Types.TxConstructor                  (TxConstructor)
 
@@ -39,3 +39,6 @@ testCurrencySymbol = scriptCurrencySymbol serverMintingPolicy
 
 referenceServerPolicy :: TxOutRef -> [BuiltinByteString] -> TestTransactionBuilder
 referenceServerPolicy utxoRef bss = referenceMintingPolicyTx utxoRef bss (sum $ map testToken bss)
+
+mintWOReferencing :: [BuiltinByteString] -> TestTransactionBuilder
+mintWOReferencing bss = tokensMintedTx mintingPolicy bss (sum $ map testToken bss)
