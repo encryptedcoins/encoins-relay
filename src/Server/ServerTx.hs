@@ -25,7 +25,7 @@ import           Plutus.ChainIndex                (ChainIndexTx)
 import           Plutus.Script.Utils.Typed        (RedeemerType, DatumType)
 import           IO.ChainIndex                    (getUtxosAt)
 import           IO.Time                          (currentTime)
-import           IO.Wallet                        (signTx, balanceTx, submitTxConfirmed, getWalletAddr)
+import           IO.Wallet                        (HasWallet(..), signTx, balanceTx, submitTxConfirmed, getWalletAddr)
 import           Types.TxConstructor              (TxConstructor (..), selectTxConstructor, mkTxConstructor)
 import           Utils.Address                    (bech32ToKeyHashes, bech32ToAddress)
 import           Data.Text.Class                  (FromText(fromText))
@@ -40,11 +40,11 @@ mkTxWithConstraints :: forall a m.
     ( FromData (DatumType a)
     , ToData   (DatumType a)
     , ToData   (RedeemerType a)
-    , MonadIO m
+    , HasWallet m
     , HasLogger m
     ) => (HasTxEnv => [State (TxConstructor () a (RedeemerType a) (DatumType a)) ()]) -> m ()
 mkTxWithConstraints txs = do
-    walletAddrBech32 <- liftIO getWalletAddr
+    walletAddrBech32 <- getWalletAddr
     let walletAddr = case bech32ToAddress <$> fromText walletAddrBech32 of
             Right (Just addr) -> addr
             _                 -> error "Can't get wallet address from bech32 wallet."
@@ -54,6 +54,8 @@ mkTxWithConstraints txs = do
     let ?txWalletAddrBech32 = walletAddrBech32
         ?txWalletAddr       = walletAddr
         ?txUtxos            = utxos
+
+    logMsg $ "Wallet address:\n" <> walletAddrBech32
 
     let (walletPKH, walletSKH) = case bech32ToKeyHashes <$> fromText walletAddrBech32 of
             Right (Just res) -> res
@@ -69,11 +71,11 @@ mkTxWithConstraints txs = do
         constr = fromJust $ selectTxConstructor $ map (`execState` constrInit) txs
         (lookups, cons) = fromJust $ txConstructorResult constr
     logMsg "Balancing..."
-    balancedTx <- liftIO $ balanceTx ledgerParams lookups cons
+    balancedTx <- balanceTx ledgerParams lookups cons
     logPretty balancedTx
     logMsg "Signing..."
-    signedTx <- liftIO $ signTx balancedTx
+    signedTx <- signTx balancedTx
     logPretty signedTx
     logMsg "Submitting..."
-    liftIO $ submitTxConfirmed signedTx
+    submitTxConfirmed signedTx
     logMsg "Submited."

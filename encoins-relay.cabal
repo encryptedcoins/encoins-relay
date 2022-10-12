@@ -37,14 +37,13 @@ library
       Common.Logger
       Common.Tokens
       Common.Wait
+      Server.Config
       Server.Endpoints.Mint 
       Server.Endpoints.Ping
-      Server.PostScripts.MintingPolicy
-      Server.PostScripts.OnChain
-      Server.PostScripts.PostScripts
-      Server.ServerTx
+      Server.Internal
       Server.Opts
-      Server.Internal 
+      Server.Setup
+      Server.ServerTx
       Test.OnChain
       Test.OffChain
     default-extensions:
@@ -61,6 +60,7 @@ library
       cborg                                  -any,
       containers                             -any,
       data-default                           -any,
+      deriving-aeson                         -any,
       directory                              -any,
       encoins-core                           -any,
       exceptions                             -any,

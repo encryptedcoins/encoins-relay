@@ -22,7 +22,7 @@ import Server.Internal                    (Env(Env), AppM(unAppM))
 import Server.Endpoints.Mint              (MintApi, mintHandler, processQueue)
 import Server.Endpoints.Ping              (PingApi, pingHandler)
 import Server.Opts                        (runWithOpts, Options(..), ServerMode(..))
-import Server.PostScripts.PostScripts     (postScripts)
+import Server.Setup                       (setupServer)
 import System.IO                          (stdout, BufferMode(LineBuffering), hSetBuffering)
 
 type ServerAPI
@@ -43,7 +43,7 @@ main = do
     Options{..} <- runWithOpts
     case serverMode of
         ServerRun   -> runServer
-        ServerSetup -> postScripts
+        ServerSetup -> setupServer
 
 runServer :: IO ()
 runServer = do

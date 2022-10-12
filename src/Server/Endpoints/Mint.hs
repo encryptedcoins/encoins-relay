@@ -29,13 +29,19 @@ import           Data.List                        (nub)
 import qualified Data.Map                         as M
 import           Data.Sequence                    (Seq(..), (|>))
 import           GHC.TypeNats                     (Nat)
-import           IO.Wallet                        (hasCleanUtxos)
+import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
+import           Ledger                           (TxOutRef)
+import           Scripts.Constraints              (referenceMintingPolicyTx)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), 
                                                    UVerb, Union, IsMember)
 import           Servant.API.Status               (KnownStatus)
+import           Server.Config                    (restoreWalletFromConf)
 import           Server.Internal                  (AppM, Ref, getRef)
-import           Server.PostScripts.MintingPolicy (referenceServerPolicy, mintWOReferencing)
-import           Server.ServerTx
+import           Server.ServerTx                  (HasTxEnv, mkTxWithConstraints)
+
+import           Test.OffChain                    (testToken)
+import qualified PlutusTx.Prelude                 as Plutus
+import           Ledger.Typed.Scripts             (Any)
 
 type MintApi = "relayRequestMint"
             :> ReqBody '[JSON] Tokens
@@ -46,8 +52,8 @@ type MintApiResult = '[NoContent, WithStatus 422 Text]
 mintHandler :: Tokens -> AppM (Union MintApiResult)
 mintHandler tokens = handle mintErrorHandler $ do
     logMsg $ "New mint request received:" .< tokens
-    when            hasDuplicates  $ throwM DuplicateTokens
-    unlessM (liftIO hasCleanUtxos) $ throwM NoCleanUtxos
+    when     hasDuplicates  $ throwM DuplicateTokens
+    unlessM (hasCleanUtxos) $ throwM NoCleanUtxos
     ref <- getRef
     liftIO $ atomicModifyIORef ref ((,()) . (|> tokens))
     respond NoContent
@@ -83,6 +89,9 @@ newtype QueueM a = QueueM { unQueueM :: IO a }
 instance HasLogger QueueM where
     loggerFilePath = "queue.log"
 
+instance HasWallet QueueM where
+    getRestoreWallet = restoreWalletFromConf
+
 processQueue :: Ref -> IO ()
 processQueue ref = unQueueM $ do
     logMsg "Starting queue handler..."
@@ -91,12 +100,13 @@ processQueue ref = unQueueM $ do
         tokens :<| tss -> do
             liftIO $ atomicWriteIORef ref tss
             logMsg $ "New tokens to process:" .< tokens
-            processTokensWOReferencing tokens
+            processTokens tokens
 
 processTokens :: Tokens -> QueueM ()
-processTokens ts = mkTxWithConstraints 
-    [referenceServerPolicy (head $ M.keys $ ?txUtxos) $ map unToken ts]
+processTokens ts = mkTxWithConstraints @Any
+    [referenceMintingPolicyTx utxoRef bss (Plutus.sum $ map testToken bss)]
+  where
+    utxoRef :: HasTxEnv => TxOutRef
+    utxoRef = head $ M.keys $ ?txUtxos
 
-processTokensWOReferencing :: Tokens -> QueueM ()
-processTokensWOReferencing ts = mkTxWithConstraints
-    [mintWOReferencing $ map unToken ts]
+    bss = map unToken ts

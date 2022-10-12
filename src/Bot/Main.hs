@@ -14,9 +14,9 @@ import           Common.Logger             (HasLogger(..), (.<))
 import           Common.Tokens             (Token)
 import           Common.Wait               (waitTime)
 import           Data.Aeson                (encode)
-import           Data.FileEmbed            (embedFile)
-import qualified Data.ByteString.Char8     as BS8
 import           Data.String               (IsString(fromString))
+import qualified Data.Text                 as T
+import           Server.Config             (loadConfig, confServerAddress)
 import           System.Random             (randomRIO)
 import           Network.HTTP.Client       (httpLbs, defaultManagerSettings, newManager, parseRequest, Manager, Request(..), RequestBody(..))
 import           Network.HTTP.Types.Header (hContentType)
@@ -24,11 +24,12 @@ import           Network.HTTP.Types.Header (hContentType)
 main :: IO ()
 main = do
     opts <- runWithOpts
-    let serverAddress
+    let serverAddress = confServerAddress $ loadConfig
+        fullAddress
             = "http://"
-            <> BS8.unpack $(embedFile "testnet/server-address.txt")
+            <> T.unpack serverAddress
             <> "/relayRequestMint"
-    nakedRequest <- parseRequest serverAddress
+    nakedRequest <- parseRequest fullAddress
     manager <- newManager defaultManagerSettings
     unBotM $ do
         logMsg "Starting bot..."
