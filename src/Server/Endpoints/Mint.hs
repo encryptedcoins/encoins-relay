@@ -25,13 +25,15 @@ import           Common.Tokens                    (Tokens, Token(..))
 import           Common.Wait                      (waitTime)
 import           Data.Text                        (Text)
 import           Data.IORef                       (atomicWriteIORef, atomicModifyIORef, readIORef)
-import           Data.List                        (nub)
+import           Data.List                        (sort, nub)
 import qualified Data.Map                         as M
 import           Data.Sequence                    (Seq(..), (|>))
 import           GHC.TypeNats                     (Nat)
 import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
 import           Ledger                           (TxOutRef)
 import           Scripts.Constraints              (referenceMintingPolicyTx)
+-- import           Scripts.Constraints              (tokensMintedTx)
+
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), 
                                                    UVerb, Union, IsMember)
 import           Servant.API.Status               (KnownStatus)
@@ -39,6 +41,7 @@ import           Server.Config                    (restoreWalletFromConf)
 import           Server.Internal                  (AppM, Ref, getRef)
 import           Server.ServerTx                  (HasTxEnv, mkTxWithConstraints)
 
+import           Test.OnChain                     (testPolicy)
 import           Test.OffChain                    (testToken)
 import qualified PlutusTx.Prelude                 as Plutus
 import           Ledger.Typed.Scripts             (Any)
@@ -104,9 +107,10 @@ processQueue ref = unQueueM $ do
 
 processTokens :: Tokens -> QueueM ()
 processTokens ts = mkTxWithConstraints @Any
-    [referenceMintingPolicyTx utxoRef bss (Plutus.sum $ map testToken bss)]
+    [referenceMintingPolicyTx testPolicy utxoRef bss (Plutus.sum $ map testToken bss)]
+    -- [tokensMintedTx testPolicy bss (Plutus.sum $ map testToken bss)]
   where
     utxoRef :: HasTxEnv => TxOutRef
     utxoRef = head $ M.keys $ ?txUtxos
 
-    bss = map unToken ts
+    bss = sort $ map unToken ts

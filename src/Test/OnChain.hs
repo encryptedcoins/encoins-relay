@@ -45,6 +45,9 @@ testPolicyCheck bss ctx = cond1
 testPolicy :: MintingPolicy
 testPolicy = mkMintingPolicyScript $$(PlutusTx.compile [|| mkUntypedMintingPolicy testPolicyCheck ||])
 
+testPolicyV :: Versioned MintingPolicy
+testPolicyV = Versioned testPolicy PlutusV2
+
 ------------------------------------- Test Validator --------------------------------------
 
 data Testing
