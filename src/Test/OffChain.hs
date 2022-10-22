@@ -23,7 +23,7 @@ import           Types.TxConstructor                  (TxConstructor (..))
 import           Test.OnChain                         (testPolicy, testTokenName, testTypedValidator)
 
 
-type TestTransaction = TxConstructor () Any (RedeemerType Any) (DatumType Any)
+type TestTransaction = TxConstructor Any (RedeemerType Any) (DatumType Any)
 type TestTransactionBuilder = State TestTransaction ()
 
 ------------------------------------- Testing Minting Policy --------------------------------------

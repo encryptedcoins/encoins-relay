@@ -42,7 +42,7 @@ mkTxWithConstraints :: forall a m.
     , ToData   (RedeemerType a)
     , HasWallet m
     , HasLogger m
-    ) => (HasTxEnv => [State (TxConstructor () a (RedeemerType a) (DatumType a)) ()]) -> m ()
+    ) => (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()]) -> m ()
 mkTxWithConstraints txs = do
     walletAddrBech32 <- getWalletAddr
     let walletAddr = case bech32ToAddress <$> fromText walletAddrBech32 of
@@ -66,7 +66,6 @@ mkTxWithConstraints txs = do
         constrInit = mkTxConstructor 
             (walletPKH, walletSKH) 
             ct
-            ()
             utxos
         constr = fromJust $ selectTxConstructor $ map (`execState` constrInit) txs
         (lookups, cons) = fromJust $ txConstructorResult constr
