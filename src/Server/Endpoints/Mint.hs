@@ -31,9 +31,7 @@ import           Data.Sequence                    (Seq(..), (|>))
 import           GHC.TypeNats                     (Nat)
 import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
 import           Ledger                           (TxOutRef)
-import           Scripts.Constraints              (referenceMintingPolicyTx)
--- import           Scripts.Constraints              (tokensMintedTx)
-
+import           Scripts.Constraints              (tokensMintedTx)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), 
                                                    UVerb, Union, IsMember)
 import           Servant.API.Status               (KnownStatus)
@@ -107,8 +105,7 @@ processQueue ref = unQueueM $ do
 
 processTokens :: Tokens -> QueueM ()
 processTokens ts = mkTxWithConstraints @Any
-    [referenceMintingPolicyTx testPolicy utxoRef bss (Plutus.sum $ map testToken bss)]
-    -- [tokensMintedTx testPolicy bss (Plutus.sum $ map testToken bss)]
+    [tokensMintedTx testPolicy bss (Plutus.sum $ map testToken bss)]
   where
     utxoRef :: HasTxEnv => TxOutRef
     utxoRef = head $ M.keys $ ?txUtxos

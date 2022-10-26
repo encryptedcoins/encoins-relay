@@ -1,3 +1,5 @@
 dist-newstyle
 testnet/config.json
+testnet/wallet.json
+testnet/txOutRef.json
 logs/*

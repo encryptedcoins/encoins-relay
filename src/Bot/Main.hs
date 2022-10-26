@@ -24,8 +24,8 @@ import           Network.HTTP.Types.Header (hContentType)
 main :: IO ()
 main = do
     opts <- runWithOpts
-    let serverAddress = confServerAddress $ loadConfig
-        fullAddress
+    serverAddress <- confServerAddress <$> loadConfig
+    let fullAddress
             = "http://"
             <> T.unpack serverAddress
             <> "/relayRequestMint"

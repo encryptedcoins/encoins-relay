@@ -1,19 +1,22 @@
-{-# LANGUAGE DataKinds  #-}
-{-# LANGUAGE DeriveAnyClass  #-}
-{-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE DerivingStrategies   #-}
-{-# LANGUAGE DerivingVia   #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DerivingVia          #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TemplateHaskell      #-}
 
 module Server.Config where
 
-import           Data.Aeson           (eitherDecode)
-import           Data.ByteString.Lazy (fromStrict)
-import           Data.FileEmbed       (embedFile)
-import           Data.Text            (Text)
-import           Deriving.Aeson
-import           IO.Wallet            (RestoreWallet)
-import           Ledger               (TxOutRef)
+import           Control.Monad.IO.Class (MonadIO(..))
+import           Data.Aeson             (FromJSON(..), eitherDecode)
+import qualified Data.ByteString        as BS
+import           Data.ByteString.Lazy   (fromStrict)
+import           Data.FileEmbed         (embedFile)
+import           Data.Text              (Text)
+import           GHC.Generics           (Generic)
+import           IO.Wallet              (RestoreWallet)
+import           Ledger                 (TxOutRef)
 
 data Config = Config
     { confServerAddress      :: Text
@@ -21,12 +24,28 @@ data Config = Config
     , confChainIndexAddress  :: Text
     , confAdaStakingTxOutRef :: TxOutRef
     , confWallet             :: RestoreWallet
-    } deriving (Show, Generic)
-      deriving (FromJSON) via CustomJSON 
-        '[FieldLabelModifier '[StripPrefix "conf", CamelTo "_"]] Config
+    } deriving (Show)
 
-loadConfig :: Config
-loadConfig = either error id $ eitherDecode $ fromStrict $(embedFile "testnet/config.json")
+data ConfigFile = ConfigFile
+    { cfServerAddress          :: Text
+    , cfNodeAddress            :: Text
+    , cfChainIndexAddress      :: Text
+    , cfAdaStakingTxOutRefFile :: FilePath
+    , cfWalletFile             :: FilePath
+    } deriving (Show, Generic, FromJSON)
 
-restoreWalletFromConf :: Applicative m => m RestoreWallet
-restoreWalletFromConf = pure $ confWallet $ loadConfig
+loadConfig :: IO Config
+loadConfig = do
+    ConfigFile{..} <- decodeOrErrorFromFile "testnet/config.json"
+    let confServerAddress     = cfServerAddress
+        confNodeAddress       = cfNodeAddress
+        confChainIndexAddress = cfChainIndexAddress
+    confAdaStakingTxOutRef <- decodeOrErrorFromFile cfAdaStakingTxOutRefFile
+    confWallet             <- decodeOrErrorFromFile cfWalletFile
+    pure Config{..}
+  where
+    decodeOrErrorFromFile :: FromJSON a => FilePath -> IO a 
+    decodeOrErrorFromFile =  fmap (either error id . eitherDecode  . fromStrict) . BS.readFile 
+
+restoreWalletFromConf :: MonadIO m => m RestoreWallet
+restoreWalletFromConf = liftIO $ confWallet <$> loadConfig

@@ -21,9 +21,9 @@ instance HasWallet SetupM where
     getRestoreWallet = restoreWalletFromConf
 
 setupServer :: IO ()
-setupServer = unSetupM $ mkTxWithConstraints
-    [ beaconMintTx utxoRef
-    , beaconSendTx utxoRef
-    ]
-  where
-    utxoRef = confAdaStakingTxOutRef loadConfig
+setupServer = do
+    utxoRef <- confAdaStakingTxOutRef <$> loadConfig
+    unSetupM $ mkTxWithConstraints
+        [ beaconMintTx utxoRef
+        , beaconSendTx utxoRef
+        ]
