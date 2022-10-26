@@ -6,12 +6,12 @@ packages: ./.
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-common.git
-  tag: af34e25a422cbf4228b66c9f5c72fa72b95788d1
+  tag: 419faf4faf3fc0dcfc4af48cb0a96c7ff34a6171
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 65955d4fdc57a8f78228752e4281abdea5e5c7ac
+  tag: 4c9ab4433d25b6857f0d053043b6685ac6a08f5e
 
 source-repository-package
   type: git

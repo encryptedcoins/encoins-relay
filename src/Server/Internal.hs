@@ -1,35 +1,49 @@
 {-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Server.Internal where
 
-import Common.Logger          (HasLogger(..))
-import Common.Tokens          (Tokens)
-import Control.Monad.Catch    (MonadThrow, MonadCatch)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader   (ReaderT(ReaderT), MonadReader, asks)
-import Data.IORef             (IORef)
-import Data.Sequence          (Seq)
-import IO.Wallet              (HasWallet(..))
-import Servant                (Handler)
-import Server.Config          (restoreWalletFromConf)
+import Common.Logger                   (HasLogger(..))
+import Control.Monad.Catch             (MonadThrow, MonadCatch)
+import Control.Monad.IO.Class          (MonadIO)
+import Control.Monad.Reader            (ReaderT(ReaderT), MonadReader, asks)
+import Data.IORef                      (IORef)
+import Data.Sequence                   (Seq)
+import ENCOINS.Core.Bulletproofs.Types (Inputs)
+import IO.Wallet                       (HasWallet(..), RestoreWallet)
+import Ledger                          (TxOutRef)
+import Servant                         (Handler)
 
 newtype AppM a = AppM { unAppM :: ReaderT Env Handler a }
-    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadThrow, MonadCatch)
+    deriving newtype 
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadIO
+        , MonadReader Env
+        , HasWallet
+        , MonadThrow
+        , MonadCatch
+        )
 
 instance HasLogger AppM where
     loggerFilePath = "server.log"
 
-instance HasWallet AppM where
-    getRestoreWallet = restoreWalletFromConf
+instance (Monad m, MonadIO m) => HasWallet (ReaderT Env m) where
+    getRestoreWallet = asks envWallet
 
-type Queue = Seq Tokens
+type Queue = Seq Inputs
 
-type Ref = IORef Queue
+type QueueRef = IORef Queue
 
-newtype Env = Env
-    { envRef :: Ref
+data Env = Env
+    { envQueueRef   :: QueueRef
+    , envBeaconRef  :: TxOutRef
+    , envWallet     :: RestoreWallet
     }
 
-getRef :: AppM Ref
-getRef = asks envRef
+getQueueRef :: AppM QueueRef
+getQueueRef = asks envQueueRef

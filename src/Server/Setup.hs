@@ -1,13 +1,14 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams             #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module Server.Setup where
 
 import           Common.Logger          (HasLogger(..))
 import           Control.Monad.IO.Class (MonadIO)
 import           ENCOINS.Core.OffChain  (beaconMintTx, beaconSendTx)
-import           Server.Config          (loadConfig, Config(..), restoreWalletFromConf)
+import           Server.Config          (Config(..), loadRestoreWallet)
 import           Server.ServerTx        (mkTxWithConstraints)
 import           IO.Wallet              (HasWallet(..))
 
@@ -18,12 +19,10 @@ instance HasLogger SetupM where
     loggerFilePath = "server.log"
 
 instance HasWallet SetupM where
-    getRestoreWallet = restoreWalletFromConf
+    getRestoreWallet = loadRestoreWallet
 
-setupServer :: IO ()
-setupServer = do
-    utxoRef <- confAdaStakingTxOutRef <$> loadConfig
-    unSetupM $ mkTxWithConstraints
-        [ beaconMintTx utxoRef
-        , beaconSendTx utxoRef
-        ]
+setupServer :: Config -> IO ()
+setupServer Config{..} = unSetupM $ mkTxWithConstraints
+    [ beaconMintTx confBeaconTxOutRef
+    , beaconSendTx confBeaconTxOutRef
+    ]

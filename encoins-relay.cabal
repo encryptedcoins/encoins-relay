@@ -29,13 +29,13 @@ common lang
 library
     import: lang
     exposed-modules:
-      App
+      Test.Encoins
+      Test.Reference
       Bot.Main
       Server.Main
     other-modules:
       Bot.Opts
       Common.Logger
-      Common.Tokens
       Common.Wait
       Server.Config
       Server.Endpoints.Mint 
@@ -44,8 +44,8 @@ library
       Server.Opts
       Server.Setup
       Server.ServerTx
-      Test.OnChain
-      Test.OffChain
+      Test.Reference.OnChain
+      Test.Reference.OffChain
     default-extensions:
       PartialTypeSignatures
     build-depends:
@@ -53,6 +53,7 @@ library
       base16-bytestring                      -any,
       base64                                 -any,
       aeson                                  -any,
+      aeson-casing                           -any,
       bytestring                             -any,
       cardano-api                            -any,
       cardano-ledger-alonzo                  -any,

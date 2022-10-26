@@ -6,6 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams             #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE NumericUnderscores         #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -16,50 +17,44 @@
 
 module Server.Endpoints.Mint where
 
-import           Control.Monad                    (when)
 import           Control.Monad.Catch              (Exception, handle, throwM)
-import           Control.Monad.Extra              (forever, unlessM)
-import           Control.Monad.IO.Class           (MonadIO(..))
+import           Control.Monad.Extra              (unlessM)
+import           Control.Monad.Reader
 import           Common.Logger                    (HasLogger(..), (.<))
-import           Common.Tokens                    (Tokens, Token(..))
 import           Common.Wait                      (waitTime)
 import           Data.Text                        (Text)
 import           Data.IORef                       (atomicWriteIORef, atomicModifyIORef, readIORef)
-import           Data.List                        (sort, nub)
-import qualified Data.Map                         as M
+import           Data.List                        (nub)
 import           Data.Sequence                    (Seq(..), (|>))
+import           ENCOINS.Core.Bulletproofs.Types
+import           ENCOINS.Core.OffChain
 import           GHC.TypeNats                     (Nat)
 import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
-import           Ledger                           (TxOutRef)
-import           Scripts.Constraints              (tokensMintedTx)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), 
                                                    UVerb, Union, IsMember)
 import           Servant.API.Status               (KnownStatus)
-import           Server.Config                    (restoreWalletFromConf)
-import           Server.Internal                  (AppM, Ref, getRef)
-import           Server.ServerTx                  (HasTxEnv, mkTxWithConstraints)
-
-import           Test.OnChain                     (testPolicy)
-import           Test.OffChain                    (testToken)
-import qualified PlutusTx.Prelude                 as Plutus
+import           Server.Internal                  (AppM, Env(..), getQueueRef)
+import           Server.ServerTx                  (mkTxWithConstraints)
 import           Ledger.Typed.Scripts             (Any)
 
 type MintApi = "relayRequestMint"
-            :> ReqBody '[JSON] Tokens
+            :> ReqBody '[JSON] Inputs
             :> UVerb 'POST '[JSON] MintApiResult
 
 type MintApiResult = '[NoContent, WithStatus 422 Text]
 
-mintHandler :: Tokens -> AppM (Union MintApiResult)
-mintHandler tokens = handle mintErrorHandler $ do
-    logMsg $ "New mint request received:" .< tokens
+mintHandler :: Inputs -> AppM (Union MintApiResult)
+mintHandler inputs = handle mintErrorHandler $ do
+    logMsg $ "New mint request received:" .< inputs
     when     hasDuplicates  $ throwM DuplicateTokens
     unlessM (hasCleanUtxos) $ throwM NoCleanUtxos
-    ref <- getRef
-    liftIO $ atomicModifyIORef ref ((,()) . (|> tokens))
+    ref <- getQueueRef
+    liftIO $ atomicModifyIORef ref ((,()) . (|> inputs))
     respond NoContent
   where
-    hasDuplicates = length (nub tokens) /= length tokens
+    hasDuplicates = 
+        let tokens = map inputCommit inputs
+        in  length (nub tokens) /= length tokens
 
 data MintError 
     = DuplicateTokens
@@ -84,30 +79,31 @@ mintErrorHandler = \case
         logMsg msg
         respond (WithStatus @s msg)
 
-newtype QueueM a = QueueM { unQueueM :: IO a }
-    deriving newtype (Functor, Applicative, Monad, MonadIO)
+newtype QueueM a = QueueM { unQueueM :: ReaderT Env IO a }
+    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Env, HasWallet)
 
 instance HasLogger QueueM where
     loggerFilePath = "queue.log"
 
-instance HasWallet QueueM where
-    getRestoreWallet = restoreWalletFromConf
+runQueueM :: Env -> QueueM () -> IO ()
+runQueueM env = flip runReaderT env . unQueueM
 
-processQueue :: Ref -> IO ()
-processQueue ref = unQueueM $ do
+processQueue :: Env -> IO ()
+processQueue env = runQueueM env $ do
     logMsg "Starting queue handler..."
-    forever $ liftIO (readIORef ref) >>= \case
+    qRef <- asks envQueueRef
+    forever $ liftIO (readIORef qRef) >>= \case
         Empty          -> logMsg "No new tokens to process." >> waitTime 3
-        tokens :<| tss -> do
-            liftIO $ atomicWriteIORef ref tss
-            logMsg $ "New tokens to process:" .< tokens
-            processTokens tokens
+        inputs :<| iss -> do
+            liftIO $ atomicWriteIORef qRef iss
+            logMsg $ "New tokens to process:" .< inputs
+            processTokens inputs
 
-processTokens :: Tokens -> QueueM ()
-processTokens ts = mkTxWithConstraints @Any
-    [tokensMintedTx testPolicy bss (Plutus.sum $ map testToken bss)]
-  where
-    utxoRef :: HasTxEnv => TxOutRef
-    utxoRef = head $ M.keys $ ?txUtxos
-
-    bss = sort $ map unToken ts
+processTokens :: Inputs -> QueueM ()
+processTokens inputs = do
+    envBeaconRef <- asks envBeaconRef
+    mkTxWithConstraints @Any $ 
+        let encoinsParams = encoinsSymbol $ beaconCurrencySymbol envBeaconRef
+            txParams = (2_000_000, ?txWalletAddr, ?txWalletPKH, (?txCt, ?txCt + 180))
+            encoinsRedeemer = (txParams, inputs, error "proof")
+        in [encoinsTx encoinsParams encoinsRedeemer]

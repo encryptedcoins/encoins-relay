@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
 
-module Test.OnChain where
+module Test.Reference.OnChain where
 
 import           Cardano.Ledger.Alonzo.Language       (Language(PlutusV2))
 import           Ledger                               (Versioned(..), Validator)
