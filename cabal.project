@@ -11,7 +11,12 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 9baf66a67e38fec9f007168260e31ec9f7e052da
+  tag: 65955d4fdc57a8f78228752e4281abdea5e5c7ac
+
+source-repository-package
+  type: git
+  location: https://github.com/cardmix/Cardano-Mixer-Lib.git
+  tag: 0ed2669eb917812e7b751ef580a01f71b8222fe9
 
 source-repository-package
   type: git
