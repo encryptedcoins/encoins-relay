@@ -41,7 +41,7 @@ logMsgIO msg fileName = handle (handler msg fileName) $ do
     utcTime <- Time.getCurrentTime
     let localTime = Time.addUTCTime (10800 :: Time.NominalDiffTime) utcTime
         asctime = Time.formatTime Time.defaultTimeLocale "%a %b %d %H:%M:%S %Y" localTime
-        msg' = T.pack asctime <> " " <> "\n" <> msg <> "\n\n"
+        msg' = "\n" <> T.pack asctime <> " " <> "\n" <> msg <> "\n"
     T.putStrLn msg'
     T.appendFile (mkFullPath fileName) msg'
 

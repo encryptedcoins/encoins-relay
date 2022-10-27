@@ -19,6 +19,7 @@ import           Common.Logger                   (HasLogger(..), (.<))
 import           Common.Wait                     (waitTime)
 import           Data.Aeson                      (encode)
 import           Data.Functor                    ((<&>))
+import           Data.Maybe                      (fromJust)
 import           Data.String                     (IsString(fromString))
 import qualified Data.Text                       as T
 import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), toGroupElement)
@@ -70,7 +71,7 @@ genToken = liftIO $ do
     len <- randomRIO @Int (1, 8)
     let chars = ['0'..'9'] <> ['A'..'Z'] <> ['a'..'z']
     str <- replicateM len $ (chars !!) <$> randomRIO @Int  (0, length chars - 1)
-    let inputCommit = toGroupElement $ fromString str
+    let inputCommit = fromJust $ toGroupElement $ fromString str
     inputPolarity <- genPolarity
     pure Input{..}
 

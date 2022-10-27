@@ -56,5 +56,5 @@ encoinsMintTest :: IO ()
 encoinsMintTest = do
     Config{..} <- loadConfig
     let env = Env undefined confBeaconTxOutRef confWallet
-        inputs = [Input (toGroupElement $ fromString $ replicate 512 'A' ) Mint]
+        inputs = [Input (fromJust $ toGroupElement $ fromString $ "aaaa") Mint]
     runQueueM env $ processTokens inputs

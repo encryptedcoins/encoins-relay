@@ -6,16 +6,16 @@
 
 module Test.Reference where
 
-import qualified Data.Map              as M
-import qualified Ledger.Ada            as Ada
-import           Ledger.Typed.Scripts  (Any)
-import           PlutusTx.Prelude      (emptyByteString)
-import           Scripts.Constraints   (postMintingPolicyTx, referenceMintingPolicyTx)
-import           Server.Config         (loadRestoreWallet)
-import           Server.ServerTx       (mkTxWithConstraints)
-import           Test.Reference.OffChain         (testMintTx, testToken)
-import           Test.Reference.OnChain          (testPolicyV, testPolicy)
-import           IO.Wallet             (HasWallet(..))
+import qualified Data.Map                as M
+import qualified Ledger.Ada              as Ada
+import           Ledger.Typed.Scripts    (Any)
+import           PlutusTx.Prelude        (emptyByteString)
+import           Scripts.Constraints     (postMintingPolicyTx, referenceMintingPolicyTx)
+import           Server.Config           (loadRestoreWallet)
+import           Server.ServerTx         (mkTxWithConstraints)
+import           Test.Reference.OffChain (testMintTx, testToken)
+import           Test.Reference.OnChain  (testPolicyV, testPolicy)
+import           IO.Wallet               (HasWallet(..))
 import qualified PlutusTx.Prelude as Plutus
 
 instance HasWallet IO where
@@ -30,7 +30,7 @@ postReferenceScript = do
         [ postMintingPolicyTx 
             ?txWalletAddr 
             testPolicyV 
-            (Nothing :: Maybe ()) 
+            (Nothing :: Maybe ())
             (Ada.adaValueOf 20)
         ]
 

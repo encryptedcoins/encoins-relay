@@ -18,7 +18,7 @@ import Ledger                          (TxOutRef)
 import Servant                         (Handler)
 
 newtype AppM a = AppM { unAppM :: ReaderT Env Handler a }
-    deriving newtype 
+    deriving newtype
         ( Functor
         , Applicative
         , Monad
