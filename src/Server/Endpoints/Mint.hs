@@ -18,8 +18,9 @@
 module Server.Endpoints.Mint where
 
 import           Control.Monad.Catch              (Exception, handle, throwM)
-import           Control.Monad.Extra              (unlessM)
-import           Control.Monad.Reader
+import           Control.Monad.Extra              (forever, unlessM, when)
+import           Control.Monad.IO.Class           (MonadIO(..))
+import           Control.Monad.Reader             (ReaderT(..), MonadReader, asks)
 import           Common.Logger                    (HasLogger(..), (.<))
 import           Common.Wait                      (waitTime)
 import           Data.Text                        (Text)
@@ -38,10 +39,7 @@ import           Servant                          (NoContent(..), JSON, (:>), Re
 import           Servant.API.Status               (KnownStatus)
 import           Server.Internal                  (AppM, Env(..), getQueueRef)
 import           Server.ServerTx                  (mkTxWithConstraints)
-import           Ledger                           (PaymentPubKeyHash(..))
 import           Ledger.Typed.Scripts             (Any)
-
-
 
 type MintApi = "relayRequestMint"
             :> ReqBody '[JSON] Inputs
@@ -110,10 +108,9 @@ processTokens inputs = do
     envBeaconRef <- asks envBeaconRef
     mkTxWithConstraints @Any $ 
         let encoinsParams = encoinsSymbol $ beaconCurrencySymbol envBeaconRef
-            txParams  = (-2_000_000, ?txWalletAddr, ?txWalletPKH, (?txCt, ?txCt + 1_000_000_000))
+            txParams  = (-2_000_000, ?txWalletAddr, ?txWalletPKH, (?txCt, ?txCt + 10_000_000_000))
             dummyFE   = toFieldElement 100
             dummyGE   = fromJust $ toGroupElement $ fromString $ "aaaa"
             dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE dummyFE [dummyFE] [dummyFE]
             encoinsRedeemer = (txParams, inputs, dummyProof)
-            ppkh = PaymentPubKeyHash ?txWalletPKH
-        in [encoinsTx encoinsParams encoinsRedeemer ppkh]
+        in [encoinsTx encoinsParams encoinsRedeemer]
