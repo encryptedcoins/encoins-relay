@@ -18,7 +18,6 @@ import           Data.Default              (Default(..))
 import           Data.FileEmbed            (embedFile)
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromJust)
-import           Data.Text.Class           (FromText(fromText))
 import           Ledger                    (Address, ChainIndexTxOut, Params(..), POSIXTime, PubKeyHash, TxOutRef, unPaymentPubKeyHash)
 import           PlutusTx                  (FromData(..), ToData(..))
 import           Plutus.ChainIndex         (ChainIndexTx)
@@ -27,7 +26,6 @@ import           IO.ChainIndex             (getUtxosAt)
 import           IO.Time                   (currentTime)
 import           IO.Wallet                 (HasWallet(..), signTx, balanceTx, submitTxConfirmed, getWalletAddr, getWalletAddrBech32, getWalletKeyHashes)
 import           Types.TxConstructor       (TxConstructor (..), selectTxConstructor, mkTxConstructor)
-import           Utils.Address             (bech32ToKeyHashes, bech32ToAddress)
 
 type HasTxEnv = 
     ( ?txWalletAddr :: Address
