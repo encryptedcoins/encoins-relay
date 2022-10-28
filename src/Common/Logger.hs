@@ -31,10 +31,10 @@ instance HasLogger IO where
     logMsg = T.putStrLn
 
 logSmth :: forall a m. (HasLogger m, Show a) => a -> m ()
-logSmth a = liftIO $ logMsg $ T.pack $ show a
+logSmth a = logMsg $ T.pack $ show a
 
 logPretty :: forall a m. (HasLogger m, Pretty a) => a -> m ()
-logPretty a = liftIO $ logMsg $ T.pack $ show $ pretty a
+logPretty a = logMsg $ T.pack $ show $ pretty a
 
 logMsgIO :: Text -> FilePath -> IO ()
 logMsgIO msg fileName = handle (handler msg fileName) $ do
