@@ -108,9 +108,13 @@ processTokens inputs = do
     envBeaconRef <- asks envBeaconRef
     mkTxWithConstraints @Any $ 
         let encoinsParams = encoinsSymbol $ beaconCurrencySymbol envBeaconRef
-            txParams  = (-2_000_000, ?txWalletAddr, ?txWalletPKH, (?txCt, ?txCt + 10_000_000_000))
+            txParams  = ( 2_000_000
+                        , ?txWalletAddr
+                        , ?txWalletPKH
+                        , (0, ?txCt + 1_889_863_000)
+                        )
             dummyFE   = toFieldElement 100
-            dummyGE   = fromJust $ toGroupElement $ fromString $ "aaaa"
+            dummyGE   = fromJust $ toGroupElement $ fromString "aaaa"
             dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE dummyFE [dummyFE] [dummyFE]
             encoinsRedeemer = (txParams, inputs, dummyProof)
         in [encoinsTx encoinsParams encoinsRedeemer]
