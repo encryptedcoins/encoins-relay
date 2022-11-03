@@ -11,23 +11,28 @@ module Test.Encoins where
 
 import           Cardano.Api.Shelley             (NetworkMagic(..), NetworkId(..))
 import           Common.Logger                   (logPretty)
+import           Control.Monad                   (forM_, when)
 import           Data.Aeson                      (decode)
 import           Data.ByteString.Lazy            (fromStrict)
 import           Data.Default                    (def)
 import           Data.FileEmbed                  (embedFile)
 import           Data.Maybe                      (fromJust)
 import           Data.String                     (fromString)
+import           Data.Text                       (Text)
 import           Data.Text.Class                 (FromText(fromText))
 import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), toGroupElement)
 import           ENCOINS.Core.Bulletproofs.Types (Input(..))
-import           ENCOINS.Core.OffChain           (beaconMintTx, beaconSendTx)
+import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx)
 import           Ledger                          (Params(..))
 import           Server.Config                   (Config(..), loadConfig, loadRestoreWallet)
+import           Server.Endpoints.Balance        (Balance(..), getBalance)
 import           Server.Endpoints.Mint           (processTokens, runQueueM)
 import           Server.Internal                 (Env(..))
 import           Server.ServerTx                 (mkTxWithConstraints)
-import           IO.Wallet                       (HasWallet(..), getWalletAddrBech32, getWalletTxOutRefs)
-import           Utils.Address                   (bech32ToKeyHashes)
+import           IO.Wallet                       (HasWallet(..), getWalletAddrBech32, getWalletTxOutRefs, ownAddresses)
+import           Utils.Address                   (bech32ToAddress, bech32ToKeyHashes)
+
+
 
 instance HasWallet IO where
     getRestoreWallet = loadRestoreWallet
@@ -58,3 +63,22 @@ encoinsMintTest = do
     let env = Env undefined confBeaconTxOutRef confWallet
         inputs = [Input (fromJust $ toGroupElement $ fromString $ "aaaa") Mint]
     runQueueM env $ processTokens inputs
+
+balanceTest :: Text -> IO ()
+balanceTest addrBech32 = do
+    Config{..} <- loadConfig
+    let bcs = beaconCurrencySymbol confBeaconTxOutRef
+        addr = fromJust $ bech32ToAddress addrBech32
+    getBalance bcs addr >>= \(Balance b) -> print b
+
+balanceTestAll :: IO ()
+balanceTestAll = do 
+    Config{..} <- loadConfig
+    let bcs = beaconCurrencySymbol confBeaconTxOutRef
+    as <- ownAddresses
+    forM_ as $ \a -> do
+        let addr = fromJust $ bech32ToAddress a
+        Balance res <- getBalance bcs addr
+        when (not $ null res) $ do
+            print a
+            print res

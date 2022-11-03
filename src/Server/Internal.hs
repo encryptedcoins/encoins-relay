@@ -1,7 +1,13 @@
+{-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
 module Server.Internal where
@@ -12,10 +18,14 @@ import Control.Monad.IO.Class          (MonadIO)
 import Control.Monad.Reader            (ReaderT(ReaderT), MonadReader, asks)
 import Data.IORef                      (IORef)
 import Data.Sequence                   (Seq)
+import Data.Text                       (Text)
 import ENCOINS.Core.Bulletproofs.Types (Inputs)
+import GHC.TypeNats                    (Nat)
 import IO.Wallet                       (HasWallet(..), RestoreWallet)
 import Ledger                          (TxOutRef)
-import Servant                         (Handler)
+import Servant                         (NoContent(..), JSON, (:>), Handler, ReqBody, respond, WithStatus(..), StdMethod(POST), 
+                                        UVerb, Union, IsMember)
+import Servant.API.Status              (KnownStatus)
 
 newtype AppM a = AppM { unAppM :: ReaderT Env Handler a }
     deriving newtype
@@ -47,3 +57,11 @@ data Env = Env
 
 getQueueRef :: AppM QueueRef
 getQueueRef = asks envQueueRef
+
+respondWithStatus :: forall (s :: Nat) res. 
+    ( IsMember (WithStatus s Text) res
+    , KnownStatus s
+    ) => Text -> AppM (Union res)
+respondWithStatus msg = do
+    logMsg msg
+    respond (WithStatus @s msg)

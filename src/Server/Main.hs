@@ -20,6 +20,7 @@ import           Servant                  (Proxy(..), type (:<|>)(..), HasServer
                                            Handler(runHandler'), Application)
 import           Server.Config            (Config(..), loadConfig)
 import           Server.Internal          (Env(Env), AppM(unAppM))
+import           Server.Endpoints.Balance (BalanceApi, balanceHandler)
 import           Server.Endpoints.Mint    (MintApi, mintHandler, processQueue)
 import           Server.Endpoints.Ping    (PingApi, pingHandler)
 import           Server.Opts              (runWithOpts, Options(..), ServerMode(..))
@@ -29,9 +30,12 @@ import           System.IO                (stdout, BufferMode(LineBuffering), hS
 type ServerAPI
     =    PingApi
     :<|> MintApi
+    :<|> BalanceApi
 
 server :: ServerT ServerAPI AppM
-server =  pingHandler :<|> mintHandler
+server = pingHandler
+    :<|> mintHandler
+    :<|> balanceHandler
 
 serverAPI :: Proxy ServerAPI
 serverAPI = Proxy

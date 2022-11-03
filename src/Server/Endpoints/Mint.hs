@@ -31,13 +31,11 @@ import           Data.Sequence                    (Seq(..), (|>))
 import           Data.String                      (fromString)
 import           ENCOINS.Core.BaseTypes           (toFieldElement, toGroupElement)
 import           ENCOINS.Core.Bulletproofs.Types  (Inputs, Input(..), Proof(..))
-import           ENCOINS.Core.OffChain            (beaconCurrencySymbol, encoinsSymbol, encoinsTx)
-import           GHC.TypeNats                     (Nat)
+import           ENCOINS.Core.OffChain            (beaconCurrencySymbol, encoinsTx)
 import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), 
-                                                   UVerb, Union, IsMember)
-import           Servant.API.Status               (KnownStatus)
-import           Server.Internal                  (AppM, Env(..), getQueueRef)
+                                                   UVerb, Union)
+import           Server.Internal                  (AppM, Env(..), getQueueRef, respondWithStatus)
 import           Server.ServerTx                  (mkTxWithConstraints)
 import           Ledger.Typed.Scripts             (Any)
 
@@ -74,14 +72,6 @@ mintErrorHandler = \case
     NoCleanUtxos -> respondWithStatus @422 
         "Balance of pure ada UTxOs in your wallet insufficient to cover \
         \the minimum amount of collateral reuqired."
-  where 
-    respondWithStatus :: forall (s :: Nat). 
-        ( IsMember (WithStatus s Text) MintApiResult
-        , KnownStatus s
-        ) => Text -> AppM (Union MintApiResult)
-    respondWithStatus msg = do
-        logMsg msg
-        respond (WithStatus @s msg)
 
 newtype QueueM a = QueueM { unQueueM :: ReaderT Env IO a }
     deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Env, HasWallet)
@@ -107,11 +97,11 @@ processTokens :: Inputs -> QueueM ()
 processTokens inputs = do
     envBeaconRef <- asks envBeaconRef
     mkTxWithConstraints @Any $ 
-        let encoinsParams = encoinsSymbol $ beaconCurrencySymbol envBeaconRef
+        let encoinsParams = beaconCurrencySymbol envBeaconRef
             txParams  = ( 2_000_000
                         , ?txWalletAddr
                         , ?txWalletPKH
-                        , (0, ?txCt + 1_889_863_000)
+                        , (0, ?txCt + 1_849_863_000)
                         )
             dummyFE   = toFieldElement 100
             dummyGE   = fromJust $ toGroupElement $ fromString "aaaa"

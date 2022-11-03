@@ -38,6 +38,7 @@ library
       Common.Logger
       Common.Wait
       Server.Config
+      Server.Endpoints.Balance 
       Server.Endpoints.Mint 
       Server.Endpoints.Ping
       Server.Internal
