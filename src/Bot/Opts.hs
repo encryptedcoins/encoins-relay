@@ -6,8 +6,7 @@ import Control.Applicative             (some, (<|>))
 import Control.Monad.Reader            (ask)
 import Data.Maybe                      (fromMaybe)
 import Data.String                     (IsString(..))
-import ENCOINS.Core.BaseTypes          (MintingPolarity(..), GroupElement, toGroupElement)
-import ENCOINS.Core.Bulletproofs.Types (Inputs, Input(..))
+import Ledger.Ada                      (Ada(..))
 import Options.Applicative             (Parser, (<**>), auto, fullDesc, help, info, long, option, short, value, execParser, 
                                         helper, Mod, OptionFields, flag')
 import Options.Applicative.Types       (ReadM(..))
@@ -22,7 +21,7 @@ newtype Options = Options { mode :: BotMode } deriving Show
 
 data BotMode 
     = Auto   AutoOptions
-    | Manual Inputs 
+    | Manual BotRequest
     deriving Show
 
 --------------------------------------------- Auto ---------------------------------------------
@@ -61,31 +60,30 @@ maxTokensParser = option auto
 
 -------------------------------------------- Manual --------------------------------------------
 
--- Usage: --manual --mint abc123 --mint ff22 --burn 4b917
+-- Usage: --manual --mint 154 --mint 16 --burn 13af.json
+
+type BotRequest = [RequestPiece]
+
+data RequestPiece
+    = RPMint Ada
+    | RPBurn FilePath
+    deriving (Show, Eq)
 
 manualModeParser :: Parser BotMode
 manualModeParser = flag' Manual (long "manual")
                <*> some (mintParser <|> burnParser)
 
-mintParser :: Parser Input
-mintParser = mkInput Mint 
+mintParser :: Parser RequestPiece
+mintParser = RPMint . Lovelace <$> option auto
     (  long "mint"
     <> help "Token name to mint."
     )
 
-burnParser :: Parser Input
-burnParser = mkInput Burn
+burnParser :: Parser RequestPiece
+burnParser = RPBurn <$> option withoutQuotes
     (  long "burn"
     <> help "Token name to burn."
     )
-
-mkInput :: MintingPolarity -> Mod OptionFields String -> Parser Input
-mkInput polarity = fmap ((`Input` polarity) . parseGroupElement) . option withoutQuotes
-
-parseGroupElement :: String -> GroupElement
-parseGroupElement s = fromMaybe err $ toGroupElement $ fromString s
-  where
-    err = error $ "Incorrect token name: " <> s
 
 withoutQuotes :: ReadM String
 withoutQuotes = ReadM $ ask >>= pure

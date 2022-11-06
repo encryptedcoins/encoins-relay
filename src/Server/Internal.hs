@@ -19,7 +19,7 @@ import Control.Monad.Reader            (ReaderT(ReaderT), MonadReader, asks)
 import Data.IORef                      (IORef)
 import Data.Sequence                   (Seq)
 import Data.Text                       (Text)
-import ENCOINS.Core.Bulletproofs.Types (Inputs)
+import ENCOINS.Core.OnChain            (EncoinsRedeemer)
 import GHC.TypeNats                    (Nat)
 import IO.Wallet                       (HasWallet(..), RestoreWallet)
 import Ledger                          (TxOutRef)
@@ -45,7 +45,7 @@ instance HasLogger AppM where
 instance (Monad m, MonadIO m) => HasWallet (ReaderT Env m) where
     getRestoreWallet = asks envWallet
 
-type Queue = Seq Inputs
+type Queue = Seq EncoinsRedeemer
 
 type QueueRef = IORef Queue
 

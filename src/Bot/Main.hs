@@ -10,72 +10,152 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 
-module Bot.Main (main) where
+module Bot.Main where
 
-import           Bot.Opts                        (runWithOpts, Options(..), BotMode(..), AutoOptions(..))
-import           Control.Monad                   (forever, replicateM)
-import           Control.Monad.IO.Class          (MonadIO(..))
-import           Common.Logger                   (HasLogger(..), (.<))
+import           Bot.Opts                        (runWithOpts, Options(..), BotMode(..), AutoOptions(..), BotRequest,
+                                                  RequestPiece(..), Maximum)
+import           Control.Monad.Extra             (whenM)
+import           Control.Monad.Reader
+import           Common.Logger                   (HasLogger(..), (.<), logSmth)
 import           Common.Wait                     (waitTime)
-import           Data.Aeson                      (encode)
+import           Data.Aeson                      (encode, decode)
+import           Data.Aeson.Text                 (encodeToLazyText)
+import qualified Data.ByteString.Lazy            as LBS
 import           Data.Functor                    ((<&>))
-import           Data.Maybe                      (fromJust)
+import           Data.List                       (nub)
+import           Data.Maybe                      (catMaybes, fromJust)
 import           Data.String                     (IsString(fromString))
 import qualified Data.Text                       as T
-import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), toGroupElement)
-import           ENCOINS.Core.Bulletproofs.Types (Inputs, Input(..))
-import           Server.Config                   (loadConfig, confServerAddress)
-import           System.Random                   (randomRIO, randomIO)
-import           Network.HTTP.Client             (httpLbs, defaultManagerSettings, newManager, parseRequest, 
-                                                  Manager, Request(..), RequestBody(..))
+import           Data.Text.Lazy.IO               as T
+import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), GroupElement, toGroupElement, toFieldElement)
+import           ENCOINS.Core.Bulletproofs.Types (Inputs, Input(..), Secret(..), Proof(..))
+import           ENCOINS.Core.Bulletproofs.Prove (fromSecret)
+import           ENCOINS.Core.OnChain            (EncoinsRedeemer, bulletproofSetup)
+import           IO.Time                         (currentTime)
+import           IO.Wallet                       (HasWallet(..), RestoreWallet, getWalletAddr, getWalletKeyHashes)
+import           Ledger                          (TxOutRef, unPaymentPubKeyHash)
+import           Ledger.Ada                      (Ada(..), lovelaceOf)
+import           Network.HTTP.Client             (httpLbs, defaultManagerSettings, newManager, parseRequest,
+                                                  Manager, Request(..), RequestBody(..), responseStatus)
 import           Network.HTTP.Types.Header       (hContentType)
+import           Network.HTTP.Types.Status       (status204)
+import           PlutusTx.Builtins.Class         (stringToBuiltinByteString)
+import qualified Server.Config                   as Server
+import           System.Directory                (createDirectoryIfMissing, doesFileExist, getDirectoryContents,
+                                                  listDirectory, removeFile)
+import           System.Random                   (randomRIO, randomIO)
+import           Test.QuickCheck                 (arbitrary, generate)
 
 main :: IO ()
 main = do
-    Options{..} <- runWithOpts
-    serverAddress <- confServerAddress <$> loadConfig
+    Options{..}       <- runWithOpts
+    Server.Config{..} <- Server.loadConfig
+    createDirectoryIfMissing False "secrets"
     let fullAddress = "http://"
-                   <> T.unpack serverAddress
+                   <> T.unpack confServerAddress
                    <> "/relayRequestMint"
     nakedRequest <- parseRequest fullAddress
     manager <- newManager defaultManagerSettings
-    unBotM $ logMsg "Starting bot..." >> case mode of
-        Manual tokens        -> mkRequest tokens nakedRequest manager
+    let env = Env confBeaconTxOutRef confWallet
+        mkRequest' = mkRequest nakedRequest manager
+    runBotM env $ logMsg "Starting bot..." >> case mode of
+        Manual br            -> mkRequest' br
         Auto AutoOptions{..} -> forever $ do
-            tokens <- genTokens maxTokensInReq
-            mkRequest tokens nakedRequest manager
+            br <- genRequest maxTokensInReq
+            mkRequest' br
             waitTime =<< randomRIO (1, averageRequestInterval * 2)
 
-newtype BotM a = BotM { unBotM :: IO a }
-    deriving newtype (Functor, Applicative, Monad, MonadIO)
+newtype BotM a = BotM { unBotM :: ReaderT Env IO a }
+    deriving newtype (Functor, Applicative, Monad, MonadReader Env, MonadIO)
+
+runBotM :: Env -> BotM a -> IO a
+runBotM env = flip runReaderT env . unBotM
+
+data Env = Env
+    { envBeaconRef :: TxOutRef
+    , envWallet    :: RestoreWallet
+    }
 
 instance HasLogger BotM where
     loggerFilePath = "bot.log"
 
-mkRequest :: Inputs -> Request -> Manager -> BotM ()
-mkRequest tokens nakedReq manager = do
-    let body = RequestBodyLBS $ encode tokens
-        req = nakedReq
+instance HasWallet BotM where
+    getRestoreWallet = asks envWallet
+
+mkRequest :: Request -> Manager -> BotRequest -> BotM ()
+mkRequest nakedReq manager botReq = do
+    logMsg $ "New tokens to send:\n" .< botReq
+    (fileWork, val, inputs)  <- sequence . catMaybes <$> traverse processPiece botReq
+    body <- RequestBodyLBS . encode <$> mkRedeemer inputs val
+    let req = nakedReq
             { method = "POST"
             , requestBody = body
-            , requestHeaders = [(hContentType,"application/json")]
+            , requestHeaders = [(hContentType, "application/json")]
             }
     resp <- liftIO $ httpLbs req manager
     logMsg $ "Received response:" .< resp
+    when (successful resp) $ liftIO fileWork
+  where
+    successful = (== status204) . responseStatus
 
-genTokens :: MonadIO m => Int -> m Inputs
-genTokens ub = liftIO $ randomRIO (1, ub) >>= flip replicateM genToken
+mkRedeemer :: Inputs -> Ada -> BotM EncoinsRedeemer
+mkRedeemer inputs val = do
+    ct             <- liftIO currentTime
+    walletAddr     <- getWalletAddr
+    (walletPKH, _) <- getWalletKeyHashes
+    let txParams = ( getLovelace val
+                   , walletAddr
+                   , unPaymentPubKeyHash walletPKH
+                   , (0, ct + 1_889_863_000)
+                   )
+        dummyFE    = toFieldElement 200
+        dummyGE    = fromJust $ toGroupElement $ fromString "aaaa"
+        dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE dummyFE [dummyFE] [dummyFE]
+    pure (txParams, inputs, dummyProof)
 
-genToken :: IO Input
-genToken = liftIO $ do
-    len <- randomRIO (1, 8)
+processPiece :: RequestPiece -> BotM (Maybe (IO (), Ada, Input))
+processPiece (RPMint ada) = do
+    (file, ge) <- genGroupElement
+    secretGamma <- liftIO $ generate arbitrary
+    let secret = Secret secretGamma (toFieldElement $ getLovelace ada)
+        filework = T.writeFile ("secrets/" <> file) $ encodeToLazyText secret
+    pure $ Just (filework, ada, Input ge Mint)
+
+processPiece (RPBurn file) = do
+    let path = "secrets/" <> file
+    fileExists <- liftIO $ (file `elem`) <$> getDirectoryContents "secrets"
+    if fileExists
+    then do
+        secret <- liftIO $ fromJust . decode <$> LBS.readFile path
+        let (val, name) = fromSecret bulletproofSetup secret
+            ge = fromJust $ toGroupElement name 
+            filework = whenM (doesFileExist path) $ removeFile path
+        logSmth $ Input ge Burn
+        pure $ Just (filework, (-1) * lovelaceOf val, Input ge Burn)
+    else do
+        logMsg $ "File " <> T.pack path <> " doesn't exists."
+        pure Nothing
+
+genGroupElement :: BotM (FilePath, GroupElement)
+genGroupElement = do
+    content <- liftIO $ getDirectoryContents "secrets"
+    len <- randomRIO (4, 8)
     let chars = ['0'..'9'] <> ['a'..'f']
     str <- replicateM len $ (chars !!) <$> randomRIO (0, length chars - 1)
-    let inputCommit = fromJust $ toGroupElement $ fromString str
-    inputPolarity <- genPolarity
-    pure Input{..}
+    let fn = take 4 str <> ".json"
+        bbs = stringToBuiltinByteString str
+    case (fn `elem` content,  toGroupElement bbs) of
+        (False, Just ge) -> pure (fn, ge)
+        _                -> genGroupElement
 
-genPolarity :: IO MintingPolarity
-genPolarity = randomIO <&> \case
-    True  -> Burn
-    False -> Mint
+genRequest :: MonadIO m => Maximum -> m BotRequest
+genRequest ub = liftIO $ randomRIO (1, ub) >>= flip replicateM genRequestPiece <&> nub
+
+genRequestPiece :: IO RequestPiece
+genRequestPiece = randomIO >>= \case
+    True  -> genMint
+    False -> listDirectory "secrets" >>= \case
+        [] -> genMint
+        fs ->  RPBurn . (fs!!) <$> randomRIO (0, length fs - 1)
+  where
+    genMint = RPMint . Lovelace <$> randomRIO (1, 10_000_000)

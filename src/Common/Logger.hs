@@ -13,7 +13,7 @@ import qualified Data.Text              as T
 import qualified Data.Text.IO           as T
 import qualified Data.Time              as Time
 import           GHC.IO.Exception       (IOException(..), IOErrorType(NoSuchThing))
-import           Prettyprinter
+import           Prettyprinter          (Pretty(..))
 import           System.Directory       (createDirectoryIfMissing)
 import           System.FilePath.Posix  (takeDirectory)
 

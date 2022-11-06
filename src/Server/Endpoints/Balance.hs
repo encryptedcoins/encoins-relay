@@ -28,7 +28,7 @@ import           IO.ChainIndex          (getUtxosAt)
 import           Ledger                 (ChainIndexTxOut(..))
 import           Plutus.V2.Ledger.Api   (Address, CurrencySymbol, TokenName, TxOutRef, Value(..))
 import qualified PlutusTx.AssocMap      as PAM
-import           Servant                ((:>), StdMethod(GET), JSON, respond, HasStatus, 
+import           Servant                ((:>), StdMethod(GET), JSON, respond, HasStatus,
                                          ReqBody, StatusOf, WithStatus, Union, UVerb)
 import           Server.Internal        (AppM, envBeaconRef, respondWithStatus)
 import           Utils.Address          (bech32ToAddress)
@@ -59,7 +59,7 @@ balanceHandler addrBech32 = handle balanceErrorHandler $ do
 balanceErrorHandler :: BalanceError -> AppM (Union BalanceApiResult)
 balanceErrorHandler = \case
 
-    UnparsableAddress -> respondWithStatus @400 
+    UnparsableAddress -> respondWithStatus @400
         "Incorrect wallet address."
 
 getBalance :: MonadIO m => CurrencySymbol -> Address -> m Balance
