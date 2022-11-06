@@ -15,8 +15,8 @@ modeParser =  subparser
     <> command "setup" (info (pure ServerSetup) setupDesc)
     )
     where
-        runDesc   = progDesc "Default server mode without scripts pre-hosting."
-        setupDesc = progDesc "Server mode with placement of scripts on the blockchain."
+        runDesc   = progDesc "Default server mode without beacon-token pre-hosting."
+        setupDesc = progDesc "Server mode with placement of beacon-token on the wallet."
 
 optionsParser :: Parser Options
 optionsParser = Options 

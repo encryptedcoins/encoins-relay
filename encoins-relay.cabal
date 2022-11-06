@@ -29,23 +29,24 @@ common lang
 library
     import: lang
     exposed-modules:
-      App
+      Test.Encoins
+      Test.Reference
       Bot.Main
       Server.Main
     other-modules:
       Bot.Opts
       Common.Logger
-      Common.Tokens
       Common.Wait
+      Server.Config
+      Server.Endpoints.Balance 
       Server.Endpoints.Mint 
       Server.Endpoints.Ping
-      Server.PostScripts.MintingPolicy
-      Server.PostScripts.OnChain
-      Server.PostScripts.PostScripts
+      Server.Internal
       Server.Opts
-      Server.Internal 
-      Test.OnChain
-      Test.OffChain
+      Server.Setup
+      Server.ServerTx
+      Test.Reference.OnChain
+      Test.Reference.OffChain
     default-extensions:
       PartialTypeSignatures
     build-depends:
@@ -53,6 +54,7 @@ library
       base16-bytestring                      -any,
       base64                                 -any,
       aeson                                  -any,
+      aeson-casing                           -any,
       bytestring                             -any,
       cardano-api                            -any,
       cardano-ledger-alonzo                  -any,
@@ -60,10 +62,13 @@ library
       cborg                                  -any,
       containers                             -any,
       data-default                           -any,
+      deriving-aeson                         -any,
       directory                              -any,
       encoins-core                           -any,
+      exceptions                             -any,
       extra                                  -any,
       file-embed                             -any,
+      filepath                               -any,
       freer-extras                           -any,
       freer-simple                           -any,
       flat                                   -any,
@@ -92,6 +97,7 @@ library
       random                                 -any,
       req                                    -any,
       serialise                              -any,
+      servant                                -any,
       servant-server                         -any,
       text                                   -any,
       text-class                             -any,

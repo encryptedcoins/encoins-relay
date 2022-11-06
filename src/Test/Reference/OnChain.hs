@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
 
-module Test.OnChain where
+module Test.Reference.OnChain where
 
 import           Cardano.Ledger.Alonzo.Language       (Language(PlutusV2))
 import           Ledger                               (Versioned(..), Validator)
@@ -44,6 +44,9 @@ testPolicyCheck bss ctx = cond1
 
 testPolicy :: MintingPolicy
 testPolicy = mkMintingPolicyScript $$(PlutusTx.compile [|| mkUntypedMintingPolicy testPolicyCheck ||])
+
+testPolicyV :: Versioned MintingPolicy
+testPolicyV = Versioned testPolicy PlutusV2
 
 ------------------------------------- Test Validator --------------------------------------
 

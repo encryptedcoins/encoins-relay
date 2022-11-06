@@ -1,0 +1,6 @@
+{ "server_address"              : "localhost:3000"
+, "node_address"                : ""
+, "chain_index_address"         : ""
+, "ada_staking_tx_out_ref_file" : "testnet/txOutRef.json"
+, "wallet_file"                 : "testnet/wallet.json"
+}

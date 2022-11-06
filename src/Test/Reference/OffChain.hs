@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Test.OffChain where
+module Test.Reference.OffChain where
 
 import           Control.Monad.State                  (State)
 import           Ledger.Tokens                        (token)
@@ -20,10 +20,10 @@ import           PlutusTx.Prelude
 
 import           Scripts.Constraints                  (tokensMintedTx)
 import           Types.TxConstructor                  (TxConstructor (..))
-import           Test.OnChain                         (testPolicy, testTokenName, testTypedValidator)
+import           Test.Reference.OnChain               (testPolicy, testTokenName, testTypedValidator)
 
 
-type TestTransaction = TxConstructor () Any (RedeemerType Any) (DatumType Any)
+type TestTransaction = TxConstructor Any (RedeemerType Any) (DatumType Any)
 type TestTransactionBuilder = State TestTransaction ()
 
 ------------------------------------- Testing Minting Policy --------------------------------------
