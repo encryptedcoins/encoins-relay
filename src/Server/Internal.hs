@@ -23,8 +23,7 @@ import ENCOINS.Core.OnChain            (EncoinsRedeemer)
 import GHC.TypeNats                    (Nat)
 import IO.Wallet                       (HasWallet(..), RestoreWallet)
 import Ledger                          (TxOutRef)
-import Servant                         (NoContent(..), JSON, (:>), Handler, ReqBody, respond, WithStatus(..), StdMethod(POST), 
-                                        UVerb, Union, IsMember)
+import Servant                         (Handler, WithStatus(..), Union, IsMember, respond)
 import Servant.API.Status              (KnownStatus)
 
 newtype AppM a = AppM { unAppM :: ReaderT Env Handler a }

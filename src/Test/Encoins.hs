@@ -13,7 +13,7 @@ module Test.Encoins where
 import qualified Bot.Main                        as Bot
 import           Cardano.Api.Shelley             (NetworkMagic(..), NetworkId(..))
 import           Common.Logger                   (logPretty)
-import           Control.Monad                   (forM_, when)
+import           Control.Monad                   (forM_, unless)
 import           Data.Aeson                      (decode)
 import           Data.ByteString.Lazy            (fromStrict)
 import           Data.Default                    (def)
@@ -21,7 +21,7 @@ import           Data.FileEmbed                  (embedFile)
 import           Data.Maybe                      (fromJust)
 import           Data.String                     (fromString)
 import           Data.Text                       (Text)
-import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), toGroupElement)
+import           ENCOINS.Core.BaseTypes          (MintingPolarity(..))
 import           ENCOINS.Core.Bulletproofs.Types (Input(..))
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol)
 import           Ledger                          (Ada, Params(..))
@@ -57,7 +57,7 @@ encoinsTest :: MintingPolarity  -> Ada -> String -> IO ()
 encoinsTest polarity ada name = do
     Config{..} <- loadConfig
     let env = Env undefined confBeaconTxOutRef confWallet
-        inputs = [Input (fromJust $ toGroupElement $ fromString name) polarity]
+        inputs = [Input (fromString name) polarity]
     red <- Bot.runBotM (Bot.Env confBeaconTxOutRef confWallet) $ Bot.mkRedeemer inputs ada
     runQueueM env $ processTokens red
 
@@ -75,13 +75,13 @@ balanceTest addrBech32 = do
     getBalance ecs addr >>= \(Balance b) -> print b
 
 balanceTestAll :: IO ()
-balanceTestAll = do 
+balanceTestAll = do
     Config{..} <- loadConfig
     let ecs = encoinsSymbol $ beaconCurrencySymbol confBeaconTxOutRef
     as <- ownAddresses
     forM_ as $ \a -> do
         let addr = fromJust $ bech32ToAddress a
         Balance res <- getBalance ecs addr
-        when (not $ null res) $ do
+        unless (null res) $ do
             print a
             print res
