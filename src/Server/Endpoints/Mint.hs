@@ -20,11 +20,12 @@ import           Control.Monad.Reader             (ReaderT(..), MonadReader, ask
 import           Data.Kind                        (Type)
 import           Data.IORef                       (atomicWriteIORef, atomicModifyIORef, readIORef)
 import           Data.Sequence                    (Seq(..), (|>))
-import           IO.ChainIndex                    (getCleanUtxos)
+import           IO.ChainIndex                    (getUtxosAt)
 import           IO.Wallet                        (HasWallet(..), getWalletAddr)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, StdMethod(POST), UVerb, Union, IsMember)
 import           Server.Internal                  (getQueueRef, AppM, Env(..), HasServer(..), QueueRef)
 import           Server.Tx                        (mkWalletTxOutRefs)
+import           Utils.ChainIndex                 (filterCleanUtxos)
 import           Utils.Logger                     (HasLogger(..), (.<), logSmth)
 import           Utils.Wait                       (waitTime)
 
@@ -43,8 +44,8 @@ mintHandler red = handle mintErrorHanlder $ do
         checkForErrors = checkForMintErros red >> checkForCleanUtxos
         checkForCleanUtxos = do
             addr       <- getWalletAddr
-            cleanUtxos <- length <$> getCleanUtxos addr
-            minUtxos   <- asks envMinUtxosAmount
+            cleanUtxos <- length . filterCleanUtxos <$> liftIO (getUtxosAt addr)
+            minUtxos   <- asks envMinUxtosAmount
             when (cleanUtxos < minUtxos) $ do
                 logMsg "Address doesn't has enough clean UTXO's."
                 void $ mkWalletTxOutRefs addr (cleanUtxos - minUtxos)
