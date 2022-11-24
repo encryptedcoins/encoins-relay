@@ -47,7 +47,7 @@ instance HasServer TestingServer where
         addr <- getWalletAddr
         void $ mkTx [addr] [testMintTx bbs]
 
-    setupServer _ = pure ()
+    setupServer = pure ()
 
 instance HasMintEndpoint TestingServer where
 

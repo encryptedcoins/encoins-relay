@@ -21,6 +21,7 @@ import           Network.HTTP.Client       (httpLbs, defaultManagerSettings, new
 import           Network.HTTP.Types.Header (hContentType)
 import           Network.HTTP.Types.Status (status204)
 import           Options.Applicative       (Parser, (<**>), (<|>), fullDesc, info, long, execParser, helper, flag')
+import           Server.Config             (Config(..), loadConfig)       
 import qualified Server.Internal           as Server
 import           System.Random             (randomRIO)
 import           TestingServer.Main        (TestingServer)
@@ -45,14 +46,15 @@ data OptionsSum
 
 startClient :: forall s. HasClient s => Options s -> IO ()
 startClient opts = do
-    Server.Config{..} <- Server.loadConfig @s
+    Config{..} <- loadConfig 
+    Server.Env{..} <- Server.loadEnv @s
     let fullAddress = "http://"
-                   <> T.unpack confServerAddress
+                   <> T.unpack cServerAddress
                    <> "/relayRequestMint"
     nakedRequest <- parseRequest fullAddress
     manager <- newManager defaultManagerSettings
     let mkRequest' = mkRequest @s nakedRequest manager
-    runClientM confAuxiliaryEnv confWallet $ withGreetings $ case opts of
+    runClientM envAuxiliary envWallet $ withGreetings $ case opts of
         Manual cReq          -> mkRequest' cReq
         Auto AutoOptions{..} -> forever $ do
             cReq <- genRequest @s maxTokensInReq

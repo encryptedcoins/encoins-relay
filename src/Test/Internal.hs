@@ -9,14 +9,14 @@ module Test.Internal where
 
 import           Control.Monad            (unless, forM_)
 import           Control.Monad.IO.Class   (MonadIO(..))
-import           Control.Monad.Reader     (MonadReader, ReaderT(..))
+import           Control.Monad.Reader     (MonadReader, ReaderT(..), asks)
 import           Data.Functor             ((<&>))
 import           Data.Maybe               (fromJust)
 import qualified Data.Text.IO             as T
 import           IO.Wallet                (HasWallet(..), getWalletAddr, ownAddresses)
 import           Ledger                   (Address)
 import           Server.Endpoints.Balance (getBalance, Balance(..))
-import           Server.Internal          (loadConfig, HasServer(getCurrencySymbol), Config(..), Env(..))
+import           Server.Internal          (HasServer(getCurrencySymbol), Env(..), loadEnv)
 import           Utils.Address            (bech32ToAddress)
 import           Utils.Logger             (HasLogger(..))
 
@@ -42,8 +42,7 @@ newtype TestM s a = TestM { unTestM :: ReaderT (Env s) IO a }
 
 runTestM :: forall s a. HasServer s => TestM s a -> IO a
 runTestM tm = do
-    Config{..} <- loadConfig @s
-    let env = Env undefined confWallet confAuxiliaryEnv confMinUtxosAmount
+    env <- loadEnv
     runReaderT (unTestM tm) env
 
 instance HasLogger (TestM s) where
@@ -51,5 +50,5 @@ instance HasLogger (TestM s) where
 
     logMsg = liftIO . T.putStrLn
 
-instance HasServer s => HasWallet (TestM s) where
-    getRestoreWallet = liftIO $ confWallet <$> loadConfig @s
+instance HasWallet (TestM s) where
+    getRestoreWallet = asks envWallet

@@ -15,18 +15,14 @@ module Server.Internal where
 import           Control.Monad.Catch    (MonadThrow, MonadCatch)
 import           Control.Monad.IO.Class (MonadIO)
 import           Control.Monad.Reader   (ReaderT(ReaderT), MonadReader, asks)
-import           Data.Aeson             (FromJSON(..), ToJSON, eitherDecode, genericParseJSON)
-import           Data.Aeson.Casing      (aesonPrefix, snakeCase)
-import qualified Data.ByteString        as BS
-import           Data.ByteString.Lazy   (fromStrict)
-import           Data.IORef             (IORef)
+import           Data.Aeson             (FromJSON(..), ToJSON)
+import           Data.IORef             (IORef, newIORef)
 import           Data.Kind              (Type)
-import           Data.Sequence          (Seq)
-import           Data.Text              (Text)
-import           GHC.Generics           (Generic)
+import           Data.Sequence          (Seq, empty)
 import           IO.Wallet              (HasWallet(..), RestoreWallet)
 import           Ledger                 (CurrencySymbol)
 import           Servant                (Handler, MimeUnrender, JSON)
+import           Server.Config          (Config(..), configFile, decodeOrErrorFromFile)
 import           Utils.Logger           (HasLogger(..))
 
 class ( Show (AuxiliaryEnvOf s)
@@ -40,7 +36,7 @@ class ( Show (AuxiliaryEnvOf s)
 
     loadAuxiliaryEnv :: FilePath -> IO (AuxiliaryEnvOf s)
 
-    setupServer :: (HasLogger m, HasWallet m) => Config s -> m ()
+    setupServer :: (MonadReader (Env s) m, HasLogger m, HasWallet m) => m ()
 
     type RedeemerOf s :: Type
 
@@ -80,38 +76,11 @@ data Env s = Env
 getQueueRef :: AppM s (QueueRef s)
 getQueueRef = asks envQueueRef
 
-data Config s = Config
-    { confServerAddress     :: Text
-    , confNodeAddress       :: Text
-    , confChainIndexAddress :: Text
-    , confMinUtxosAmount    :: Int
-    , confAuxiliaryEnv      :: AuxiliaryEnvOf s
-    , confWallet            :: RestoreWallet
-    }
-deriving instance HasServer s => Show (Config s)
-
-data ConfigFile = ConfigFile
-    { cfServerAddress     :: Text
-    , cfNodeAddress       :: Text
-    , cfChainIndexAddress :: Text
-    , cfMinUtxosAmount    :: Int
-    , cfAuxiliaryEnvFile  :: FilePath
-    , cfWalletFile        :: FilePath
-    } deriving (Show, Generic)
-
-instance FromJSON ConfigFile where
-   parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-loadConfig :: forall s. HasServer s => IO (Config s)
-loadConfig = do
-    ConfigFile{..} <- decodeOrErrorFromFile "testnet/config.json"
-    let confServerAddress     = cfServerAddress
-        confNodeAddress       = cfNodeAddress
-        confChainIndexAddress = cfChainIndexAddress
-        confMinUtxosAmount    = cfMinUtxosAmount
-    confAuxiliaryEnv <- loadAuxiliaryEnv @s cfAuxiliaryEnvFile
-    confWallet       <- decodeOrErrorFromFile cfWalletFile
-    pure Config{..}
-
-decodeOrErrorFromFile :: FromJSON a => FilePath -> IO a
-decodeOrErrorFromFile =  fmap (either error id . eitherDecode . fromStrict) . BS.readFile
+loadEnv :: forall s. HasServer s => IO (Env s)
+loadEnv = do
+    Config{..} <- decodeOrErrorFromFile configFile
+    let envMinUtxosAmount = cMinUtxosAmount
+    envQueueRef  <- newIORef empty
+    envWallet    <- decodeOrErrorFromFile cWalletFile
+    envAuxiliary <- loadAuxiliaryEnv @s cAuxiliaryEnvFile
+    pure Env{..}

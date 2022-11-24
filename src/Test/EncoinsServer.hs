@@ -1,4 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TypeApplications   #-}
 
 module Test.EncoinsServer where
@@ -12,7 +11,7 @@ import EncoinsServer.Main        (EncoinsServer, mkEncoinsRedeemer)
 import IO.Wallet                 (HasWallet(getRestoreWallet), getWalletAddr)
 import Ledger.Ada                (lovelaceOf)
 import PlutusTx.Builtins.Class   (stringToBuiltinByteString)
-import Server.Internal           (HasServer(..), envAuxiliary, loadConfig)
+import Server.Internal           (HasServer(..), envAuxiliary)
 import Server.Tx                 (mkWalletTxOutRefs)
 import Test.Internal             (runTestM, testBalance, testBalanceAll)
 import Utils.Logger              (logSmth)
@@ -36,7 +35,7 @@ testBalanceAllES :: IO ()
 testBalanceAllES = testBalanceAll @EncoinsServer
 
 setup :: IO ()
-setup = runTestM @EncoinsServer $ liftIO loadConfig >>= setupServer @EncoinsServer
+setup = runTestM @EncoinsServer $ setupServer @EncoinsServer
 
 mkRefs :: Int -> IO ()
 mkRefs n = runTestM @EncoinsServer $ do

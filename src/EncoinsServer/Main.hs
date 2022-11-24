@@ -37,9 +37,10 @@ import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
 import           PlutusTx.Builtins.Class         (FromBuiltin (fromBuiltin))
 import           Servant                         (NoContent)
+import           Server.Config                   (decodeOrErrorFromFile)
 import           Server.Endpoints.Mint           (HasMintEndpoint(..))
 import qualified Server.Internal                 as Server
-import           Server.Internal                 (decodeOrErrorFromFile, Config(..), HasServer(..))
+import           Server.Internal                 (HasServer(..))
 import           Server.Tx                       (mkTx)
 import           System.Directory                (listDirectory, doesFileExist, getDirectoryContents, listDirectory, removeFile)
 import           System.Random                   (randomIO, randomRIO, randomRIO, randomIO)
@@ -60,11 +61,12 @@ instance HasServer EncoinsServer where
         bcs <- getCurrencySymbol
         void $ mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
 
-    setupServer Config{..} = do
+    setupServer = do
+        txOutRef <- asks Server.envAuxiliary
         walletAddr <- getWalletAddr
         void $ mkTx [walletAddr]
-            [ beaconMintTx confAuxiliaryEnv
-            , beaconSendTx confAuxiliaryEnv
+            [ beaconMintTx txOutRef
+            , beaconSendTx txOutRef
             ]
 
 instance HasMintEndpoint EncoinsServer where

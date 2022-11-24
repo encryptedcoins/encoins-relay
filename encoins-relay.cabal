@@ -37,6 +37,7 @@ library
       Client.Opts
       Client.Internal
 
+      Server.Config
       Server.Endpoints.Balance 
       Server.Endpoints.Mint 
       Server.Endpoints.Ping
