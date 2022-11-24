@@ -30,8 +30,9 @@ import           Plutus.V2.Ledger.Api   (Address, CurrencySymbol, TokenName, TxO
 import qualified PlutusTx.AssocMap      as PAM
 import           Servant                ((:>), StdMethod(GET), JSON, respond, HasStatus,
                                          ReqBody, StatusOf, WithStatus, Union, UVerb)
-import           Server.Internal        (AppM, envBeaconRef, respondWithStatus)
+import           Server.Internal        (AppM, envBeaconRef)
 import           Utils.Address          (bech32ToAddress)
+import           Utils.Servant          (respondWithStatus)
 
 type BalanceApi = "relayRequestBalance"
                :> ReqBody '[JSON] Text

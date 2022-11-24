@@ -33,9 +33,10 @@ import           ENCOINS.Core.OnChain             (EncoinsRedeemer)
 import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST),
                                                    UVerb, Union)
-import           Server.Internal                  (AppM, Env(..), getQueueRef, respondWithStatus)
+import           Server.Internal                  (AppM, Env(..), getQueueRef)
 import           Server.Tx                        (mkTx)
 import           Ledger.Typed.Scripts             (Any)
+import           Utils.Servant                    (respondWithStatus)
 
 type MintApi = "relayRequestMint"
             :> ReqBody '[JSON] EncoinsRedeemer

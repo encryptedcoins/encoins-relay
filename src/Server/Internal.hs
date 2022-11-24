@@ -64,15 +64,6 @@ data Env = Env
 getQueueRef :: AppM QueueRef
 getQueueRef = asks envQueueRef
 
-respondWithStatus :: forall (s :: Nat) res. 
-    ( IsMember (WithStatus s Text) res
-    , KnownStatus s
-    ) => Text -> AppM (Union res)
-respondWithStatus msg = do
-    logMsg msg
-    respond (WithStatus @s msg)
-
-
 data Config = Config
     { confServerAddress     :: Text
     , confNodeAddress       :: Text

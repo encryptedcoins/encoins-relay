@@ -37,6 +37,7 @@ library
       Client.Internal
       Client.Opts
       Utils.Logger
+      Utils.Servant
       Utils.Wait
       Server.Endpoints.Balance 
       Server.Endpoints.Mint 
