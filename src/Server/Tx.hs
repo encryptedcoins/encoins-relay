@@ -44,7 +44,7 @@ type HasTxEnv =
     , ?txParams     :: Params
     )
 
-type TxConstraints a m =
+type MkTxConstraints a m =
     ( FromData (DatumType a)
     , ToData   (DatumType a)
     , ToData   (RedeemerType a)
@@ -54,9 +54,10 @@ type TxConstraints a m =
     , HasLogger m
     )
 
-mkTx :: forall a m. TxConstraints a m => [Address]
-      -> (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()])
-      -> m CardanoTx
+mkTx :: forall a m. MkTxConstraints a m 
+    => [Address]
+    -> (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()])
+    -> m CardanoTx
 mkTx utxosAddresses txs = do
     walletAddrBech32       <- getWalletAddrBech32
     walletAddr             <- getWalletAddr
@@ -99,17 +100,17 @@ mkTx utxosAddresses txs = do
     logMsg "Submited."
     return signedTx
 
-mkWalletTxOutRefs :: TxConstraints Void m => Address -> Int -> m [TxOutRef]
+mkWalletTxOutRefs :: MkTxConstraints Void m => Address -> Int -> m [TxOutRef]
 mkWalletTxOutRefs addr n = do
-        signedTx <- mkTx [addr] [constraints]
+        signedTx <- mkTx [addr] [constructor]
         let refs = case signedTx of
                 EmulatorTx _    -> error "Can not get TxOutRef's from EmulatorTx."
                 CardanoApiTx tx -> M.keys $ unspentOutputsTx tx
                 Both _ tx       -> M.keys $ unspentOutputsTx tx
         pure refs
     where
-        constraints :: HasTxEnv => State (TxConstructor Void i o) ()
-        constraints = do
+        constructor :: HasTxEnv => State (TxConstructor Void i o) ()
+        constructor = do
             let pkh = PaymentPubKeyHash ?txWalletPKH
                 mbSkh = StakePubKeyHash <$> ?txWalletSKH
                 cons = case mbSkh of

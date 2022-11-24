@@ -58,7 +58,7 @@ class ( HasServer s
 
     type MintApiResultOf s :: [Type]
 
-    data MintErrorOf s 
+    data MintErrorOf s
 
     checkForMintErros :: RedeemerOf s -> AppM s ()
 
