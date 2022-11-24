@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-module Encoins.Main (Encoins) where
+module EncoinsServer.Main (EncoinsServer) where
 
 import           Client.Internal                 (ClientM, ClientRequestOf, HasClient(..), envAuxiliary)
 import           Control.Applicative             ((<|>), Alternative (..))
@@ -23,7 +23,7 @@ import           ENCOINS.Core.Bulletproofs.Types (Input(..), Secret(..), Proof(.
 import           ENCOINS.Core.Bulletproofs.Prove (fromSecret)
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol, encoinsTx, stakingValidatorAddress)
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
-import           Encoins.Opts                    (burnParser, mintParser, EncoinsRequestPiece(..))
+import           EncoinsServer.Opts              (burnParser, mintParser, EncoinsRequestPiece(..))
 import           IO.Time                         (currentTime)
 import           IO.Wallet                       (getWalletKeyHashes, getWalletAddr)
 import           Ledger                          (TxOutRef, TxOutRef, unPaymentPubKeyHash)
@@ -37,15 +37,15 @@ import           System.Directory                (listDirectory, doesFileExist, 
 import           System.Random                   (randomIO, randomRIO, randomRIO, randomIO)
 
 
-data Encoins
+data EncoinsServer
 
-instance HasServer Encoins where
+instance HasServer EncoinsServer where
 
-    type AuxiliaryEnvOf Encoins = TxOutRef
+    type AuxiliaryEnvOf EncoinsServer = TxOutRef
 
     loadAuxiliaryEnv = decodeOrErrorFromFile
 
-    type RedeemerOf Encoins = EncoinsRedeemer
+    type RedeemerOf EncoinsServer = EncoinsRedeemer
 
     getCurrencySymbol = asks $ beaconCurrencySymbol . Server.envAuxiliary
 
@@ -60,9 +60,9 @@ instance HasServer Encoins where
             , beaconSendTx confAuxiliaryEnv
             ]
 
-instance HasClient Encoins where
+instance HasClient EncoinsServer where
 
-    type RequestPieceOf Encoins = EncoinsRequestPiece
+    type RequestPieceOf EncoinsServer = EncoinsRequestPiece
 
     genRequestPiece = genEncoinsRequestPiece
 
@@ -79,7 +79,8 @@ genEncoinsRequestPiece = randomIO >>= \case
     where
         genMint = RPMint . fromInteger <$> randomRIO (1, 10_000_000)
 
-mkEncoinsRedeemer :: ClientRequestOf Encoins -> ClientM Encoins (ClientM Encoins (), RedeemerOf Encoins)
+mkEncoinsRedeemer :: ClientRequestOf EncoinsServer 
+                  -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
 mkEncoinsRedeemer cReq = do
     (fileWork, val, inputs)  <- sequence . catMaybes <$> traverse processPiece cReq
     ct             <- liftIO currentTime
@@ -95,7 +96,7 @@ mkEncoinsRedeemer cReq = do
         dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE dummyFE [dummyFE] [dummyFE]
     pure (liftIO fileWork, (txParams, inputs, dummyProof))
 
-processPiece :: RequestPieceOf Encoins -> ClientM s (Maybe (IO (), Ada, Input))
+processPiece :: RequestPieceOf EncoinsServer -> ClientM s (Maybe (IO (), Ada, Input))
 processPiece (RPMint ada) = do
     secretGamma <- liftIO randomIO
     let secret = Secret secretGamma (toFieldElement $ getLovelace ada)

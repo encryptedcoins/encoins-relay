@@ -13,7 +13,7 @@ import           Control.Monad.Reader     (ReaderT(runReaderT))
 import           Utils.Logger             (HasLogger(logMsg))
 import           Data.IORef               (newIORef)
 import           Data.Sequence            (empty)
-import           Encoins.Main             (Encoins)
+import           EncoinsServer.Main       (EncoinsServer)
 import qualified Network.Wai.Handler.Warp as Warp
 import           Servant                  (Proxy(..), type (:<|>)(..), ServerT, Context(EmptyContext), hoistServer,
                                            serveWithContext, Handler(runHandler'), Application)
@@ -24,7 +24,7 @@ import           Server.Internal          (Env(Env), AppM(unAppM), HasServer(..)
 import           Server.Opts              (runWithOpts, Options(..), ServerMode(..), ServerType(..))
 import           Server.Setup             (SetupM(..))
 import           System.IO                (stdout, BufferMode(LineBuffering), hSetBuffering)
-import           Testing.Main             (Testing)
+import           TestingServer.Main       (TestingServer)
 
 type ServerAPI s
     =    PingApi
@@ -46,8 +46,8 @@ main :: IO ()
 main = do
     Options{..} <- runWithOpts
     case serverType of
-        Encoins -> withInstantiation @Encoins
-        Test    -> withInstantiation @Testing
+        Encoins -> withInstantiation @EncoinsServer
+        Test    -> withInstantiation @TestingServer
 
 withInstantiation :: forall s. HasServer s => IO ()
 withInstantiation = do

@@ -46,12 +46,12 @@ library
       Server.Setup
       Server.Tx
 
-      Encoins.Main
-      Encoins.Opts
+      EncoinsServer.Main
+      EncoinsServer.Opts
 
-      Testing.Main
-      Testing.OnChain
-      Testing.OffChain
+      TestingServer.Main
+      TestingServer.OnChain
+      TestingServer.OffChain
 
       Utils.Logger
       Utils.Servant

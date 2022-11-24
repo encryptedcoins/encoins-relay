@@ -10,7 +10,7 @@
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module Testing.Main (Testing) where
+module TestingServer.Main (TestingServer) where
     
 import Client.Internal         (HasClient(..))
 import Control.Monad           (replicateM)
@@ -21,18 +21,18 @@ import PlutusTx.Builtins.Class (stringToBuiltinByteString)
 import Server.Internal         (HasServer(..))
 import Server.Tx               (mkTx)
 import System.Random           (randomRIO, randomIO)
-import Testing.OffChain        (testCurrencySymbol, testMintTx)
+import TestingServer.OffChain  (testCurrencySymbol, testMintTx)
 
 
-data Testing
+data TestingServer
 
-instance HasServer Testing where
+instance HasServer TestingServer where
 
-    type AuxiliaryEnvOf Testing = ()
+    type AuxiliaryEnvOf TestingServer = ()
 
     loadAuxiliaryEnv _ = pure ()
 
-    type RedeemerOf Testing = [BuiltinByteString]
+    type RedeemerOf TestingServer = [BuiltinByteString]
 
     getCurrencySymbol = pure testCurrencySymbol
 
@@ -42,9 +42,9 @@ instance HasServer Testing where
 
     setupServer _ = pure ()
 
-instance HasClient Testing where
+instance HasClient TestingServer where
 
-    type RequestPieceOf Testing = BuiltinByteString
+    type RequestPieceOf TestingServer = BuiltinByteString
 
     parseRequestPiece = stringToBuiltinByteString <$> argument str (metavar "token name")
 

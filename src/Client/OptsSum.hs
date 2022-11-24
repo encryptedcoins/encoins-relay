@@ -5,13 +5,13 @@ module Client.OptsSum where
 
 import Client.Opts         (optionsParser, Options)
 import Client.Internal     (HasClient)
-import Encoins.Main        (Encoins)
-import Testing.Main        (Testing)
+import EncoinsServer.Main  (EncoinsServer)
+import TestingServer.Main  (TestingServer)
 import Options.Applicative (Parser, (<**>), (<|>), fullDesc, info, long, strOption, execParser, helper)
 
 data OptionsSum 
-    = OptionsEncoins (Options Encoins)
-    | OptionsTesting (Options Testing)
+    = OptionsEncoins (Options EncoinsServer)
+    | OptionsTesting (Options TestingServer)
 
 runWithOptsSum :: IO OptionsSum
 runWithOptsSum = execParser $ info (parserSum <**> helper) fullDesc

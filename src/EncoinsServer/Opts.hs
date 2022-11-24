@@ -1,4 +1,4 @@
-module Encoins.Opts where
+module EncoinsServer.Opts where
 
 import Control.Monad.Reader      (ask)
 import Ledger.Ada                (Ada(..))

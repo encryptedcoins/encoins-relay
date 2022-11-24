@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Testing.OffChain where
+module TestingServer.OffChain where
 
 import           Control.Monad.State                  (State)
 import           Ledger.Tokens                        (token)
@@ -19,7 +19,7 @@ import           Plutus.V2.Ledger.Api                 (Value, Validator, Currenc
 import           PlutusTx.Prelude 
 import           Scripts.Constraints                  (tokensMintedTx)
 import           Types.TxConstructor                  (TxConstructor (..))
-import           Testing.OnChain                      (testPolicy, testTokenName, testTypedValidator)
+import           TestingServer.OnChain                (testPolicy, testTokenName, testTypedValidator)
 
 type TestTransaction = TxConstructor Any (RedeemerType Any) (DatumType Any)
 type TestTransactionBuilder = State TestTransaction ()
