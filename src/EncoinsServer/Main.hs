@@ -56,17 +56,15 @@ instance HasServer EncoinsServer where
 
     getCurrencySymbol = asks $ beaconCurrencySymbol . Server.envAuxiliary
 
-    processTokens red = do
+    processTokens red = void $ do
         bcs <- getCurrencySymbol
-        void $ mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
+        mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
 
-    setupServer = do
+    setupServer = void $ do
         txOutRef <- asks Server.envAuxiliary
         walletAddr <- getWalletAddr
-        void $ mkTx [walletAddr]
-            [ beaconMintTx txOutRef
-            , beaconSendTx txOutRef
-            ]
+        mkTx [walletAddr] [beaconMintTx txOutRef]
+        mkTx [walletAddr] [beaconSendTx txOutRef]
 
 instance HasMintEndpoint EncoinsServer where
 
