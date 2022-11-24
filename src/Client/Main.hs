@@ -78,4 +78,4 @@ mkRequest nakedReq manager clientReq = do
 genRequest :: forall s m. HasClient s => MonadIO m => Maximum -> m (ClientRequestOf s)
 genRequest ub = liftIO $ do
     len <- randomRIO (1, ub)
-    fmap (take len . nub) . sequence $ repeat (genRequestPiece @s)
+    nub <$> replicateM len (genRequestPiece @s)
