@@ -12,7 +12,7 @@ import           Ledger.Typed.Scripts    (Any)
 import           PlutusTx.Prelude        (emptyByteString)
 import           Scripts.Constraints     (postMintingPolicyTx, referenceMintingPolicyTx)
 import           Server.Internal         (loadRestoreWallet)
-import           Server.Tx               (mkTxWithConstraints)
+import           Server.Tx               (mkTx)
 import           Test.Reference.OffChain (testMintTx, testToken)
 import           Test.Reference.OnChain  (testPolicyV, testPolicy)
 import           IO.Wallet               (HasWallet(..))
@@ -22,11 +22,11 @@ instance HasWallet IO where
     getRestoreWallet = loadRestoreWallet
 
 runTest :: IO ()
-runTest = mkTxWithConstraints @Any $ [testMintTx [emptyByteString]]
+runTest = mkTx @Any $ [testMintTx [emptyByteString]]
 
 postReferenceScript :: IO ()
 postReferenceScript = do
-    mkTxWithConstraints @Any 
+    mkTx @Any 
         [ postMintingPolicyTx 
             ?txWalletAddr 
             testPolicyV 
@@ -41,7 +41,7 @@ runReferenceTest = do
     putStrLn "\n\n\n\t\t\tMINT2:"
     mkTest "token2"
   where
-    mkTest token = mkTxWithConstraints @Any
+    mkTest token = mkTx @Any
         [ referenceMintingPolicyTx 
             testPolicy
             (head $ M.keys ?txUtxos) 

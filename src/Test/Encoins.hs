@@ -28,7 +28,7 @@ import           Ledger                          (Ada, Params(..))
 import           Server.Endpoints.Balance        (Balance(..), getBalance)
 import           Server.Endpoints.Mint           (processTokens, runQueueM)
 import           Server.Internal                 (Config(..), loadConfig, loadRestoreWallet, Env(..))
-import           Server.Tx                       (mkTxWithConstraints)
+import           Server.Tx                       (mkTx)
 import           IO.Wallet                       (HasWallet(..), getWalletKeyHashes, getWalletTxOutRefs, ownAddresses)
 import           Utils.Address                   (bech32ToAddress)
 
@@ -47,7 +47,7 @@ mkRefs = do
 setup :: IO ()
 setup = do
     Config{..} <- loadConfig
-    mkTxWithConstraints
+    mkTx
         [ beaconMintTx confBeaconTxOutRef
         , beaconSendTx confBeaconTxOutRef
         ]

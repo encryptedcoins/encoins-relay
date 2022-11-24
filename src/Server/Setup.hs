@@ -9,7 +9,7 @@ import           Utils.Logger           (HasLogger(..))
 import           Control.Monad.IO.Class (MonadIO)
 import           ENCOINS.Core.OffChain  (beaconMintTx, beaconSendTx)
 import           Server.Internal        (Config(..), loadRestoreWallet)
-import           Server.Tx              (mkTxWithConstraints)
+import           Server.Tx              (mkTx)
 import           IO.Wallet              (HasWallet(..))
 
 newtype SetupM a = SetupM { unSetupM :: IO a }
@@ -22,7 +22,7 @@ instance HasWallet SetupM where
     getRestoreWallet = loadRestoreWallet
 
 setupServer :: Config -> IO ()
-setupServer Config{..} = unSetupM $ mkTxWithConstraints
+setupServer Config{..} = unSetupM $ mkTx
     [ beaconMintTx confBeaconTxOutRef
     , beaconSendTx confBeaconTxOutRef
     ]

@@ -34,7 +34,7 @@ import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST),
                                                    UVerb, Union)
 import           Server.Internal                  (AppM, Env(..), getQueueRef, respondWithStatus)
-import           Server.Tx                        (mkTxWithConstraints)
+import           Server.Tx                        (mkTx)
 import           Ledger.Typed.Scripts             (Any)
 
 type MintApi = "relayRequestMint"
@@ -95,4 +95,4 @@ processTokens :: EncoinsRedeemer -> QueueM ()
 processTokens red = do
     params <- asks (beaconCurrencySymbol . envBeaconRef)
 
-    mkTxWithConstraints @Any [encoinsTx params red]
+    mkTx @Any [encoinsTx params red]

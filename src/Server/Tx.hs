@@ -3,7 +3,6 @@
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
 module Server.Tx where
@@ -36,7 +35,7 @@ type HasTxEnv =
     , ?txUtxos      :: M.Map TxOutRef (ChainIndexTxOut, ChainIndexTx)
     )
 
-mkTxWithConstraints :: forall a m.
+mkTx :: forall a m.
     ( FromData (DatumType a)
     , ToData   (DatumType a)
     , ToData   (RedeemerType a)
@@ -45,7 +44,7 @@ mkTxWithConstraints :: forall a m.
     , HasWallet m
     , HasLogger m
     ) => (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()]) -> m ()
-mkTxWithConstraints txs = do
+mkTx txs = do
     walletAddrBech32       <- getWalletAddrBech32
     walletAddr             <- getWalletAddr
     (walletPKH, walletSKH) <- getWalletKeyHashes
@@ -63,8 +62,8 @@ mkTxWithConstraints txs = do
     let protocolParams = fromJust . decode $ fromStrict $(embedFile "testnet/protocol-parameters.json")
         networkId = Testnet $ NetworkMagic 1097911063
         ledgerParams = Params def protocolParams networkId
-        constrInit = mkTxConstructor 
-            (walletPKH, walletSKH) 
+        constrInit = mkTxConstructor
+            (walletPKH, walletSKH)
             ct
             utxos
         constr = fromJust $ selectTxConstructor $ map (`execState` constrInit) txs
