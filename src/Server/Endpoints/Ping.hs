@@ -8,7 +8,7 @@
 
 module Server.Endpoints.Ping where
 
-import Common.Logger   (HasLogger(logMsg))
+import Utils.Logger    (HasLogger(logMsg))
 import Servant         (type (:>), NoContent(..), JSON, Get)
 import Server.Internal (AppM)
 

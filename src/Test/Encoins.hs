@@ -12,7 +12,7 @@ module Test.Encoins where
 
 import qualified Client.Main                     as Client
 import           Cardano.Api.Shelley             (NetworkMagic(..), NetworkId(..))
-import           Common.Logger                   (logPretty)
+import           Utils.Logger                    (logPretty)
 import           Control.Monad                   (forM_, unless)
 import           Data.Aeson                      (decode)
 import           Data.ByteString.Lazy            (fromStrict)

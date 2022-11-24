@@ -11,7 +11,7 @@ module Server.ServerTx where
 import           Cardano.Api.Shelley       (NetworkMagic(..), NetworkId(..))
 import           Control.Monad.Extra       (mconcatMapM)
 import           Control.Monad.State       (State, execState, MonadIO(..))
-import           Common.Logger             (HasLogger(..), logPretty, logSmth)
+import           Utils.Logger              (HasLogger(..), logPretty, logSmth)
 import           Data.Aeson                (decode)
 import           Data.ByteString.Lazy      (fromStrict)
 import           Data.Default              (Default(..))

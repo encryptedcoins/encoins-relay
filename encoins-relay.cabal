@@ -35,8 +35,8 @@ library
       Server.Main
     other-modules:
       Client.Opts
-      Common.Logger
-      Common.Wait
+      Utils.Logger
+      Utils.Wait
       Server.Config
       Server.Endpoints.Balance 
       Server.Endpoints.Mint 

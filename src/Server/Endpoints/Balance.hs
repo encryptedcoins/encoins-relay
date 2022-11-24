@@ -15,7 +15,7 @@
 
 module Server.Endpoints.Balance where
 
-import           Common.Logger          (logMsg)
+import           Utils.Logger           (logMsg)
 import           Control.Monad.Catch    (Exception, handle, throwM)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Control.Monad.Reader   (asks)

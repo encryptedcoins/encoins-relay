@@ -16,8 +16,8 @@ import           Client.Opts                     (runWithOpts, Options(..), Clie
                                                   RequestPiece(..), Maximum)
 import           Control.Monad.Extra             (whenM)
 import           Control.Monad.Reader
-import           Common.Logger                   (HasLogger(..), (.<), logSmth)
-import           Common.Wait                     (waitTime)
+import           Utils.Logger                    (HasLogger(..), (.<), logSmth)
+import           Utils.Wait                      (waitTime)
 import           Data.Aeson                      (encode, decode, FromJSON, eitherDecode)
 import           Data.Aeson.Text                 (encodeToLazyText)
 import qualified Data.ByteString                 as BS

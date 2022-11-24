@@ -12,7 +12,7 @@ module Server.Main where
 import           Control.Concurrent       (forkIO)
 import           Control.Monad.Except     (runExceptT)
 import           Control.Monad.Reader     (ReaderT(runReaderT))
-import           Common.Logger            (HasLogger(logMsg))
+import           Utils.Logger             (HasLogger(logMsg))
 import           Data.IORef               (newIORef)
 import           Data.Sequence            (empty)
 import qualified Network.Wai.Handler.Warp as Warp

@@ -5,7 +5,7 @@
 
 module Server.Setup where
 
-import           Common.Logger          (HasLogger(..))
+import           Utils.Logger           (HasLogger(..))
 import           Control.Monad.IO.Class (MonadIO)
 import           ENCOINS.Core.OffChain  (beaconMintTx, beaconSendTx)
 import           Server.Config          (Config(..), loadRestoreWallet)
