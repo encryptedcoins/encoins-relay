@@ -10,7 +10,7 @@
 
 module Test.Encoins where
 
-import qualified Client.Main                     as Client
+import qualified Client.Internal                 as Client
 import           Cardano.Api.Shelley             (NetworkMagic(..), NetworkId(..))
 import           Utils.Logger                    (logPretty)
 import           Control.Monad                   (forM_, unless)

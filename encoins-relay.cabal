@@ -34,6 +34,7 @@ library
       Client.Main
       Server.Main
     other-modules:
+      Client.Internal
       Client.Opts
       Utils.Logger
       Utils.Wait
