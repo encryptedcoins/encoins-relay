@@ -1,39 +1,50 @@
-{-# LANGUAGE ConstraintKinds   #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE ImplicitParams    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE ImplicitParams      #-}
+{-# LANGUAGE NumericUnderscores  #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Server.Tx where
 
 import           Cardano.Api.Shelley       (NetworkMagic(..), NetworkId(..))
 import           Control.Monad.Extra       (mconcatMapM)
-import           Control.Monad.State       (State, execState, MonadIO(..))
+import           Control.Monad.State       (State, get, put, execState, MonadIO(..))
 import           Data.Aeson                (decode)
 import           Data.ByteString.Lazy      (fromStrict)
 import           Data.Default              (Default(..))
 import           Data.FileEmbed            (embedFile)
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromJust)
-import           Ledger                    (Address, ChainIndexTxOut, Params(..), POSIXTime, PubKeyHash, TxOutRef, unPaymentPubKeyHash)
+import           Data.Void                 (Void)
+import           Ledger                    (Address, CardanoTx(..), ChainIndexTxOut, Params(..), POSIXTime, PubKeyHash, TxOutRef,
+                                            StakePubKeyHash(..), PaymentPubKeyHash (..))
+import           Ledger.Ada                (lovelaceValueOf) 
+import           Ledger.Constraints        (ScriptLookups, mustPayToPubKey, mustPayToPubKeyAddress)
+import           Ledger.Tx.CardanoAPI      (unspentOutputsTx)
 import           PlutusTx                  (FromData(..), ToData(..))
 import           Plutus.ChainIndex         (ChainIndexTx)
 import           Plutus.Script.Utils.Typed (RedeemerType, DatumType)
 import           IO.ChainIndex             (getUtxosAt)
 import           IO.Time                   (currentTime)
-import           IO.Wallet                 (HasWallet(..), signTx, balanceTx, submitTxConfirmed, getWalletAddr, getWalletAddrBech32, getWalletKeyHashes)
+import           IO.Wallet                 (HasWallet(..), signTx, balanceTx, submitTxConfirmed, getWalletAddr,
+                                            getWalletAddrBech32, getWalletKeyHashes)
 import           Types.TxConstructor       (TxConstructor (..), selectTxConstructor, mkTxConstructor)
 import           Utils.Logger              (HasLogger(..), logPretty, logSmth)
 
-type HasTxEnv = 
+type HasTxEnv =
     ( ?txWalletAddr :: Address
     , ?txWalletPKH  :: PubKeyHash
+    , ?txWalletSKH  :: Maybe PubKeyHash
     , ?txCt         :: POSIXTime
     , ?txUtxos      :: M.Map TxOutRef (ChainIndexTxOut, ChainIndexTx)
+    , ?txParams     :: Params
     )
 
-mkTx :: forall a m.
+type TxConstraints a m =
     ( FromData (DatumType a)
     , ToData   (DatumType a)
     , ToData   (RedeemerType a)
@@ -41,9 +52,11 @@ mkTx :: forall a m.
     , Show     (RedeemerType a)
     , HasWallet m
     , HasLogger m
-    ) => [Address]
+    )
+
+mkTx :: forall a m. TxConstraints a m => [Address]
       -> (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()])
-      -> m ()
+      -> m CardanoTx
 mkTx utxosAddresses txs = do
     walletAddrBech32       <- getWalletAddrBech32
     walletAddr             <- getWalletAddr
@@ -51,17 +64,20 @@ mkTx utxosAddresses txs = do
     utxos <- liftIO $ mconcatMapM getUtxosAt utxosAddresses
     ct    <- liftIO currentTime
 
-    let ?txWalletAddr = walletAddr
-        ?txWalletPKH  = unPaymentPubKeyHash walletPKH
-        ?txCt         = ct
-        ?txUtxos      = utxos
-
-    logMsg $ "Wallet address:\n" <> walletAddrBech32
-
     let protocolParams = fromJust . decode $ fromStrict $(embedFile "testnet/protocol-parameters.json")
         networkId = Testnet $ NetworkMagic 1097911063
         ledgerParams = Params def protocolParams networkId
-        constrInit = mkTxConstructor
+
+    let ?txWalletAddr = walletAddr
+        ?txWalletPKH  = unPaymentPubKeyHash walletPKH
+        ?txWalletSKH  = unStakePubKeyHash <$> walletSKH
+        ?txCt         = ct
+        ?txUtxos      = utxos
+        ?txParams     = ledgerParams
+
+    logMsg $ "Wallet address:\n" <> walletAddrBech32
+
+    let constrInit = mkTxConstructor
             (walletPKH, walletSKH)
             ct
             utxos
@@ -81,3 +97,23 @@ mkTx utxosAddresses txs = do
     logMsg "Submitting..."
     submitTxConfirmed signedTx
     logMsg "Submited."
+    return signedTx
+
+mkWalletTxOutRefs :: TxConstraints Void m => Address -> Int -> m [TxOutRef]
+mkWalletTxOutRefs addr n = do
+        signedTx <- mkTx [addr] [constraints]
+        let refs = case signedTx of
+                EmulatorTx _    -> error "Can not get TxOutRef's from EmulatorTx."
+                CardanoApiTx tx -> M.keys $ unspentOutputsTx tx
+                Both _ tx       -> M.keys $ unspentOutputsTx tx
+        pure refs
+    where
+        constraints :: HasTxEnv => State (TxConstructor Void i o) ()
+        constraints = do
+            let pkh = PaymentPubKeyHash ?txWalletPKH
+                mbSkh = StakePubKeyHash <$> ?txWalletSKH
+                cons = case mbSkh of
+                    Just skh -> mconcat $ replicate n $ mustPayToPubKeyAddress pkh skh $ lovelaceValueOf 10_000_000
+                    Nothing  -> mustPayToPubKey pkh $ lovelaceValueOf 10_000_000
+            constr <- get
+            put constr { txConstructorResult = Just (mempty :: ScriptLookups Void, cons) }

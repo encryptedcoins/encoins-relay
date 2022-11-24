@@ -1,17 +1,18 @@
-{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE EmptyDataDeriving     #-}
 {-# LANGUAGE EmptyCase             #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeFamilies          #-}
 
 module EncoinsServer.Main (EncoinsServer) where
 
 import           Client.Internal                 (ClientM, ClientRequestOf, HasClient(..), envAuxiliary)
 import           Control.Applicative             ((<|>), Alternative (..))
+import           Control.Monad                   (void)
 import           Control.Monad.Catch             (Exception)
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.Text                       as T
@@ -35,13 +36,13 @@ import           Ledger                          (TxOutRef, TxOutRef, unPaymentP
 import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
 import           PlutusTx.Builtins.Class         (FromBuiltin (fromBuiltin))
+import           Servant                         (NoContent)
 import           Server.Endpoints.Mint           (HasMintEndpoint(..))
 import qualified Server.Internal                 as Server
 import           Server.Internal                 (decodeOrErrorFromFile, Config(..), HasServer(..))
 import           Server.Tx                       (mkTx)
 import           System.Directory                (listDirectory, doesFileExist, getDirectoryContents, listDirectory, removeFile)
 import           System.Random                   (randomIO, randomRIO, randomRIO, randomIO)
-
 
 data EncoinsServer
 
@@ -57,25 +58,25 @@ instance HasServer EncoinsServer where
 
     processTokens red = do
         bcs <- getCurrencySymbol
-        mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
+        void $ mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
 
     setupServer Config{..} = do
         walletAddr <- getWalletAddr
-        mkTx [walletAddr]
+        void $ mkTx [walletAddr]
             [ beaconMintTx confAuxiliaryEnv
             , beaconSendTx confAuxiliaryEnv
             ]
 
 instance HasMintEndpoint EncoinsServer where
 
+    type MintApiResultOf EncoinsServer = '[NoContent]
+
     data MintErrorOf EncoinsServer
+                deriving (Show, Exception)
 
     checkForMintErros _ = pure ()
 
-    handleSpecificError = \case
-
-deriving instance Show (MintErrorOf EncoinsServer)
-deriving instance Exception (MintErrorOf EncoinsServer)
+    mintErrorHanlder = \case
 
 instance HasClient EncoinsServer where
 

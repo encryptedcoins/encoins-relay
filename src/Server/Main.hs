@@ -1,4 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MonoLocalBinds        #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -15,6 +19,7 @@ import           Data.IORef               (newIORef)
 import           Data.Sequence            (empty)
 import           EncoinsServer.Main       (EncoinsServer)
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Servant
 import           Servant                  (Proxy(..), type (:<|>)(..), ServerT, Context(EmptyContext), hoistServer,
                                            serveWithContext, Handler(runHandler'), Application)
 import           Server.Endpoints.Balance (BalanceApi, balanceHandler)
@@ -30,6 +35,11 @@ type ServerAPI s
     =    PingApi
     :<|> MintApi s
     :<|> BalanceApi
+
+type ServerConstraints s =
+    ( HasMintEndpoint s
+    , Servant.HasServer (ServerAPI s) '[]
+    )
 
 server :: HasMintEndpoint s => ServerT (ServerAPI s) (AppM s)
 server = pingHandler
@@ -49,7 +59,7 @@ main = do
         Encoins -> withInstantiation @EncoinsServer
         Test    -> withInstantiation @TestingServer
 
-withInstantiation :: forall s. HasMintEndpoint s => IO ()
+withInstantiation :: forall s. ServerConstraints s => IO ()
 withInstantiation = do
     Options{..} <- runWithOpts
     conf        <- loadConfig @s
@@ -57,7 +67,7 @@ withInstantiation = do
         Run   -> runServer conf
         Setup -> unSetupM @s $ setupServer conf
 
-runServer :: forall s. HasMintEndpoint s => Config s -> IO ()
+runServer :: forall s. ServerConstraints s => Config s -> IO ()
 runServer Config{..} = do
         hSetBuffering stdout LineBuffering
         ref <- newIORef empty
@@ -68,6 +78,6 @@ runServer Config{..} = do
     where
         logStart env = runExceptT . runHandler' . flip runReaderT env . unAppM . logMsg
 
-mkApp :: forall s. HasMintEndpoint s => Env s -> Application
+mkApp :: forall s. ServerConstraints s => Env s -> Application
 mkApp env = serveWithContext (serverAPI @s) EmptyContext $
     hoistServer (serverAPI @s) ((`runReaderT` env) . unAppM) server
