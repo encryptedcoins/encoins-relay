@@ -71,9 +71,10 @@ type Queue s = Seq (RedeemerOf s)
 type QueueRef s = IORef (Queue s)
 
 data Env s = Env
-    { envQueueRef  :: QueueRef s
-    , envWallet    :: RestoreWallet
-    , envAuxiliary :: AuxiliaryEnvOf s
+    { envQueueRef       :: QueueRef s
+    , envWallet         :: RestoreWallet
+    , envAuxiliary      :: AuxiliaryEnvOf s
+    , envMinUtxosAmount :: Int
     }
 
 getQueueRef :: AppM s (QueueRef s)
@@ -83,6 +84,7 @@ data Config s = Config
     { confServerAddress     :: Text
     , confNodeAddress       :: Text
     , confChainIndexAddress :: Text
+    , confMinUtxosAmount    :: Int
     , confAuxiliaryEnv      :: AuxiliaryEnvOf s
     , confWallet            :: RestoreWallet
     }
@@ -92,6 +94,7 @@ data ConfigFile = ConfigFile
     { cfServerAddress     :: Text
     , cfNodeAddress       :: Text
     , cfChainIndexAddress :: Text
+    , cfMinUtxosAmount    :: Int
     , cfAuxiliaryEnvFile  :: FilePath
     , cfWalletFile        :: FilePath
     } deriving (Show, Generic)
@@ -105,6 +108,7 @@ loadConfig = do
     let confServerAddress     = cfServerAddress
         confNodeAddress       = cfNodeAddress
         confChainIndexAddress = cfChainIndexAddress
+        confMinUtxosAmount    = cfMinUtxosAmount
     confAuxiliaryEnv <- loadAuxiliaryEnv @s cfAuxiliaryEnvFile
     confWallet       <- decodeOrErrorFromFile cfWalletFile
     pure Config{..}

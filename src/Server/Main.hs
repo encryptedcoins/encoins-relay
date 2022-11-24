@@ -61,7 +61,7 @@ runServer :: forall s. HasMintEndpoint s => Config s -> IO ()
 runServer Config{..} = do
         hSetBuffering stdout LineBuffering
         ref <- newIORef empty
-        let env = Env ref confWallet confAuxiliaryEnv
+        let env = Env ref confWallet confAuxiliaryEnv confMinUtxosAmount
         forkIO $ processQueue env
         logStart env "Starting server..."
         Warp.run port $ mkApp @s env
