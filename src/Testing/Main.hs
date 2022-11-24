@@ -14,6 +14,7 @@ module Testing.Main (Testing) where
     
 import Client.Internal         (HasClient(..))
 import Control.Monad           (replicateM)
+import IO.Wallet               (getWalletAddr)
 import Options.Applicative     (argument, metavar, str)
 import Plutus.V2.Ledger.Api    (BuiltinByteString)
 import PlutusTx.Builtins.Class (stringToBuiltinByteString)
@@ -21,6 +22,7 @@ import Server.Internal         (HasServer(..))
 import Server.Tx               (mkTx)
 import System.Random           (randomRIO, randomIO)
 import Testing.OffChain        (testCurrencySymbol, testMintTx)
+
 
 data Testing
 
@@ -34,7 +36,9 @@ instance HasServer Testing where
 
     getCurrencySymbol = pure testCurrencySymbol
 
-    processTokens bbs = mkTx [testMintTx bbs]
+    processTokens bbs = do
+        addr <- getWalletAddr
+        mkTx [addr] [testMintTx bbs]
 
     setupServer _ = pure ()
 

@@ -25,7 +25,7 @@ import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMi
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
 import           Encoins.Opts                    (burnParser, mintParser, EncoinsRequestPiece(..))
 import           IO.Time                         (currentTime)
-import           IO.Wallet                       (getWalletKeyHashes)
+import           IO.Wallet                       (getWalletKeyHashes, getWalletAddr)
 import           Ledger                          (TxOutRef, TxOutRef, unPaymentPubKeyHash)
 import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
@@ -35,6 +35,7 @@ import           Server.Internal                 (decodeOrErrorFromFile, Config(
 import           Server.Tx                       (mkTx)
 import           System.Directory                (listDirectory, doesFileExist, getDirectoryContents, listDirectory, removeFile)
 import           System.Random                   (randomIO, randomRIO, randomRIO, randomIO)
+
 
 data Encoins
 
@@ -49,13 +50,15 @@ instance HasServer Encoins where
     getCurrencySymbol = asks $ beaconCurrencySymbol . Server.envAuxiliary
 
     processTokens red = do
-        params <- getCurrencySymbol
-        mkTx [encoinsTx params red]
+        bcs <- getCurrencySymbol
+        mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
 
-    setupServer Config{..} = mkTx
-        [ beaconMintTx confAuxiliaryEnv
-        , beaconSendTx confAuxiliaryEnv
-        ]
+    setupServer Config{..} = do
+        walletAddr <- getWalletAddr
+        mkTx [walletAddr]
+            [ beaconMintTx confAuxiliaryEnv
+            , beaconSendTx confAuxiliaryEnv
+            ]
 
 instance HasClient Encoins where
 

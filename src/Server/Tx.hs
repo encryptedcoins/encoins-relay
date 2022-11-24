@@ -41,12 +41,14 @@ mkTx :: forall a m.
     , Show     (RedeemerType a)
     , HasWallet m
     , HasLogger m
-    ) => (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()]) -> m ()
-mkTx txs = do
+    ) => [Address]
+      -> (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()]) 
+      -> m ()
+mkTx utxosAddresses txs = do
     walletAddrBech32       <- getWalletAddrBech32
     walletAddr             <- getWalletAddr
     (walletPKH, walletSKH) <- getWalletKeyHashes
-    utxos <- liftIO $ mconcatMapM getUtxosAt [walletAddr]
+    utxos <- liftIO $ mconcatMapM getUtxosAt utxosAddresses
     ct    <- liftIO currentTime
 
     let ?txWalletAddr = walletAddr
