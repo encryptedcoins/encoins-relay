@@ -1,28 +1,19 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImplicitParams             #-}
-{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Server.Setup where
-
-import           Utils.Logger           (HasLogger(..))
-import           Control.Monad.IO.Class (MonadIO)
-import           ENCOINS.Core.OffChain  (beaconMintTx, beaconSendTx)
-import           Server.Internal        (Config(..), loadRestoreWallet)
-import           Server.Tx              (mkTx)
+import           Control.Monad.IO.Class (MonadIO(..))
 import           IO.Wallet              (HasWallet(..))
+import           Server.Internal        (loadConfig, Config(..), HasServer)
+import           Utils.Logger           (HasLogger(..))
 
-newtype SetupM a = SetupM { unSetupM :: IO a }
+newtype SetupM s a = SetupM { unSetupM :: IO a }
     deriving newtype (Functor, Applicative, Monad, MonadIO)
 
-instance HasLogger SetupM where
+instance HasLogger (SetupM s) where
     loggerFilePath = "server.log"
 
-instance HasWallet SetupM where
-    getRestoreWallet = loadRestoreWallet
-
-setupServer :: Config -> IO ()
-setupServer Config{..} = unSetupM $ mkTx
-    [ beaconMintTx confBeaconTxOutRef
-    , beaconSendTx confBeaconTxOutRef
-    ]
+instance HasServer s => HasWallet (SetupM s) where
+    getRestoreWallet = liftIO $ confWallet <$> loadConfig @s

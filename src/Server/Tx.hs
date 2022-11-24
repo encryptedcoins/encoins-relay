@@ -10,14 +10,12 @@ module Server.Tx where
 import           Cardano.Api.Shelley       (NetworkMagic(..), NetworkId(..))
 import           Control.Monad.Extra       (mconcatMapM)
 import           Control.Monad.State       (State, execState, MonadIO(..))
-import           Utils.Logger              (HasLogger(..), logPretty, logSmth)
 import           Data.Aeson                (decode)
 import           Data.ByteString.Lazy      (fromStrict)
 import           Data.Default              (Default(..))
 import           Data.FileEmbed            (embedFile)
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromJust)
-import           ENCOINS.Core.OffChain     (beaconCurrencySymbol, encoinsSymbol, stakingValidatorAddress)
 import           Ledger                    (Address, ChainIndexTxOut, Params(..), POSIXTime, PubKeyHash, TxOutRef, unPaymentPubKeyHash)
 import           PlutusTx                  (FromData(..), ToData(..))
 import           Plutus.ChainIndex         (ChainIndexTx)
@@ -25,8 +23,8 @@ import           Plutus.Script.Utils.Typed (RedeemerType, DatumType)
 import           IO.ChainIndex             (getUtxosAt)
 import           IO.Time                   (currentTime)
 import           IO.Wallet                 (HasWallet(..), signTx, balanceTx, submitTxConfirmed, getWalletAddr, getWalletAddrBech32, getWalletKeyHashes)
-import           Server.Internal           (Config (..), loadConfig)
 import           Types.TxConstructor       (TxConstructor (..), selectTxConstructor, mkTxConstructor)
+import           Utils.Logger              (HasLogger(..), logPretty, logSmth)
 
 type HasTxEnv = 
     ( ?txWalletAddr :: Address
@@ -48,8 +46,7 @@ mkTx txs = do
     walletAddrBech32       <- getWalletAddrBech32
     walletAddr             <- getWalletAddr
     (walletPKH, walletSKH) <- getWalletKeyHashes
-    cfg   <- liftIO loadConfig -- TODO: avoid loading config all the time
-    utxos <- liftIO $ mconcatMapM getUtxosAt [stakingValidatorAddress $ encoinsSymbol $ beaconCurrencySymbol $ confBeaconTxOutRef cfg]
+    utxos <- liftIO $ mconcatMapM getUtxosAt [walletAddr]
     ct    <- liftIO currentTime
 
     let ?txWalletAddr = walletAddr

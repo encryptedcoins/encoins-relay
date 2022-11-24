@@ -14,5 +14,5 @@ import Server.Internal (AppM)
 
 type PingApi = "relayRequestPing" :> Get '[JSON] NoContent
 
-pingHandler :: AppM NoContent
+pingHandler :: AppM s NoContent
 pingHandler = NoContent <$ logMsg "Received ping request."

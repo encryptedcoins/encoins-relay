@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Test.Reference.OffChain where
+module Testing.OffChain where
 
 import           Control.Monad.State                  (State)
 import           Ledger.Tokens                        (token)
@@ -16,12 +16,10 @@ import           Ledger.Value                         (AssetClass (..))
 import           Plutus.Script.Utils.V2.Scripts       (ValidatorHash, validatorHash, scriptCurrencySymbol)
 import           Plutus.Script.Utils.V2.Typed.Scripts (ValidatorTypes (..), validatorScript)
 import           Plutus.V2.Ledger.Api                 (Value, Validator, CurrencySymbol)
-import           PlutusTx.Prelude
-
+import           PlutusTx.Prelude 
 import           Scripts.Constraints                  (tokensMintedTx)
 import           Types.TxConstructor                  (TxConstructor (..))
-import           Test.Reference.OnChain               (testPolicy, testTokenName, testTypedValidator)
-
+import           Testing.OnChain                      (testPolicy, testTokenName, testTypedValidator)
 
 type TestTransaction = TxConstructor Any (RedeemerType Any) (DatumType Any)
 type TestTransactionBuilder = State TestTransaction ()

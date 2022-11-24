@@ -34,11 +34,10 @@ library
       Client.Main
       Server.Main
     other-modules:
-      Client.Internal
       Client.Opts
-      Utils.Logger
-      Utils.Servant
-      Utils.Wait
+      Client.OptsSum
+      Client.Internal
+
       Server.Endpoints.Balance 
       Server.Endpoints.Mint 
       Server.Endpoints.Ping
@@ -46,8 +45,17 @@ library
       Server.Opts
       Server.Setup
       Server.Tx
-      Test.Reference.OnChain
-      Test.Reference.OffChain
+
+      Encoins.Main
+      Encoins.Opts
+
+      Testing.Main
+      Testing.OnChain
+      Testing.OffChain
+
+      Utils.Logger
+      Utils.Servant
+      Utils.Wait
     default-extensions:
       PartialTypeSignatures
     build-depends:

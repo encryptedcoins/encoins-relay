@@ -1,28 +1,24 @@
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Client.Opts where
 
-import Control.Applicative             (some, (<|>))
-import Control.Monad.Reader            (ask)
-import Data.Maybe                      (fromMaybe)
-import Data.String                     (IsString(..))
-import Ledger.Ada                      (Ada(..))
-import Options.Applicative             (Parser, (<**>), auto, fullDesc, help, info, long, option, short, value, execParser, 
-                                        helper, Mod, OptionFields, flag')
-import Options.Applicative.Types       (ReadM(..))
+import           Client.Internal       (HasClient(..))
+import           Control.Applicative   (some, (<|>))
+import           Options.Applicative   (Parser, (<**>), auto, fullDesc, help, info, long, option, short, value, execParser,
+                                        helper, flag')
 
-runWithOpts :: IO Options
+runWithOpts :: HasClient s => IO (Options s)
 runWithOpts = execParser $ info (optionsParser <**> helper) fullDesc
 
-optionsParser :: Parser Options
-optionsParser = Options <$> (autoModeParser <|> manualModeParser)
+optionsParser :: HasClient s => Parser (Options s)
+optionsParser = autoModeParser <|> manualModeParser
 
-newtype Options = Options { mode :: ClientMode } deriving Show
-
-data ClientMode 
+data Options s
     = Auto   AutoOptions
-    | Manual ClientRequest
-    deriving Show
+    | Manual [RequestPieceOf s]
+deriving instance HasClient s => Show (Options s)
 
 --------------------------------------------- Auto ---------------------------------------------
 
@@ -36,9 +32,9 @@ data AutoOptions = AutoOptions
 type Interval = Int
 type Maximum  = Int
 
-autoModeParser :: Parser ClientMode
+autoModeParser :: Parser (Options s)
 autoModeParser 
-    = fmap Auto $ ((flag' AutoOptions (long "auto"))) 
+    = fmap Auto $ flag' AutoOptions (long "auto")
     <*> intervalParser 
     <*> maxTokensParser
 
@@ -52,9 +48,9 @@ intervalParser = option auto
 
 maxTokensParser :: Parser Maximum
 maxTokensParser = option auto
-    (  long "max"
+    (  long  "max"
     <> short 'm'
-    <> help "Upper bound on the number of generated tokens in a request."
+    <> help  "Upper bound on the number of generated tokens in a single request."
     <> value 1
     )
 
@@ -62,28 +58,6 @@ maxTokensParser = option auto
 
 -- Usage: --manual --mint 154 --mint 16 --burn 13af.json
 
-type ClientRequest = [RequestPiece]
-
-data RequestPiece
-    = RPMint Ada
-    | RPBurn FilePath
-    deriving (Show, Eq)
-
-manualModeParser :: Parser ClientMode
+manualModeParser :: forall s. HasClient s => Parser (Options s)
 manualModeParser = flag' Manual (long "manual")
-               <*> some (mintParser <|> burnParser)
-
-mintParser :: Parser RequestPiece
-mintParser = RPMint . Lovelace <$> option auto
-    (  long "mint"
-    <> help "Token name to mint."
-    )
-
-burnParser :: Parser RequestPiece
-burnParser = RPBurn <$> option withoutQuotes
-    (  long "burn"
-    <> help "Token name to burn."
-    )
-
-withoutQuotes :: ReadM String
-withoutQuotes = ReadM $ ask >>= pure
+               <*> some (parseRequestPiece @s)
