@@ -35,7 +35,6 @@ library
       Server.Main
     other-modules:
       Client.Opts
-      Client.OptsSum
       Client.Internal
 
       Server.Endpoints.Balance 

@@ -28,7 +28,7 @@ import Server.Endpoints.Mint   (HasMintEndpoint(..))
 import Server.Internal         (HasServer(..))
 import Server.Tx               (mkTx)
 import System.Random           (randomRIO, randomIO)
-import TestingServer.OffChain        (testCurrencySymbol, testMintTx)
+import TestingServer.OffChain  (testCurrencySymbol, testMintTx)
 import Utils.Servant           (respondWithStatus)
 
 data TestingServer

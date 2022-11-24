@@ -6,27 +6,41 @@
 {-# LANGUAGE TypeApplications           #-}
 
 module Client.Main where
-    
+
 import           Client.Internal           (HasClient(..), ClientM, ClientRequestOf, runClientM)
-import           Client.Opts               (AutoOptions(..), Maximum, Options(..))
-import           Client.OptsSum            (runWithOptsSum, OptionsSum(OptionsTesting, OptionsEncoins)) 
+import           Client.Opts               (AutoOptions(..), Maximum, Options(..), optionsParser)
 import           Control.Monad.Reader      (MonadIO(..), forever, when)
 import           Data.Aeson                (encode)
 import           Data.List                 (nub)
 import qualified Data.Text                 as T
+import           EncoinsServer.Main        (EncoinsServer)
 import           Network.HTTP.Client       (httpLbs, defaultManagerSettings, newManager, parseRequest,
                                             Manager, Request(..), RequestBody(..), responseStatus)
 import           Network.HTTP.Types.Header (hContentType)
 import           Network.HTTP.Types.Status (status204)
+import           Options.Applicative       (Parser, (<**>), (<|>), fullDesc, info, long, execParser, helper, flag')
 import qualified Server.Internal           as Server
 import           System.Random             (randomRIO)
+import           TestingServer.Main        (TestingServer)
 import           Utils.Logger              (HasLogger(..), (.<))
 import           Utils.Wait                (waitTime)
+import Control.Monad (replicateM)
 
 main :: IO ()
 main = runWithOptsSum >>= \case
-    OptionsEncoins opts -> startClient opts
-    OptionsTesting opts -> startClient opts
+        OptionsEncoins opts -> startClient opts
+        OptionsTesting opts -> startClient opts
+    where
+        runWithOptsSum = execParser $ info (parserSum <**> helper) fullDesc
+        parserSum = parser "encoins" OptionsEncoins
+                <|> parser "test"    OptionsTesting
+
+        parser :: forall s. HasClient s => String -> (Options s -> OptionsSum) -> Parser OptionsSum
+        parser name constr = flag' constr (long name) <*> optionsParser
+
+data OptionsSum 
+    = OptionsEncoins (Options EncoinsServer)
+    | OptionsTesting (Options TestingServer)
 
 startClient :: forall s. HasClient s => Options s -> IO ()
 startClient opts = do
