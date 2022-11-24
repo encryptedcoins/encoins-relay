@@ -29,8 +29,8 @@ common lang
 library
     import: lang
     exposed-modules:
-      Test.Encoins
-      Test.Reference
+      Test.EncoinsServer
+      Test.TestingServer
       Client.Main
       Server.Main
     other-modules:
@@ -51,6 +51,8 @@ library
       TestingServer.Main
       TestingServer.OnChain
       TestingServer.OffChain
+
+      Test.Internal
 
       Utils.Logger
       Utils.Servant

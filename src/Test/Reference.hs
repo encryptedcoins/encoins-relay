@@ -1,50 +1,46 @@
--- {-# LANGUAGE TypeApplications     #-}
--- {-# LANGUAGE ImplicitParams       #-}
--- {-# LANGUAGE OverloadedStrings    #-}
-
--- {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE ImplicitParams       #-}
+{-# LANGUAGE OverloadedStrings    #-}
 
 module Test.Reference where
 
--- import qualified Data.Map                as M
--- import qualified Ledger.Ada              as Ada
--- import           Ledger.Typed.Scripts    (Any)
--- import           PlutusTx.Prelude        (emptyByteString)
--- import           Scripts.Constraints     (postMintingPolicyTx, referenceMintingPolicyTx)
--- import           Server.Internal         (loadRestoreWallet)
--- import           Server.Tx               (mkTx)
--- import           Test.Reference.OffChain (testMintTx, testToken)
--- import           Test.Reference.OnChain  (testPolicyV, testPolicy)
--- import           IO.Wallet               (HasWallet(..))
--- import qualified PlutusTx.Prelude as Plutus
+import           Control.Monad           (void)
+import qualified Data.Map                as M
+import           IO.Wallet               (getWalletAddr)
+import qualified Ledger.Ada              as Ada
+import           Ledger.Typed.Scripts    (Any)
+import           Scripts.Constraints     (postMintingPolicyTx, referenceMintingPolicyTx)
+import           Server.Tx               (mkTx)
+import           Test.Internal           (runTestM)
+import           TestingServer.Main      (TestingServer)
+import           TestingServer.OffChain  (testToken)
+import           TestingServer.OnChain   (testPolicyV, testPolicy)
+import qualified PlutusTx.Prelude        as Plutus
+import           Utils.Logger            (HasLogger(..))
 
--- instance HasWallet IO where
---     getRestoreWallet = loadRestoreWallet
+postReferenceScript :: IO ()
+postReferenceScript = void $ runTestM @TestingServer $ do
+    addr <- getWalletAddr
+    mkTx @Any [addr]
+        [ postMintingPolicyTx 
+            ?txWalletAddr 
+            testPolicyV 
+            (Nothing :: Maybe ())
+            (Ada.adaValueOf 20)
+        ]
 
--- runTest :: IO ()
--- runTest = mkTx @Any $ [testMintTx [emptyByteString]]
-
--- postReferenceScript :: IO ()
--- postReferenceScript = do
---     mkTx @Any 
---         [ postMintingPolicyTx 
---             ?txWalletAddr 
---             testPolicyV 
---             (Nothing :: Maybe ())
---             (Ada.adaValueOf 20)
---         ]
-
--- runReferenceTest :: IO ()
--- runReferenceTest = do
---     putStrLn "\n\n\n\t\t\tMINT1:"
---     mkTest "token1"
---     putStrLn "\n\n\n\t\t\tMINT2:"
---     mkTest "token2"
---   where
---     mkTest token = mkTx @Any
---         [ referenceMintingPolicyTx 
---             testPolicy
---             (head $ M.keys ?txUtxos) 
---             ([token] :: [Plutus.BuiltinByteString])
---             (Plutus.sum $ map testToken [token])
---         ]
+runReferenceTest :: IO ()
+runReferenceTest = void $ runTestM @TestingServer $ do
+    addr <- getWalletAddr
+    logMsg "\n\n\n\t\t\tMINT1:"
+    mkTest "token1" addr
+    logMsg "\n\n\n\t\t\tMINT2:"
+    mkTest "token2" addr
+  where
+    mkTest token addr = mkTx @Any [addr]
+        [ referenceMintingPolicyTx 
+            testPolicy
+            (head $ M.keys ?txUtxos) 
+            ([token] :: [Plutus.BuiltinByteString])
+            (Plutus.sum $ map testToken [token])
+        ]

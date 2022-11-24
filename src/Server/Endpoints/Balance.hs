@@ -36,7 +36,7 @@ type BalanceApi = "relayRequestBalance"
 type BalanceApiResult = '[Balance, WithStatus 400 Text]
 
 newtype Balance = Balance [(TokenName, TxOutRef)]
-    deriving Generic
+    deriving (Show, Generic)
     deriving newtype ToJSON
 
 instance HasStatus Balance where

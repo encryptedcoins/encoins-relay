@@ -8,11 +8,11 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-module EncoinsServer.Main (EncoinsServer) where
+module EncoinsServer.Main (EncoinsServer, mkEncoinsRedeemer) where
 
-import           Client.Internal                 (ClientM, ClientRequestOf, HasClient(..), envAuxiliary)
-import           Control.Applicative             ((<|>), Alternative (..))
-import           Control.Monad                   (void)
+import           Client.Internal                 (ClientM, HasClient(..), envAuxiliary)
+import           Control.Applicative             (Alternative (..))
+import           Control.Monad                   ((>=>), void)
 import           Control.Monad.Catch             (Exception)
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.Text                       as T
@@ -72,7 +72,7 @@ instance HasMintEndpoint EncoinsServer where
     type MintApiResultOf EncoinsServer = '[NoContent]
 
     data MintErrorOf EncoinsServer
-                deriving (Show, Exception)
+        deriving (Show, Exception)
 
     checkForMintErros _ = pure ()
 
@@ -86,7 +86,7 @@ instance HasClient EncoinsServer where
 
     parseRequestPiece = mintParser <|> burnParser
 
-    mkRedeemer = mkEncoinsRedeemer
+    mkRedeemer = processPieces >=> mkEncoinsRedeemer
 
 genEncoinsRequestPiece :: IO EncoinsRequestPiece
 genEncoinsRequestPiece = randomIO >>= \case
@@ -97,10 +97,9 @@ genEncoinsRequestPiece = randomIO >>= \case
     where
         genMint = RPMint . fromInteger <$> randomRIO (1, 10_000_000)
 
-mkEncoinsRedeemer :: ClientRequestOf EncoinsServer 
+mkEncoinsRedeemer :: (IO (), Ada, [Input])
                   -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
-mkEncoinsRedeemer cReq = do
-    (fileWork, val, inputs)  <- sequence . catMaybes <$> traverse processPiece cReq
+mkEncoinsRedeemer (fileWork, val, inputs) = do
     ct             <- liftIO currentTime
     (walletPKH, _) <- getWalletKeyHashes
     beaconRef      <- asks envAuxiliary
@@ -113,6 +112,9 @@ mkEncoinsRedeemer cReq = do
         dummyGE    = fromJust $ toGroupElement $ fromString "aaaa"
         dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE dummyFE [dummyFE] [dummyFE]
     pure (liftIO fileWork, (txParams, inputs, dummyProof))
+
+processPieces :: [EncoinsRequestPiece] -> ClientM EncoinsServer (IO (), Ada, [Input])
+processPieces cReq = sequence . catMaybes <$> traverse processPiece cReq
 
 processPiece :: RequestPieceOf EncoinsServer -> ClientM s (Maybe (IO (), Ada, Input))
 processPiece (RPMint ada) = do
