@@ -1,13 +1,17 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Server.Endpoints.Mint where
 
@@ -15,7 +19,9 @@ import           Control.Monad.Catch              (Exception, handle, throwM, Mo
 import           Control.Monad.Extra              (forever, unlessM)
 import           Control.Monad.IO.Class           (MonadIO(..))
 import           Control.Monad.Reader             (ReaderT(..), MonadReader, asks)
+import           Data.Kind                        (Type)
 import           Data.Text                        (Text)
+import           Data.Typeable                    (Typeable)
 import           Data.IORef                       (atomicWriteIORef, atomicModifyIORef, readIORef)
 import           Data.Sequence                    (Seq(..), (|>))
 import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
@@ -32,33 +38,41 @@ type MintApi s = "relayRequestMint"
 
 type MintApiResult = '[NoContent, WithStatus 422 Text]
 
-mintHandler :: HasServer s => RedeemerOf s -> AppM s (Union MintApiResult)
+mintHandler :: forall s. HasMintEndpoint s => RedeemerOf s -> AppM s (Union MintApiResult)
 mintHandler red = handle mintErrorHandler $ do
     logMsg $ "New mint request received:\n" .< red
-    -- when    hasDuplicates $ throwM DuplicateTokens
-    unlessM hasCleanUtxos $ throwM NoCleanUtxos
+    checkForMintErros red
+    unlessM hasCleanUtxos $ throwM $ NoCleanUtxos @s
     ref <- getQueueRef
     liftIO $ atomicModifyIORef ref ((,()) . (|> red))
     respond NoContent
---   where
-    -- hasDuplicates =
-    --     let tokens = map inputCommit inputs
-    --     in  length (nub tokens) /= length tokens
 
-data MintError
-    = DuplicateTokens
-    | NoCleanUtxos
-    deriving (Show, Exception)
+class (HasServer s
+      , Typeable s
+      , Show (MintErrorOf s)
+      , Exception (MintErrorOf s)
+      ) => HasMintEndpoint s where
 
-mintErrorHandler :: MintError -> AppM s (Union MintApiResult)
+    data MintErrorOf s :: Type
+
+    checkForMintErros :: RedeemerOf s -> AppM s ()
+
+    handleSpecificError :: MintErrorOf s -> AppM s (Union MintApiResult)
+
+data MintError s
+    = NoCleanUtxos
+    | SpecificMintError (MintErrorOf s)
+deriving instance Show (MintErrorOf s) => Show (MintError s)
+deriving instance (Exception (MintErrorOf s), Typeable s) => Exception (MintError s)
+
+mintErrorHandler :: HasMintEndpoint s => MintError s -> AppM s (Union MintApiResult)
 mintErrorHandler = \case
-
-    DuplicateTokens -> respondWithStatus @422
-        "The request contains duplicate tokens and will not be processed."
     
     NoCleanUtxos -> respondWithStatus @422
         "Balance of pure ada UTxOs in your wallet insufficient to cover \
         \the minimum amount of collateral reuqired."
+
+    SpecificMintError se -> handleSpecificError se
 
 newtype QueueM s a = QueueM { unQueueM :: ReaderT (Env s) IO a }
     deriving newtype

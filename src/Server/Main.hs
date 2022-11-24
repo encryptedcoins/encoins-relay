@@ -18,7 +18,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import           Servant                  (Proxy(..), type (:<|>)(..), ServerT, Context(EmptyContext), hoistServer,
                                            serveWithContext, Handler(runHandler'), Application)
 import           Server.Endpoints.Balance (BalanceApi, balanceHandler)
-import           Server.Endpoints.Mint    (MintApi, mintHandler, processQueue)
+import           Server.Endpoints.Mint    (HasMintEndpoint, MintApi, mintHandler, processQueue)
 import           Server.Endpoints.Ping    (PingApi, pingHandler)
 import           Server.Internal          (Env(Env), AppM(unAppM), HasServer(..), Config(..), loadConfig)
 import           Server.Opts              (runWithOpts, Options(..), ServerMode(..), ServerType(..))
@@ -31,7 +31,7 @@ type ServerAPI s
     :<|> MintApi s
     :<|> BalanceApi
 
-server :: HasServer s => ServerT (ServerAPI s) (AppM s)
+server :: HasMintEndpoint s => ServerT (ServerAPI s) (AppM s)
 server = pingHandler
     :<|> mintHandler
     :<|> balanceHandler
@@ -49,7 +49,7 @@ main = do
         Encoins -> withInstantiation @EncoinsServer
         Test    -> withInstantiation @TestingServer
 
-withInstantiation :: forall s. HasServer s => IO ()
+withInstantiation :: forall s. HasMintEndpoint s => IO ()
 withInstantiation = do
     Options{..} <- runWithOpts
     conf        <- loadConfig @s
@@ -57,7 +57,7 @@ withInstantiation = do
         Run   -> runServer conf
         Setup -> unSetupM @s $ setupServer conf
 
-runServer :: forall s. HasServer s => Config s -> IO ()
+runServer :: forall s. HasMintEndpoint s => Config s -> IO ()
 runServer Config{..} = do
         hSetBuffering stdout LineBuffering
         ref <- newIORef empty
@@ -68,6 +68,6 @@ runServer Config{..} = do
     where
         logStart env = runExceptT . runHandler' . flip runReaderT env . unAppM . logMsg
 
-mkApp :: forall s. (HasServer s) => Env s -> Application
+mkApp :: forall s. HasMintEndpoint s => Env s -> Application
 mkApp env = serveWithContext (serverAPI @s) EmptyContext $
     hoistServer (serverAPI @s) ((`runReaderT` env) . unAppM) server

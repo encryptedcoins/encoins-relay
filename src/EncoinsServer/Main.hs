@@ -1,13 +1,18 @@
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE EmptyCase             #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeFamilies          #-}
 
 module EncoinsServer.Main (EncoinsServer) where
 
 import           Client.Internal                 (ClientM, ClientRequestOf, HasClient(..), envAuxiliary)
 import           Control.Applicative             ((<|>), Alternative (..))
+import           Control.Monad.Catch             (Exception)
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.Text                       as T
 import           Control.Monad.Extra             (whenM)
@@ -30,6 +35,7 @@ import           Ledger                          (TxOutRef, TxOutRef, unPaymentP
 import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
 import           PlutusTx.Builtins.Class         (FromBuiltin (fromBuiltin))
+import           Server.Endpoints.Mint           (HasMintEndpoint(..))
 import qualified Server.Internal                 as Server
 import           Server.Internal                 (decodeOrErrorFromFile, Config(..), HasServer(..))
 import           Server.Tx                       (mkTx)
@@ -59,6 +65,17 @@ instance HasServer EncoinsServer where
             [ beaconMintTx confAuxiliaryEnv
             , beaconSendTx confAuxiliaryEnv
             ]
+
+instance HasMintEndpoint EncoinsServer where
+
+    data MintErrorOf EncoinsServer
+
+    checkForMintErros _ = pure ()
+
+    handleSpecificError = \case
+
+deriving instance Show (MintErrorOf EncoinsServer)
+deriving instance Exception (MintErrorOf EncoinsServer)
 
 instance HasClient EncoinsServer where
 
