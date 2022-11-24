@@ -6,7 +6,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module Server.ServerTx where
+module Server.Tx where
 
 import           Cardano.Api.Shelley       (NetworkMagic(..), NetworkId(..))
 import           Control.Monad.Extra       (mconcatMapM)

@@ -34,7 +34,7 @@ import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
 import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST),
                                                    UVerb, Union)
 import           Server.Internal                  (AppM, Env(..), getQueueRef, respondWithStatus)
-import           Server.ServerTx                  (mkTxWithConstraints)
+import           Server.Tx                        (mkTxWithConstraints)
 import           Ledger.Typed.Scripts             (Any)
 
 type MintApi = "relayRequestMint"

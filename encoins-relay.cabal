@@ -44,7 +44,7 @@ library
       Server.Internal
       Server.Opts
       Server.Setup
-      Server.ServerTx
+      Server.Tx
       Test.Reference.OnChain
       Test.Reference.OffChain
     default-extensions:

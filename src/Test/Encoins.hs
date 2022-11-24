@@ -29,7 +29,7 @@ import           Server.Config                   (Config(..), loadConfig, loadRe
 import           Server.Endpoints.Balance        (Balance(..), getBalance)
 import           Server.Endpoints.Mint           (processTokens, runQueueM)
 import           Server.Internal                 (Env(..))
-import           Server.ServerTx                 (mkTxWithConstraints)
+import           Server.Tx                       (mkTxWithConstraints)
 import           IO.Wallet                       (HasWallet(..), getWalletKeyHashes, getWalletTxOutRefs, ownAddresses)
 import           Utils.Address                   (bech32ToAddress)
 
