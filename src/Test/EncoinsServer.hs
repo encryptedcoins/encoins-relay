@@ -9,33 +9,37 @@ import Control.Monad.Reader      (asks)
 import ENCOINS.Core.BaseTypes    (MintingPolarity (..))
 import ENCOINS.Core.Bulletproofs (Input(..))
 import EncoinsServer.Main        (EncoinsServer, mkEncoinsRedeemer)
-import IO.Wallet                 (HasWallet(getRestoreWallet))
-import Ledger.Ada                (Ada)
+import IO.Wallet                 (HasWallet(getRestoreWallet), getWalletAddr)
+import Ledger.Ada                (lovelaceOf)
 import PlutusTx.Builtins.Class   (stringToBuiltinByteString)
 import Server.Internal           (HasServer(..), envAuxiliary, loadConfig)
+import Server.Tx                 (mkWalletTxOutRefs)
 import Test.Internal             (runTestM, testBalance, testBalanceAll)
+import Utils.Logger              (logSmth)
 
-testMintES :: String -> IO ()
-testMintES str = testMintEndpointES [(Mint, 2_000_000, str)]
-
-testBurnES :: String -> IO ()
-testBurnES str = testMintEndpointES [(Burn, -2_000_000, str)]
-
-testMintEndpointES :: [(MintingPolarity, Ada, String)] -> IO ()
-testMintEndpointES args = runTestM @EncoinsServer $ do
-        let (ada, inputs) = foldr foldArg (0, []) args
+testES :: [(String, Integer)] -> IO ()
+testES args = runTestM @EncoinsServer $ do
         wallet <- getRestoreWallet
         aEnv <- asks envAuxiliary
-        (_, red) <- liftIO $ runClientM aEnv wallet $ mkEncoinsRedeemer (pure (), ada, inputs)
+        (_, red) <- liftIO $ runClientM aEnv wallet $ mkEncoinsRedeemer (pure (), lovelaceOf ada, inputs)
         processTokens red
     where
-        foldArg (pol, ada, str) (ada', inputs) = (ada <> ada', Input (stringToBuiltinByteString str) pol : inputs)
-
+        ada = sum $ map snd args
+        inputs = map toInput args
+        toInput (str, a) = Input (stringToBuiltinByteString str) (adaToPolarity a)
+        adaToPolarity a = if a > 0 then Mint else Burn
+         
 testBalanceES :: IO ()
 testBalanceES = testBalance @EncoinsServer
 
-testBalanceAllEs :: IO ()
-testBalanceAllEs = testBalanceAll @EncoinsServer
+testBalanceAllES :: IO ()
+testBalanceAllES = testBalanceAll @EncoinsServer
 
 setup :: IO ()
 setup = runTestM @EncoinsServer $ liftIO loadConfig >>= setupServer @EncoinsServer
+
+mkRefs :: Int -> IO ()
+mkRefs n = runTestM @EncoinsServer $ do
+    addr <- getWalletAddr
+    refs <- mkWalletTxOutRefs addr n
+    logSmth refs

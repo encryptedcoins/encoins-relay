@@ -95,7 +95,7 @@ genEncoinsRequestPiece = randomIO >>= \case
             [] -> genMint
             fs ->  RPBurn . (fs!!) <$> randomRIO (0, length fs - 1)
     where
-        genMint = RPMint . fromInteger <$> randomRIO (1, 10_000_000)
+        genMint = RPMint . fromInteger <$> randomRIO (1, 10)
 
 mkEncoinsRedeemer :: (IO (), Ada, [Input])
                   -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)

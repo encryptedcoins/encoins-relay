@@ -23,17 +23,16 @@ import           Utils.Logger             (HasLogger(..))
 testBalance :: forall s. HasServer s => IO ()
 testBalance = runTestM @s $ do
     addr <- getWalletAddr
-    getBalance' @s [addr]
+    printBalance @s [addr]
 
 testBalanceAll :: forall s. HasServer s => IO ()
-testBalanceAll = runTestM @s $ getAddresses >>= getBalance'
+testBalanceAll = runTestM @s $ getAddresses >>= printBalance
     where
         getAddresses = ownAddresses <&> map (fromJust . bech32ToAddress)
 
-getBalance' :: forall s. HasServer s => [Address] -> TestM s ()
-getBalance' addreses = do
-    cs   <- getCurrencySymbol
-    liftIO $ print cs
+printBalance :: forall s. HasServer s => [Address] -> TestM s ()
+printBalance addreses = do
+    cs <- getCurrencySymbol
     forM_ addreses $ \addr -> do
         Balance b <- getBalance cs addr
         unless (null b) $ liftIO $ print b

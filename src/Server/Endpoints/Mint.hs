@@ -14,7 +14,7 @@
 module Server.Endpoints.Mint where
 
 import           Control.Monad                    (forever, void, when)
-import           Control.Monad.Catch              (Exception, handle, MonadThrow, MonadCatch)
+import           Control.Monad.Catch              (Exception, SomeException, handle, MonadThrow, MonadCatch)
 import           Control.Monad.IO.Class           (MonadIO(..))
 import           Control.Monad.Reader             (ReaderT(..), MonadReader, asks)
 import           Data.Kind                        (Type)
@@ -91,7 +91,7 @@ processQueue env = runQueueM env $ do
             forever $ liftIO (readIORef qRef) >>= \case
                 Empty        -> logMsg "No new redeemers to process." >> waitTime 3
                 red :<| reds -> processRedeemer qRef red reds
-        handler = \(err :: IOError) -> do
+        handler = \(err :: SomeException) -> do
             logSmth err
             go
 

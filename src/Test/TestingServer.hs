@@ -10,8 +10,8 @@ import TestingServer.Main      (TestingServer)
 testBalanceTS :: IO ()
 testBalanceTS = testBalance @TestingServer
 
-testBalanceAllTs :: IO ()
-testBalanceAllTs = testBalanceAll @TestingServer
+testBalanceAllTS :: IO ()
+testBalanceAllTS = testBalanceAll @TestingServer
 
 testMintTS :: [String] -> IO ()
 testMintTS = runTestM @TestingServer . processTokens . map stringToBuiltinByteString

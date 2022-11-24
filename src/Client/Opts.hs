@@ -22,8 +22,6 @@ deriving instance HasClient s => Show (Options s)
 
 --------------------------------------------- Auto ---------------------------------------------
 
--- Usage: --auto -i 30 -m 1
-
 data AutoOptions = AutoOptions
     { averageRequestInterval :: Interval
     , maxTokensInReq         :: Maximum
@@ -55,8 +53,6 @@ maxTokensParser = option auto
     )
 
 -------------------------------------------- Manual --------------------------------------------
-
--- Usage: --manual --mint 154 --mint 16 --burn 13af.json
 
 manualModeParser :: forall s. HasClient s => Parser (Options s)
 manualModeParser = flag' Manual (long "manual")

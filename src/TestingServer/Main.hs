@@ -61,7 +61,7 @@ instance HasMintEndpoint TestingServer where
         in  when hasDuplicates $ throwM HasDuplicates
         
     mintErrorHanlder _ = respondWithStatus @422
-            "The request contains duplicate tokens and will not be processed."
+        "The request contains duplicate tokens and will not be processed."
 
 instance HasClient TestingServer where
 
@@ -70,6 +70,6 @@ instance HasClient TestingServer where
     parseRequestPiece = stringToBuiltinByteString <$> argument str (metavar "token name")
 
     genRequestPiece = fmap stringToBuiltinByteString $
-        randomRIO (0, 16) >>= (`replicateM` randomIO)
+        randomRIO (2, 8) >>= (`replicateM` randomIO)
 
     mkRedeemer = pure . (pure (),)
