@@ -10,7 +10,7 @@
 
 module Test.Encoins where
 
-import qualified Bot.Main                        as Bot
+import qualified Client.Main                     as Client
 import           Cardano.Api.Shelley             (NetworkMagic(..), NetworkId(..))
 import           Common.Logger                   (logPretty)
 import           Control.Monad                   (forM_, unless)
@@ -58,7 +58,7 @@ encoinsTest polarity ada name = do
     Config{..} <- loadConfig
     let env = Env undefined confBeaconTxOutRef confWallet
         inputs = [Input (fromString name) polarity]
-    red <- Bot.runBotM (Bot.Env confBeaconTxOutRef confWallet) $ Bot.mkRedeemer inputs ada
+    red <- Client.runClientM (Client.Env confBeaconTxOutRef confWallet) $ Client.mkRedeemer inputs ada
     runQueueM env $ processTokens red
 
 encoinsTestMint :: String -> IO ()

@@ -10,9 +10,9 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 
-module Bot.Main where
+module Client.Main where
 
-import           Bot.Opts                        (runWithOpts, Options(..), BotMode(..), AutoOptions(..), BotRequest,
+import           Client.Opts                     (runWithOpts, Options(..), ClientMode(..), AutoOptions(..), ClientRequest,
                                                   RequestPiece(..), Maximum)
 import           Control.Monad.Extra             (whenM)
 import           Control.Monad.Reader
@@ -61,34 +61,34 @@ main = do
     manager <- newManager defaultManagerSettings
     let env = Env confBeaconTxOutRef confWallet
         mkRequest' = mkRequest nakedRequest manager
-    runBotM env $ logMsg "Starting bot..." >> case mode of
+    runClientM env $ logMsg "Starting client..." >> case mode of
         Manual br            -> mkRequest' br
         Auto AutoOptions{..} -> forever $ do
             br <- genRequest maxTokensInReq
             mkRequest' br
             waitTime =<< randomRIO (1, averageRequestInterval * 2)
 
-newtype BotM a = BotM { unBotM :: ReaderT Env IO a }
+newtype ClientM a = ClientM { unClientM :: ReaderT Env IO a }
     deriving newtype (Functor, Applicative, Monad, MonadReader Env, MonadIO)
 
-runBotM :: Env -> BotM a -> IO a
-runBotM env = flip runReaderT env . unBotM
+runClientM :: Env -> ClientM a -> IO a
+runClientM env = flip runReaderT env . unClientM
 
 data Env = Env
     { envBeaconRef :: TxOutRef
     , envWallet    :: RestoreWallet
     }
 
-instance HasLogger BotM where
-    loggerFilePath = "bot.log"
+instance HasLogger ClientM where
+    loggerFilePath = "client.log"
 
-instance HasWallet BotM where
+instance HasWallet ClientM where
     getRestoreWallet = asks envWallet
 
-mkRequest :: Request -> Manager -> BotRequest -> BotM ()
-mkRequest nakedReq manager botReq = do
-    logMsg $ "New tokens to send:\n" .< botReq
-    (fileWork, val, inputs)  <- sequence . catMaybes <$> traverse processPiece botReq
+mkRequest :: Request -> Manager -> ClientRequest -> ClientM ()
+mkRequest nakedReq manager clientReq = do
+    logMsg $ "New tokens to send:\n" .< clientReq
+    (fileWork, val, inputs)  <- sequence . catMaybes <$> traverse processPiece clientReq
     body <- RequestBodyLBS . encode <$> mkRedeemer inputs val
     let req = nakedReq
             { method = "POST"
@@ -101,7 +101,7 @@ mkRequest nakedReq manager botReq = do
   where
     successful = (== status204) . responseStatus
 
-mkRedeemer :: Inputs -> Ada -> BotM EncoinsRedeemer
+mkRedeemer :: Inputs -> Ada -> ClientM EncoinsRedeemer
 mkRedeemer inputs val = do
     ct             <- liftIO currentTime
     (walletPKH, _) <- getWalletKeyHashes
@@ -119,7 +119,7 @@ mkRedeemer inputs val = do
     decodeOrErrorFromFile :: FromJSON a => FilePath -> IO a 
     decodeOrErrorFromFile =  fmap (either error id . eitherDecode  . LBS.fromStrict) . BS.readFile 
 
-processPiece :: RequestPiece -> BotM (Maybe (IO (), Ada, Input))
+processPiece :: RequestPiece -> ClientM (Maybe (IO (), Ada, Input))
 processPiece (RPMint ada) = do
     secretGamma <- liftIO randomIO
     let secret = Secret secretGamma (toFieldElement $ getLovelace ada)
@@ -142,7 +142,7 @@ processPiece (RPBurn file) = do
         logMsg $ "File " <> T.pack path <> " doesn't exists."
         pure Nothing
 
-genGroupElement :: BotM (FilePath, GroupElement)
+genGroupElement :: ClientM (FilePath, GroupElement)
 genGroupElement = do
     content <- liftIO $ getDirectoryContents "secrets"
     len <- randomRIO (4, 8)
@@ -154,7 +154,7 @@ genGroupElement = do
         (False, Just ge) -> pure (fn, ge)
         _                -> genGroupElement
 
-genRequest :: MonadIO m => Maximum -> m BotRequest
+genRequest :: MonadIO m => Maximum -> m ClientRequest
 genRequest ub = liftIO $ randomRIO (1, ub) >>= flip replicateM genRequestPiece <&> nub
 
 genRequestPiece :: IO RequestPiece

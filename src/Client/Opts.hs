@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Bot.Opts where
+module Client.Opts where
 
 import Control.Applicative             (some, (<|>))
 import Control.Monad.Reader            (ask)
@@ -17,11 +17,11 @@ runWithOpts = execParser $ info (optionsParser <**> helper) fullDesc
 optionsParser :: Parser Options
 optionsParser = Options <$> (autoModeParser <|> manualModeParser)
 
-newtype Options = Options { mode :: BotMode } deriving Show
+newtype Options = Options { mode :: ClientMode } deriving Show
 
-data BotMode 
+data ClientMode 
     = Auto   AutoOptions
-    | Manual BotRequest
+    | Manual ClientRequest
     deriving Show
 
 --------------------------------------------- Auto ---------------------------------------------
@@ -36,7 +36,7 @@ data AutoOptions = AutoOptions
 type Interval = Int
 type Maximum  = Int
 
-autoModeParser :: Parser BotMode
+autoModeParser :: Parser ClientMode
 autoModeParser 
     = fmap Auto $ ((flag' AutoOptions (long "auto"))) 
     <*> intervalParser 
@@ -46,7 +46,7 @@ intervalParser :: Parser Interval
 intervalParser = option auto
     (  long  "interval"
     <> short 'i'
-    <> help  "Average bot request interval in seconds."
+    <> help  "Average client request interval in seconds."
     <> value 30
     )
 
@@ -62,14 +62,14 @@ maxTokensParser = option auto
 
 -- Usage: --manual --mint 154 --mint 16 --burn 13af.json
 
-type BotRequest = [RequestPiece]
+type ClientRequest = [RequestPiece]
 
 data RequestPiece
     = RPMint Ada
     | RPBurn FilePath
     deriving (Show, Eq)
 
-manualModeParser :: Parser BotMode
+manualModeParser :: Parser ClientMode
 manualModeParser = flag' Manual (long "manual")
                <*> some (mintParser <|> burnParser)
 
