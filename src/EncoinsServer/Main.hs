@@ -5,7 +5,6 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TypeFamilies          #-}
 
 module EncoinsServer.Main (EncoinsServer, mkEncoinsRedeemer) where
@@ -29,7 +28,7 @@ import           ENCOINS.Core.Bulletproofs.Types (Input(..), Secret(..), Proof(.
 import           ENCOINS.Core.Bulletproofs.Prove (fromSecret)
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol, encoinsTx, stakingValidatorAddress)
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
-import           EncoinsServer.Opts              (burnParser, mintParser, EncoinsRequestPiece(..))
+import           EncoinsServer.Opts              (burnParser, mintParser, EncoinsRequestPiece(..), LovelaceM)
 import           IO.Time                         (currentTime)
 import           IO.Wallet                       (getWalletKeyHashes, getWalletAddr)
 import           Ledger                          (TxOutRef, TxOutRef, unPaymentPubKeyHash)
@@ -99,7 +98,7 @@ genEncoinsRequestPiece = randomIO >>= \case
     where
         genMint = RPMint . fromInteger <$> randomRIO (1, 10)
 
-mkEncoinsRedeemer :: (IO (), Ada, [Input])
+mkEncoinsRedeemer :: (IO (), LovelaceM, [Input])
                   -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
 mkEncoinsRedeemer (fileWork, val, inputs) = do
     ct             <- liftIO currentTime
@@ -115,13 +114,13 @@ mkEncoinsRedeemer (fileWork, val, inputs) = do
         dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE dummyFE [dummyFE] [dummyFE]
     pure (liftIO fileWork, (txParams, inputs, dummyProof))
 
-processPieces :: [EncoinsRequestPiece] -> ClientM EncoinsServer (IO (), Ada, [Input])
+processPieces :: [EncoinsRequestPiece] -> ClientM EncoinsServer (IO (), LovelaceM, [Input])
 processPieces cReq = sequence . catMaybes <$> traverse processPiece cReq
 
-processPiece :: RequestPieceOf EncoinsServer -> ClientM s (Maybe (IO (), Ada, Input))
+processPiece :: RequestPieceOf EncoinsServer -> ClientM s (Maybe (IO (), LovelaceM, Input))
 processPiece (RPMint ada) = do
-    secretGamma <- liftIO randomIO
-    let secret = Secret secretGamma (toFieldElement $ getLovelace ada)
+    sGamma <- liftIO randomIO
+    let secret = Secret sGamma (toFieldElement $ getLovelace ada)
         bs = snd $ fromSecret bulletproofSetup secret
         file = T.unpack $ encodeByteString $ fromBuiltin bs
         filework = T.writeFile ("secrets/" <> file) $ encodeToLazyText secret

@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module EncoinsServer.Opts where
 
 import Control.Monad.Reader      (ask)
@@ -5,8 +7,10 @@ import Ledger.Ada                (Ada(..))
 import Options.Applicative       (Parser, auto, help, long, option)
 import Options.Applicative.Types (ReadM(..))
 
+type LovelaceM = Ada
+
 data EncoinsRequestPiece
-    = RPMint Ada
+    = RPMint LovelaceM
     | RPBurn FilePath
     deriving (Show, Eq)
 
