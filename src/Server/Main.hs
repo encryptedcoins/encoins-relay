@@ -15,13 +15,13 @@ import           Data.IORef               (newIORef)
 import           Data.Sequence            (empty)
 import           Encoins.Main             (Encoins)
 import qualified Network.Wai.Handler.Warp as Warp
-import           Servant                  (Proxy(..), type (:<|>)(..), ServerT, Context(EmptyContext), hoistServer, serveWithContext,
-                                           Handler(runHandler'), Application)
+import           Servant                  (Proxy(..), type (:<|>)(..), ServerT, Context(EmptyContext), hoistServer,
+                                           serveWithContext, Handler(runHandler'), Application)
 import           Server.Endpoints.Balance (BalanceApi, balanceHandler)
 import           Server.Endpoints.Mint    (MintApi, mintHandler, processQueue)
 import           Server.Endpoints.Ping    (PingApi, pingHandler)
 import           Server.Internal          (Env(Env), AppM(unAppM), HasServer(..), Config(..), loadConfig)
-import           Server.Opts              (runWithOpts, Options(..), ServerMode(..), ServerType(..))              -- (runWithOpts, Options(..), ServerMode(..))
+import           Server.Opts              (runWithOpts, Options(..), ServerMode(..), ServerType(..))
 import           Server.Setup             (SetupM(..))
 import           System.IO                (stdout, BufferMode(LineBuffering), hSetBuffering)
 import           Testing.Main             (Testing)

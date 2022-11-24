@@ -2,17 +2,13 @@
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 module Server.Endpoints.Balance where
 
@@ -65,7 +61,7 @@ balanceErrorHandler = \case
 
 getBalance :: MonadIO m => CurrencySymbol -> Address -> m Balance
 getBalance cs addr = do
-    coins <- liftIO $ M.toList . M.map getNames <$> getUtxosAt addr
-    pure $ Balance $ concatMap (\(ref, names) -> zip names (repeat ref)) coins
-  where
-    getNames = maybe [] PAM.keys . PAM.lookup cs . getValue . _ciTxOutValue . fst
+        coins <- liftIO $ M.toList . M.map getNames <$> getUtxosAt addr
+        pure $ Balance $ concatMap (\(ref, names) -> zip names (repeat ref)) coins
+    where
+        getNames = maybe [] PAM.keys . PAM.lookup cs . getValue . _ciTxOutValue . fst

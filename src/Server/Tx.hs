@@ -42,7 +42,7 @@ mkTx :: forall a m.
     , HasWallet m
     , HasLogger m
     ) => [Address]
-      -> (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()]) 
+      -> (HasTxEnv => [State (TxConstructor a (RedeemerType a) (DatumType a)) ()])
       -> m ()
 mkTx utxosAddresses txs = do
     walletAddrBech32       <- getWalletAddrBech32

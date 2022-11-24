@@ -12,18 +12,18 @@ data Options = Options
 
 typeParser :: Parser ServerType
 typeParser = subparser
-    (  command "encoins" (info (pure Encoins) encoinsDesc)
-    <> command "test"    (info (pure Test)    testDesc)
-    )
+        (  command "encoins" (info (pure Encoins) encoinsDesc)
+        <> command "test"    (info (pure Test)    testDesc)
+        )
     where
         encoinsDesc = progDesc "The app will work with encoins tokens."
         testDesc    = progDesc "The app will work with test tokens."
 
 modeParser :: Parser ServerMode
-modeParser =  subparser
-    (  command "run"   (info (pure Run  ) runDesc)
-    <> command "setup" (info (pure Setup) setupDesc)
-    )
+modeParser = subparser
+        (  command "run"   (info (pure Run  ) runDesc)
+        <> command "setup" (info (pure Setup) setupDesc)
+        )
     where
         runDesc   = progDesc "Default server mode without any preliminary work."
         setupDesc = progDesc "Do some preliminary work before starting the server."

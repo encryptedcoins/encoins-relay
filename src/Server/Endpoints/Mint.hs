@@ -1,17 +1,11 @@
-{-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImplicitParams             #-}
 {-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE NumericUnderscores         #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
 
@@ -86,14 +80,14 @@ runQueueM env = flip runReaderT env . unQueueM
 
 processQueue :: forall s. HasServer s => Env s -> IO ()
 processQueue env = runQueueM env $ do
-    logMsg "Starting queue handler..."
-    handle (\(_ :: IOError) -> go) go
-  where
-    go = do
-        qRef <- asks envQueueRef
-        forever $ liftIO (readIORef qRef) >>= \case
-            Empty        -> logMsg "No new redeemers to process." >> waitTime 3
-            red :<| reds -> processRedeemer qRef red reds
+        logMsg "Starting queue handler..."
+        handle (\(_ :: IOError) -> go) go
+    where
+        go = do
+            qRef <- asks envQueueRef
+            forever $ liftIO (readIORef qRef) >>= \case
+                Empty        -> logMsg "No new redeemers to process." >> waitTime 3
+                red :<| reds -> processRedeemer qRef red reds
 
 processRedeemer :: HasServer s => QueueRef s -> RedeemerOf s -> Seq (RedeemerOf s) -> QueueM s ()
 processRedeemer qRef red reds = do

@@ -33,9 +33,9 @@ type Interval = Int
 type Maximum  = Int
 
 autoModeParser :: Parser (Options s)
-autoModeParser 
+autoModeParser
     = fmap Auto $ flag' AutoOptions (long "auto")
-    <*> intervalParser 
+    <*> intervalParser
     <*> maxTokensParser
 
 intervalParser :: Parser Interval

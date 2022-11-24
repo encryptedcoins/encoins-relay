@@ -85,8 +85,7 @@ data Config s = Config
     , confChainIndexAddress :: Text
     , confAuxiliaryEnv      :: AuxiliaryEnvOf s
     , confWallet            :: RestoreWallet
-    } 
-    
+    }
 deriving instance HasServer s => Show (Config s)
 
 data ConfigFile = ConfigFile
@@ -110,5 +109,5 @@ loadConfig = do
     confWallet       <- decodeOrErrorFromFile cfWalletFile
     pure Config{..}
 
-decodeOrErrorFromFile :: FromJSON a => FilePath -> IO a 
+decodeOrErrorFromFile :: FromJSON a => FilePath -> IO a
 decodeOrErrorFromFile =  fmap (either error id . eitherDecode . fromStrict) . BS.readFile

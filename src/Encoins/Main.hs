@@ -66,20 +66,18 @@ instance HasClient Encoins where
 
     genRequestPiece = genEncoinsRequestPiece
 
-    type RequestPieceOf Encoins = EncoinsRequestPiece
-
     parseRequestPiece = mintParser <|> burnParser
 
     mkRedeemer = mkEncoinsRedeemer
 
 genEncoinsRequestPiece :: IO EncoinsRequestPiece
 genEncoinsRequestPiece = randomIO >>= \case
-    True  -> genMint
-    False -> listDirectory "secrets" >>= \case
-        [] -> genMint
-        fs ->  RPBurn . (fs!!) <$> randomRIO (0, length fs - 1)
-  where
-    genMint = RPMint . fromInteger <$> randomRIO (1, 10_000_000)
+        True  -> genMint
+        False -> listDirectory "secrets" >>= \case
+            [] -> genMint
+            fs ->  RPBurn . (fs!!) <$> randomRIO (0, length fs - 1)
+    where
+        genMint = RPMint . fromInteger <$> randomRIO (1, 10_000_000)
 
 mkEncoinsRedeemer :: ClientRequestOf Encoins -> ClientM Encoins (ClientM Encoins (), RedeemerOf Encoins)
 mkEncoinsRedeemer cReq = do
