@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE NumericUnderscores         #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -9,13 +10,14 @@ module Client.Main where
 
 import           Client.Internal           (HasClient(..), ClientM, ClientRequestOf, runClientM)
 import           Client.Opts               (AutoOptions(..), Maximum, Options(..), optionsParser)
+import           Control.Monad             (replicateM)
 import           Control.Monad.Reader      (MonadIO(..), forever, when)
 import           Data.Aeson                (encode)
 import           Data.List                 (nub)
 import qualified Data.Text                 as T
 import           EncoinsServer.Main        (EncoinsServer)
 import           Network.HTTP.Client       (httpLbs, defaultManagerSettings, newManager, parseRequest,
-                                            Manager, Request(..), RequestBody(..), responseStatus)
+                                            Manager, Request(..), RequestBody(..), responseStatus, responseTimeoutMicro)
 import           Network.HTTP.Types.Header (hContentType)
 import           Network.HTTP.Types.Status (status204)
 import           Options.Applicative       (Parser, (<**>), (<|>), fullDesc, info, long, execParser, helper, flag')
@@ -24,7 +26,6 @@ import           System.Random             (randomRIO)
 import           TestingServer.Main        (TestingServer)
 import           Utils.Logger              (HasLogger(..), (.<))
 import           Utils.Wait                (waitTime)
-import Control.Monad (replicateM)
 
 main :: IO ()
 main = runWithOptsSum >>= \case
@@ -68,6 +69,7 @@ mkRequest nakedReq manager clientReq = do
                 { method = "POST"
                 , requestBody = RequestBodyLBS $ encode red
                 , requestHeaders = [(hContentType, "application/json")]
+                , responseTimeout = responseTimeoutMicro (3 * 60 * 1_000_000)
                 }
         resp <- liftIO $ httpLbs req manager
         logMsg $ "Received response:" .< resp
