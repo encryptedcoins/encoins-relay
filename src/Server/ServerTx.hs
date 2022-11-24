@@ -18,6 +18,7 @@ import           Data.Default              (Default(..))
 import           Data.FileEmbed            (embedFile)
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromJust)
+import           ENCOINS.Core.OffChain     (beaconCurrencySymbol, encoinsSymbol, stakingValidatorAddress)
 import           Ledger                    (Address, ChainIndexTxOut, Params(..), POSIXTime, PubKeyHash, TxOutRef, unPaymentPubKeyHash)
 import           PlutusTx                  (FromData(..), ToData(..))
 import           Plutus.ChainIndex         (ChainIndexTx)
@@ -25,6 +26,7 @@ import           Plutus.Script.Utils.Typed (RedeemerType, DatumType)
 import           IO.ChainIndex             (getUtxosAt)
 import           IO.Time                   (currentTime)
 import           IO.Wallet                 (HasWallet(..), signTx, balanceTx, submitTxConfirmed, getWalletAddr, getWalletAddrBech32, getWalletKeyHashes)
+import           Server.Config             (Config (..), loadConfig)
 import           Types.TxConstructor       (TxConstructor (..), selectTxConstructor, mkTxConstructor)
 
 type HasTxEnv = 
@@ -47,7 +49,8 @@ mkTxWithConstraints txs = do
     walletAddrBech32       <- getWalletAddrBech32
     walletAddr             <- getWalletAddr
     (walletPKH, walletSKH) <- getWalletKeyHashes
-    utxos <- liftIO $ mconcatMapM getUtxosAt [walletAddr]
+    cfg   <- liftIO loadConfig -- TODO: avoid loading config all the time
+    utxos <- liftIO $ mconcatMapM getUtxosAt [stakingValidatorAddress $ encoinsSymbol $ beaconCurrencySymbol $ confBeaconTxOutRef cfg]
     ct    <- liftIO currentTime
 
     let ?txWalletAddr = walletAddr
