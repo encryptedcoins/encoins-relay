@@ -26,7 +26,7 @@ import           Plutus.Script.Utils.Typed (RedeemerType, DatumType)
 import           IO.ChainIndex             (getUtxosAt)
 import           IO.Time                   (currentTime)
 import           IO.Wallet                 (HasWallet(..), signTx, balanceTx, submitTxConfirmed, getWalletAddr, getWalletAddrBech32, getWalletKeyHashes)
-import           Server.Config             (Config (..), loadConfig)
+import           Server.Internal           (Config (..), loadConfig)
 import           Types.TxConstructor       (TxConstructor (..), selectTxConstructor, mkTxConstructor)
 
 type HasTxEnv = 

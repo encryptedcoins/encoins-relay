@@ -3,7 +3,6 @@
 {-# LANGUAGE RecordWildCards            #-}
 
 module Client.Main where
-
 import           Client.Internal           (ClientM, runClientM, Env(..), processPiece, mkRedeemer, genRequestPiece)
 import           Client.Opts               (runWithOpts, Options(..), ClientMode(..), AutoOptions(..), ClientRequest, Maximum)
 import           Control.Monad             (replicateM)
@@ -17,7 +16,7 @@ import           Network.HTTP.Client       (httpLbs, defaultManagerSettings, new
                                             Manager, Request(..), RequestBody(..), responseStatus)
 import           Network.HTTP.Types.Header (hContentType)
 import           Network.HTTP.Types.Status (status204)
-import qualified Server.Config             as Server
+import qualified Server.Internal             as Server
 import           System.Directory          (createDirectoryIfMissing)
 import           System.Random             (randomRIO)
 import           Utils.Logger              (HasLogger(..), (.<))

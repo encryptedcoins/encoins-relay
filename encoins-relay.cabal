@@ -38,7 +38,6 @@ library
       Client.Opts
       Utils.Logger
       Utils.Wait
-      Server.Config
       Server.Endpoints.Balance 
       Server.Endpoints.Mint 
       Server.Endpoints.Ping

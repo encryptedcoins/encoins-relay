@@ -11,7 +11,7 @@ import qualified Ledger.Ada              as Ada
 import           Ledger.Typed.Scripts    (Any)
 import           PlutusTx.Prelude        (emptyByteString)
 import           Scripts.Constraints     (postMintingPolicyTx, referenceMintingPolicyTx)
-import           Server.Config           (loadRestoreWallet)
+import           Server.Internal         (loadRestoreWallet)
 import           Server.Tx               (mkTxWithConstraints)
 import           Test.Reference.OffChain (testMintTx, testToken)
 import           Test.Reference.OnChain  (testPolicyV, testPolicy)

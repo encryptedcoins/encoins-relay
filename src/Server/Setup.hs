@@ -8,7 +8,7 @@ module Server.Setup where
 import           Utils.Logger           (HasLogger(..))
 import           Control.Monad.IO.Class (MonadIO)
 import           ENCOINS.Core.OffChain  (beaconMintTx, beaconSendTx)
-import           Server.Config          (Config(..), loadRestoreWallet)
+import           Server.Internal        (Config(..), loadRestoreWallet)
 import           Server.Tx              (mkTxWithConstraints)
 import           IO.Wallet              (HasWallet(..))
 

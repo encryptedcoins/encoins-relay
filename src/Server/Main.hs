@@ -18,8 +18,7 @@ import           Data.Sequence            (empty)
 import qualified Network.Wai.Handler.Warp as Warp
 import           Servant                  (Proxy(..), type (:<|>)(..), HasServer(ServerT), Context(EmptyContext), hoistServer, serveWithContext,
                                            Handler(runHandler'), Application)
-import           Server.Config            (Config(..), loadConfig)
-import           Server.Internal          (Env(Env), AppM(unAppM))
+import           Server.Internal          (Config(..), loadConfig, Env(Env), AppM(unAppM))
 import           Server.Endpoints.Balance (BalanceApi, balanceHandler)
 import           Server.Endpoints.Mint    (MintApi, mintHandler, processQueue)
 import           Server.Endpoints.Ping    (PingApi, pingHandler)
