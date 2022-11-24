@@ -45,7 +45,7 @@ mintHandler red = handle mintErrorHanlder $ do
         checkForCleanUtxos = do
             addr       <- getWalletAddr
             cleanUtxos <- length . filterCleanUtxos <$> liftIO (getUtxosAt addr)
-            minUtxos   <- asks envMinUxtosAmount
+            minUtxos   <- asks envMinUtxosAmount
             when (cleanUtxos < minUtxos) $ do
                 logMsg "Address doesn't has enough clean UTXO's."
                 void $ mkWalletTxOutRefs addr (cleanUtxos - minUtxos)
