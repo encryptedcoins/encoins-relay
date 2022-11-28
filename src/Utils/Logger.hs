@@ -2,9 +2,8 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
 
-module Common.Logger where
+module Utils.Logger where
 
 import           Control.Exception      (handle, throw)
 import           Control.Monad.IO.Class (MonadIO(..))

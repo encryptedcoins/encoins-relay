@@ -1,28 +1,20 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImplicitParams             #-}
-{-# LANGUAGE RecordWildCards            #-}
 
 module Server.Setup where
-
-import           Common.Logger          (HasLogger(..))
-import           Control.Monad.IO.Class (MonadIO)
-import           ENCOINS.Core.OffChain  (beaconMintTx, beaconSendTx)
-import           Server.Config          (Config(..), loadRestoreWallet)
-import           Server.ServerTx        (mkTxWithConstraints)
+import           Control.Monad.Reader   (MonadIO, ReaderT(..), MonadReader, asks)
 import           IO.Wallet              (HasWallet(..))
+import           Server.Internal        (Env (..))
+import           Utils.Logger           (HasLogger(..))
 
-newtype SetupM a = SetupM { unSetupM :: IO a }
-    deriving newtype (Functor, Applicative, Monad, MonadIO)
+newtype SetupM s a = SetupM { unSetupM :: ReaderT (Env s) IO a }
+    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader (Env s))
 
-instance HasLogger SetupM where
+runSetupM :: Env s -> SetupM s a -> IO a
+runSetupM env = (`runReaderT` env) . unSetupM
+
+instance HasLogger (SetupM s) where
     loggerFilePath = "server.log"
 
-instance HasWallet SetupM where
-    getRestoreWallet = loadRestoreWallet
-
-setupServer :: Config -> IO ()
-setupServer Config{..} = unSetupM $ mkTxWithConstraints
-    [ beaconMintTx confBeaconTxOutRef
-    , beaconSendTx confBeaconTxOutRef
-    ]
+instance HasWallet (SetupM s) where
+    getRestoreWallet = asks envWallet

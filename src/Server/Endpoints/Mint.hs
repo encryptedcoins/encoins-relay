@@ -1,97 +1,103 @@
-{-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ImplicitParams             #-}
 {-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE NumericUnderscores         #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE UndecidableSuperClasses    #-}
 
 module Server.Endpoints.Mint where
 
-import           Control.Monad.Catch              (Exception, handle, throwM)
-import           Control.Monad.Extra              (forever, unlessM, when)
+import           Control.Monad                    (forever, void, when)
+import           Control.Monad.Catch              (Exception, SomeException, handle, MonadThrow, MonadCatch)
 import           Control.Monad.IO.Class           (MonadIO(..))
 import           Control.Monad.Reader             (ReaderT(..), MonadReader, asks)
-import           Common.Logger                    (HasLogger(..), (.<))
-import           Common.Wait                      (waitTime)
-import           Data.Text                        (Text)
+import           Data.Kind                        (Type)
 import           Data.IORef                       (atomicWriteIORef, atomicModifyIORef, readIORef)
-import           Data.List                        (nub)
 import           Data.Sequence                    (Seq(..), (|>))
-import           ENCOINS.Core.Bulletproofs.Types  (Input(..))
-import           ENCOINS.Core.OffChain            (beaconCurrencySymbol, encoinsTx)
-import           ENCOINS.Core.OnChain             (EncoinsRedeemer)
-import           IO.Wallet                        (HasWallet(..), hasCleanUtxos)
-import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, WithStatus(..), StdMethod(POST), 
-                                                   UVerb, Union)
-import           Server.Internal                  (AppM, Env(..), getQueueRef, respondWithStatus)
-import           Server.ServerTx                  (mkTxWithConstraints)
-import           Ledger.Typed.Scripts             (Any)
+import           IO.ChainIndex                    (getUtxosAt)
+import           IO.Wallet                        (HasWallet(..), getWalletAddr)
+import           Servant                          (NoContent(..), JSON, (:>), ReqBody, respond, StdMethod(POST), UVerb, Union, IsMember)
+import           Server.Internal                  (getQueueRef, AppM, Env(..), HasServer(..), QueueRef)
+import           Server.Tx                        (mkWalletTxOutRefs)
+import           Utils.ChainIndex                 (filterCleanUtxos)
+import           Utils.Logger                     (HasLogger(..), (.<), logSmth)
+import           Utils.Wait                       (waitTime)
 
-type MintApi = "relayRequestMint"
-            :> ReqBody '[JSON] EncoinsRedeemer
-            :> UVerb 'POST '[JSON] MintApiResult
+type MintApi s = "relayRequestMint"
+              :> ReqBody '[JSON] (RedeemerOf s)
+              :> UVerb 'POST '[JSON] (MintApiResultOf s)
 
-type MintApiResult = '[NoContent, WithStatus 422 Text]
+mintHandler :: forall s. HasMintEndpoint s => RedeemerOf s -> AppM s (Union (MintApiResultOf s))
+mintHandler red = handle mintErrorHanlder $ do
+        logMsg $ "New mint request received:\n" .< red
+        checkForErrors
+        ref <- getQueueRef
+        liftIO $ atomicModifyIORef ref ((,()) . (|> red))
+        respond NoContent
+    where
+        checkForErrors = checkForMintErros red >> checkForCleanUtxos
+        checkForCleanUtxos = do
+            addr       <- getWalletAddr
+            cleanUtxos <- length . filterCleanUtxos <$> liftIO (getUtxosAt addr)
+            minUtxos   <- asks envMinUtxosAmount
+            when (cleanUtxos < minUtxos) $ do
+                logMsg "Address doesn't has enough clean UTXO's."
+                void $ mkWalletTxOutRefs addr (cleanUtxos - minUtxos)
 
-mintHandler :: EncoinsRedeemer -> AppM (Union MintApiResult)
-mintHandler red@(_, inputs, _) = handle mintErrorHandler $ do
-    logMsg $ "New mint request received:\n" .< red
-    when     hasDuplicates  $ throwM DuplicateTokens
-    unlessM (hasCleanUtxos) $ throwM NoCleanUtxos
-    ref <- getQueueRef
-    liftIO $ atomicModifyIORef ref ((,()) . (|> red))
-    respond NoContent
-  where
-    hasDuplicates =
-        let tokens = map inputCommit inputs
-        in  length (nub tokens) /= length tokens
+class ( HasServer s
+      , IsMember NoContent (MintApiResultOf s)
+      , Show (MintErrorOf s)
+      , Exception (MintErrorOf s)
+      ) => HasMintEndpoint s where
 
-data MintError 
-    = DuplicateTokens
-    | NoCleanUtxos
-    deriving (Show, Exception)
+    type MintApiResultOf s :: [Type]
 
-mintErrorHandler :: MintError -> AppM (Union MintApiResult)
-mintErrorHandler = \case
+    data MintErrorOf s
 
-    DuplicateTokens -> respondWithStatus @422 
-        "The request contains duplicate tokens and will not be processed."
-    
-    NoCleanUtxos -> respondWithStatus @422 
-        "Balance of pure ada UTxOs in your wallet insufficient to cover \
-        \the minimum amount of collateral reuqired."
+    checkForMintErros :: RedeemerOf s -> AppM s ()
 
-newtype QueueM a = QueueM { unQueueM :: ReaderT Env IO a }
-    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Env, HasWallet)
+    mintErrorHanlder :: MintErrorOf s -> AppM s (Union (MintApiResultOf s))
 
-instance HasLogger QueueM where
+newtype QueueM s a = QueueM { unQueueM :: ReaderT (Env s) IO a }
+    deriving newtype
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadIO
+        , MonadReader (Env s)
+        , MonadThrow
+        , MonadCatch
+        , HasWallet
+        )
+
+instance HasLogger (QueueM s) where
     loggerFilePath = "queue.log"
 
-runQueueM :: Env -> QueueM () -> IO ()
+runQueueM :: Env s -> QueueM s () -> IO ()
 runQueueM env = flip runReaderT env . unQueueM
 
-processQueue :: Env -> IO ()
+processQueue :: forall s. HasServer s => Env s -> IO ()
 processQueue env = runQueueM env $ do
-    logMsg "Starting queue handler..."
-    qRef <- asks envQueueRef
-    forever $ liftIO (readIORef qRef) >>= \case
-        Empty          -> logMsg "No new tokens to process." >> waitTime 3
-        red :<| rs -> do
-            liftIO $ atomicWriteIORef qRef rs
-            logMsg $ "New redeemer to process:" .< red
-            processTokens red
+        logMsg "Starting queue handler..."
+        handle handler go
+    where
+        go = do
+            qRef <- asks envQueueRef
+            forever $ liftIO (readIORef qRef) >>= \case
+                Empty        -> logMsg "No new redeemers to process." >> waitTime 3
+                red :<| reds -> processRedeemer qRef red reds
+        handler = \(err :: SomeException) -> do
+            logSmth err
+            go
 
-processTokens :: EncoinsRedeemer -> QueueM ()
-processTokens red = do
-    params <- beaconCurrencySymbol <$> asks envBeaconRef
-    mkTxWithConstraints @Any [encoinsTx params red]
+processRedeemer :: HasServer s => QueueRef s -> RedeemerOf s -> Seq (RedeemerOf s) -> QueueM s ()
+processRedeemer qRef red reds = do
+    liftIO $ atomicWriteIORef qRef reds
+    logMsg $ "New redeemer to process:" .< red
+    processTokens red

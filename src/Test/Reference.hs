@@ -2,31 +2,26 @@
 {-# LANGUAGE ImplicitParams       #-}
 {-# LANGUAGE OverloadedStrings    #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 module Test.Reference where
 
+import           Control.Monad           (void)
 import qualified Data.Map                as M
+import           IO.Wallet               (getWalletAddr)
 import qualified Ledger.Ada              as Ada
 import           Ledger.Typed.Scripts    (Any)
-import           PlutusTx.Prelude        (emptyByteString)
 import           Scripts.Constraints     (postMintingPolicyTx, referenceMintingPolicyTx)
-import           Server.Config           (loadRestoreWallet)
-import           Server.ServerTx         (mkTxWithConstraints)
-import           Test.Reference.OffChain (testMintTx, testToken)
-import           Test.Reference.OnChain  (testPolicyV, testPolicy)
-import           IO.Wallet               (HasWallet(..))
-import qualified PlutusTx.Prelude as Plutus
-
-instance HasWallet IO where
-    getRestoreWallet = loadRestoreWallet
-
-runTest :: IO ()
-runTest = mkTxWithConstraints @Any $ [testMintTx [emptyByteString]]
+import           Server.Tx               (mkTx)
+import           Test.Internal           (runTestM)
+import           TestingServer.Main      (TestingServer)
+import           TestingServer.OffChain  (testToken)
+import           TestingServer.OnChain   (testPolicyV, testPolicy)
+import qualified PlutusTx.Prelude        as Plutus
+import           Utils.Logger            (HasLogger(..))
 
 postReferenceScript :: IO ()
-postReferenceScript = do
-    mkTxWithConstraints @Any 
+postReferenceScript = void $ runTestM @TestingServer $ do
+    addr <- getWalletAddr
+    mkTx @Any [addr]
         [ postMintingPolicyTx 
             ?txWalletAddr 
             testPolicyV 
@@ -35,13 +30,14 @@ postReferenceScript = do
         ]
 
 runReferenceTest :: IO ()
-runReferenceTest = do
-    putStrLn "\n\n\n\t\t\tMINT1:"
-    mkTest "token1"
-    putStrLn "\n\n\n\t\t\tMINT2:"
-    mkTest "token2"
+runReferenceTest = void $ runTestM @TestingServer $ do
+    addr <- getWalletAddr
+    logMsg "\n\n\n\t\t\tMINT1:"
+    mkTest "token1" addr
+    logMsg "\n\n\n\t\t\tMINT2:"
+    mkTest "token2" addr
   where
-    mkTest token = mkTxWithConstraints @Any
+    mkTest token addr = mkTx @Any [addr]
         [ referenceMintingPolicyTx 
             testPolicy
             (head $ M.keys ?txUtxos) 

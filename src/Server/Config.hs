@@ -1,54 +1,30 @@
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE DeriveAnyClass       #-}
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE DerivingStrategies   #-}
-{-# LANGUAGE DerivingVia          #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Server.Config where
-
-import           Control.Monad.IO.Class (MonadIO(..))
-import           Data.Aeson             (FromJSON(..), eitherDecode, genericParseJSON)
-import           Data.Aeson.Casing      (aesonPrefix, snakeCase)
-import qualified Data.ByteString        as BS
-import           Data.ByteString.Lazy   (fromStrict)
-import           Data.Text              (Text)
-import           GHC.Generics           (Generic)
-import           IO.Wallet              (RestoreWallet)
-import           Ledger                 (TxOutRef)
+import           Data.Aeson           (FromJSON(parseJSON), eitherDecode, genericParseJSON)
+import           Data.Aeson.Casing    (aesonPrefix, snakeCase)
+import qualified Data.ByteString      as BS
+import qualified Data.ByteString.Lazy as LBS
+import           Data.Text            (Text)
+import           GHC.Generics         (Generic)
 
 data Config = Config
-    { confServerAddress     :: Text
-    , confNodeAddress       :: Text
-    , confChainIndexAddress :: Text
-    , confBeaconTxOutRef    :: TxOutRef
-    , confWallet            :: RestoreWallet
-    } deriving (Show)
-
-data ConfigFile = ConfigFile
-    { cfServerAddress          :: Text
-    , cfNodeAddress            :: Text
-    , cfChainIndexAddress      :: Text
-    , cfAdaStakingTxOutRefFile :: FilePath
-    , cfWalletFile             :: FilePath
+    { cServerAddress     :: Text
+    , cNodeAddress       :: Text
+    , cChainIndexAddress :: Text
+    , cMinUtxosAmount    :: Int
+    , cAuxiliaryEnvFile  :: FilePath
+    , cWalletFile        :: FilePath
     } deriving (Show, Generic)
 
-instance FromJSON ConfigFile where
-   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+configFile :: FilePath
+configFile = "testnet/config.json"
 
 loadConfig :: IO Config
-loadConfig = do
-    ConfigFile{..} <- decodeOrErrorFromFile "testnet/config.json"
-    let confServerAddress     = cfServerAddress
-        confNodeAddress       = cfNodeAddress
-        confChainIndexAddress = cfChainIndexAddress
-    confBeaconTxOutRef <- decodeOrErrorFromFile cfAdaStakingTxOutRefFile
-    confWallet         <- decodeOrErrorFromFile cfWalletFile
-    pure Config{..}
-  where
-    decodeOrErrorFromFile :: FromJSON a => FilePath -> IO a 
-    decodeOrErrorFromFile =  fmap (either error id . eitherDecode  . fromStrict) . BS.readFile 
+loadConfig = decodeOrErrorFromFile configFile
 
-loadRestoreWallet :: MonadIO m => m RestoreWallet
-loadRestoreWallet = liftIO $ confWallet <$> loadConfig
+instance FromJSON Config where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+decodeOrErrorFromFile :: FromJSON a => FilePath -> IO a
+decodeOrErrorFromFile = fmap (either error id . eitherDecode . LBS.fromStrict) . BS.readFile

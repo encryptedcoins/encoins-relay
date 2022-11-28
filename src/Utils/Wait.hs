@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 
-module Common.Wait where
+module Utils.Wait where
 
 import Control.Concurrent     (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))

@@ -1,18 +1,14 @@
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 
 module Server.Endpoints.Ping where
 
-import Common.Logger   (HasLogger(logMsg))
+import Utils.Logger    (HasLogger(logMsg))
 import Servant         (type (:>), NoContent(..), JSON, Get)
 import Server.Internal (AppM)
 
 type PingApi = "relayRequestPing" :> Get '[JSON] NoContent
 
-pingHandler :: AppM NoContent
+pingHandler :: AppM s NoContent
 pingHandler = NoContent <$ logMsg "Received ping request."

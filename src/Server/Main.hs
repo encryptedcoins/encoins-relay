@@ -1,44 +1,50 @@
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MonoLocalBinds        #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeOperators         #-}
 
 module Server.Main where
 
 import           Control.Concurrent       (forkIO)
-import           Control.Monad.Except     (runExceptT)
 import           Control.Monad.Reader     (ReaderT(runReaderT))
-import           Common.Logger            (HasLogger(logMsg))
-import           Data.IORef               (newIORef)
-import           Data.Sequence            (empty)
+import           Utils.Logger             (HasLogger(logMsg))
+import           EncoinsServer.Main       (EncoinsServer)
 import qualified Network.Wai.Handler.Warp as Warp
-import           Servant                  (Proxy(..), type (:<|>)(..), HasServer(ServerT), Context(EmptyContext), hoistServer, serveWithContext,
-                                           Handler(runHandler'), Application)
-import           Server.Config            (Config(..), loadConfig)
-import           Server.Internal          (Env(Env), AppM(unAppM))
+import qualified Servant
+import           Servant                  (Proxy(..), type (:<|>)(..), ServerT, Context(EmptyContext), hoistServer,
+                                           serveWithContext, Application)
 import           Server.Endpoints.Balance (BalanceApi, balanceHandler)
-import           Server.Endpoints.Mint    (MintApi, mintHandler, processQueue)
+import           Server.Endpoints.Mint    (HasMintEndpoint, MintApi, mintHandler, processQueue)
 import           Server.Endpoints.Ping    (PingApi, pingHandler)
-import           Server.Opts              (runWithOpts, Options(..), ServerMode(..))
-import           Server.Setup             (setupServer)
+import           Server.Internal          (AppM(unAppM), HasServer(..), loadEnv, Env)
+import           Server.Opts              (runWithOpts, Options(..), ServerMode(..), ServerType(..))
+import           Server.Setup             (runSetupM)
 import           System.IO                (stdout, BufferMode(LineBuffering), hSetBuffering)
+import           TestingServer.Main       (TestingServer)
 
-type ServerAPI
+type ServerAPI s
     =    PingApi
-    :<|> MintApi
+    :<|> MintApi s
     :<|> BalanceApi
 
-server :: ServerT ServerAPI AppM
+type ServerConstraints s =
+    ( HasMintEndpoint s
+    , Servant.HasServer (ServerAPI s) '[]
+    )
+
+server :: HasMintEndpoint s => ServerT (ServerAPI s) (AppM s)
 server = pingHandler
     :<|> mintHandler
     :<|> balanceHandler
 
-serverAPI :: Proxy ServerAPI
-serverAPI = Proxy
+serverAPI :: forall s. Proxy (ServerAPI s)
+serverAPI = Proxy @(ServerAPI s)
 
 port :: Int
 port = 3000
@@ -46,22 +52,26 @@ port = 3000
 main :: IO ()
 main = do
     Options{..} <- runWithOpts
-    conf        <- loadConfig
+    case serverType of
+        Encoins -> withInstantiation @EncoinsServer
+        Test    -> withInstantiation @TestingServer
+
+withInstantiation :: forall s. ServerConstraints s => IO ()
+withInstantiation = do
+    Options{..} <- runWithOpts
+    env        <- loadEnv @s
     case serverMode of
-        ServerRun   -> runServer   conf
-        ServerSetup -> setupServer conf
+        Run   -> runServer env
+        Setup -> runSetupM env $ setupServer @s
 
-runServer :: Config -> IO ()
-runServer Config{..} = do
+runServer :: forall s. ServerConstraints s => Env s -> IO ()
+runServer env = do
         hSetBuffering stdout LineBuffering
-        ref <- newIORef empty
-        let env = Env ref confBeaconTxOutRef confWallet
         forkIO $ processQueue env
-        logStart env "Starting server..."
-        Warp.run port $ mkApp env
-    where
-        logStart env = runExceptT . runHandler' . flip runReaderT env . unAppM . logMsg
+        Warp.run port $ mkApp @s env
 
-mkApp :: Env -> Application
-mkApp env = serveWithContext serverAPI EmptyContext $
-    hoistServer serverAPI ((`runReaderT` env) . unAppM) server
+mkApp :: forall s. ServerConstraints s => Env s -> Application
+mkApp env = serveWithContext (serverAPI @s) EmptyContext $
+    hoistServer (serverAPI @s) ((`runReaderT` env) . unAppM . (logStart >>)) server
+    where
+        logStart = logMsg "Starting server..."
