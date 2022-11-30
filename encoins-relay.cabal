@@ -110,4 +110,5 @@ executable encoinsRelayClient
   build-depends: 
     base                          >= 4.9 && < 5,
     cardano-server                             ,
+    directory                                  ,
     encoins-relay                              ,
