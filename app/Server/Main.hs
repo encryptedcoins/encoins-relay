@@ -1,6 +1,8 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Main where
 
-import qualified Server.Main
+import EncoinsServer.Main (runEncoinsServer)
 
 main :: IO ()
-main = Server.Main.main
+main = runEncoinsServer

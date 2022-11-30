@@ -2,17 +2,20 @@
 {-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE EmptyDataDeriving     #-}
 {-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-module EncoinsServer.Main (EncoinsServer, mkEncoinsRedeemer) where
+module EncoinsServer.Main where
 
 import           Client.Internal                 (ClientM, HasClient(..), envAuxiliary)
 import           Control.Applicative             (Alternative (..))
 import           Control.Monad                   ((>=>), void)
 import           Control.Monad.Catch             (Exception)
+import           Control.Monad.Reader            (MonadReader)
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.Text                       as T
 import           Control.Monad.Extra             (whenM)
@@ -28,9 +31,12 @@ import           ENCOINS.Core.Bulletproofs.Types (Input(..), Secret(..), Proof(.
 import           ENCOINS.Core.Bulletproofs.Prove (fromSecret)
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol, encoinsTx, stakingValidatorAddress)
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
-import           EncoinsServer.Opts              (burnParser, mintParser, EncoinsRequestPiece(..), LovelaceM)
+
+import           EncoinsServer.Opts              (ServerMode(..), runWithOpts, burnParser, mintParser, EncoinsRequestPiece(..), LovelaceM)
+import           EncoinsServer.Setup             (runSetupM)
+
 import           IO.Time                         (currentTime)
-import           IO.Wallet                       (getWalletKeyHashes, getWalletAddr)
+import           IO.Wallet                       (HasWallet(..), getWalletAddr, getWalletKeyHashes)
 import           Ledger                          (TxOutRef, TxOutRef, unPaymentPubKeyHash)
 import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
@@ -40,9 +46,29 @@ import           Server.Config                   (decodeOrErrorFromFile)
 import           Server.Endpoints.Mint           (HasMintEndpoint(..))
 import qualified Server.Internal                 as Server
 import           Server.Internal                 (HasServer(..))
+import           Server.Main                     (runServer)
 import           Server.Tx                       (mkTx)
 import           System.Directory                (listDirectory, doesFileExist, getDirectoryContents, listDirectory, removeFile)
 import           System.Random                   (randomIO, randomRIO, randomRIO, randomIO)
+
+runEncoinsServer :: IO ()
+runEncoinsServer = do
+    mode <- runWithOpts
+    case mode of
+        Run   -> runServer @EncoinsServer
+        Setup -> do
+            env <- Server.loadEnv @EncoinsServer
+            runSetupM env $ setupServer
+
+setupServer :: ( MonadReader (Server.Env EncoinsServer) m
+               , HasWallet m
+               , HasLogger m
+               ) => m ()
+setupServer = void $ do
+    txOutRef <- asks Server.envAuxiliary
+    walletAddr <- getWalletAddr
+    mkTx [walletAddr] [beaconMintTx txOutRef]
+    mkTx [walletAddr] [beaconSendTx txOutRef]
 
 data EncoinsServer
 
@@ -59,12 +85,6 @@ instance HasServer EncoinsServer where
     processTokens red = void $ do
         bcs <- getCurrencySymbol
         mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
-
-    setupServer = void $ do
-        txOutRef <- asks Server.envAuxiliary
-        walletAddr <- getWalletAddr
-        mkTx [walletAddr] [beaconMintTx txOutRef]
-        mkTx [walletAddr] [beaconSendTx txOutRef]
 
 instance HasMintEndpoint EncoinsServer where
 

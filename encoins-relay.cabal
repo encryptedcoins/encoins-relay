@@ -29,35 +29,11 @@ common lang
 library
     import: lang
     exposed-modules:
-      Test.EncoinsServer
-      Test.TestingServer
-      Client.Main
-      Server.Main
-    other-modules:
-      Client.Opts
-      Client.Internal
-
-      Server.Config
-      Server.Endpoints.Balance 
-      Server.Endpoints.Mint 
-      Server.Endpoints.Ping
-      Server.Internal
-      Server.Opts
-      Server.Setup
-      Server.Tx
-
       EncoinsServer.Main
+      Test.EncoinsServer
+    other-modules:
       EncoinsServer.Opts
-
-      TestingServer.Main
-      TestingServer.OnChain
-      TestingServer.OffChain
-
-      Test.Internal
-
-      Utils.Logger
-      Utils.Servant
-      Utils.Wait
+      EncoinsServer.Setup
     default-extensions:
       PartialTypeSignatures
     build-depends:
@@ -70,6 +46,7 @@ library
       cardano-api                            -any,
       cardano-ledger-alonzo                  -any,
       cardano-ledger-core                    -any,
+      cardano-server                         -any,
       cborg                                  -any,
       containers                             -any,
       data-default                           -any,
@@ -132,4 +109,5 @@ executable encoinsRelayClient
   main-is: Main.hs
   build-depends: 
     base                          >= 4.9 && < 5,
+    cardano-server                             ,
     encoins-relay                              ,
