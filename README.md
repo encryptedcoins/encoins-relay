@@ -5,10 +5,10 @@ Encoins-relay server and client applications.
 # Server usage:
 
 1. Run server:</br>
-cabal run encoinsRelayServer -- --run
+cabal run encoinsRelayServer -- run
 
 2. Mint and send encoins beacon token:</br>
-cabal run encoinsRelayServer -- --setup
+cabal run encoinsRelayServer -- setup
 
 # Client usage:
 
