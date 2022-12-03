@@ -15,26 +15,23 @@ import           Client.Internal                 (ClientM, HasClient(..), envAux
 import           Control.Applicative             (Alternative (..))
 import           Control.Monad                   ((>=>), void)
 import           Control.Monad.Catch             (Exception)
-import           Control.Monad.Reader            (MonadReader)
-import qualified Data.ByteString.Lazy            as LBS
-import qualified Data.Text                       as T
 import           Control.Monad.Extra             (whenM)
-import           Control.Monad.Reader            (MonadIO(..), asks)
-import           Utils.Logger                    (HasLogger(..), logSmth)
+import           Control.Monad.IO.Class          (MonadIO(..))
+import           Control.Monad.Reader            (MonadReader, asks)
 import           Data.Aeson                      (decode)
 import           Data.Aeson.Text                 (encodeToLazyText)
+import qualified Data.ByteString.Lazy            as LBS
 import           Data.Maybe                      (catMaybes, fromJust)
 import           Data.String                     (IsString(fromString))
+import qualified Data.Text                       as T
 import qualified Data.Text.Lazy.IO               as T
 import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), toGroupElement, toFieldElement)
 import           ENCOINS.Core.Bulletproofs.Types (Input(..), Secret(..), Proof(..))
 import           ENCOINS.Core.Bulletproofs.Prove (fromSecret)
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol, encoinsTx, stakingValidatorAddress)
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
-
 import           EncoinsServer.Opts              (ServerMode(..), runWithOpts, burnParser, mintParser, EncoinsRequestPiece(..), LovelaceM)
 import           EncoinsServer.Setup             (runSetupM)
-
 import           IO.Time                         (currentTime)
 import           IO.Wallet                       (HasWallet(..), getWalletAddr, getWalletKeyHashes)
 import           Ledger                          (TxOutRef, TxOutRef, unPaymentPubKeyHash)
@@ -50,6 +47,7 @@ import           Server.Main                     (runServer)
 import           Server.Tx                       (mkTx)
 import           System.Directory                (listDirectory, doesFileExist, getDirectoryContents, listDirectory, removeFile)
 import           System.Random                   (randomIO, randomRIO, randomRIO, randomIO)
+import           Utils.Logger                    (HasLogger(..), logSmth)
 
 runEncoinsServer :: IO ()
 runEncoinsServer = do
@@ -58,7 +56,7 @@ runEncoinsServer = do
         Run   -> runServer @EncoinsServer
         Setup -> do
             env <- Server.loadEnv @EncoinsServer
-            runSetupM env $ setupServer
+            runSetupM env setupServer
 
 setupServer :: ( MonadReader (Server.Env EncoinsServer) m
                , HasWallet m
