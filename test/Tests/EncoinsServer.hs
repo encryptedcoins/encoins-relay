@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
-module Test.EncoinsServer where
+module Tests.EncoinsServer where
 
 import           Client.Internal           (runClientM)
 import           Control.Monad.IO.Class    (MonadIO(..))
