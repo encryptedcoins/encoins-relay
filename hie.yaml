@@ -2,3 +2,5 @@ cradle:
   cabal:
     - path: "src"
       component: "encoins-relay:lib:encoins-relay"
+    - path: "test"
+      component: "encoins-relay:test:encoins-relay-test"
