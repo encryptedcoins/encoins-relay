@@ -26,7 +26,7 @@ import           Data.String                     (IsString(fromString))
 import qualified Data.Text                       as T
 import qualified Data.Text.Lazy.IO               as T
 import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), toGroupElement, toFieldElement)
-import           ENCOINS.Core.Bulletproofs.Types (Input(..), Secret(..), Proof(..))
+import           ENCOINS.Core.Bulletproofs.Types (Secret(..), Proof(..))
 import           ENCOINS.Core.Bulletproofs.Prove (fromSecret)
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol, encoinsTx, stakingValidatorAddress)
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
@@ -37,6 +37,7 @@ import           IO.Wallet                       (HasWallet(..), getWalletAddr, 
 import           Ledger                          (TxOutRef, TxOutRef, unPaymentPubKeyHash)
 import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
+import           Plutus.V2.Ledger.Api            (BuiltinByteString)
 import           PlutusTx.Builtins.Class         (FromBuiltin (fromBuiltin))
 import           Servant                         (NoContent)
 import           Server.Config                   (decodeOrErrorFromFile)
@@ -114,8 +115,8 @@ genEncoinsRequestPiece = randomIO >>= \case
     where
         genMint = RPMint . fromInteger <$> randomRIO (1, 10)
 
-mkEncoinsRedeemer :: (IO (), LovelaceM, [Input])
-                  -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
+mkEncoinsRedeemer :: (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
+    -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
 mkEncoinsRedeemer (fileWork, val, inputs) = do
     ct             <- liftIO currentTime
     (walletPKH, _) <- getWalletKeyHashes
@@ -127,20 +128,23 @@ mkEncoinsRedeemer (fileWork, val, inputs) = do
                    )
         dummyFE    = toFieldElement 200
         dummyGE    = fromJust $ toGroupElement $ fromString "aaaa"
-        dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE dummyFE [dummyFE] [dummyFE]
+        dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE [dummyFE] [dummyFE] dummyFE
     pure (liftIO fileWork, (txParams, inputs, dummyProof))
 
-processPieces :: [EncoinsRequestPiece] -> ClientM EncoinsServer (IO (), LovelaceM, [Input])
+processPieces :: [EncoinsRequestPiece] 
+    -> ClientM EncoinsServer (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
 processPieces cReq = sequence . catMaybes <$> traverse processPiece cReq
 
-processPiece :: RequestPieceOf EncoinsServer -> ClientM s (Maybe (IO (), LovelaceM, Input))
+processPiece :: RequestPieceOf EncoinsServer 
+    -> ClientM s (Maybe (IO (), LovelaceM, (BuiltinByteString, MintingPolarity)))
 processPiece (RPMint ada) = do
     sGamma <- liftIO randomIO
     let secret = Secret sGamma (toFieldElement $ getLovelace ada)
         bs = snd $ fromSecret bulletproofSetup secret
         file = T.unpack $ encodeByteString $ fromBuiltin bs
         filework = T.writeFile ("secrets/" <> file) $ encodeToLazyText secret
-    pure $ Just (filework, ada, Input bs Mint)
+    logSmth bs
+    pure $ Just (filework, ada, (bs, Mint))
 
 processPiece (RPBurn file) = do
     let path = "secrets/" <> file
@@ -150,8 +154,8 @@ processPiece (RPBurn file) = do
         secret <- liftIO $ fromJust . decode <$> LBS.readFile path
         let (val, bs) = fromSecret bulletproofSetup secret
             filework = whenM (doesFileExist path) $ removeFile path
-        logSmth $ Input bs Burn
-        pure $ Just (filework, (-1) * lovelaceOf val, Input bs Burn)
+        logSmth bs
+        pure $ Just (filework, (-1) * lovelaceOf val, (bs, Burn))
     else do
         logMsg $ "File " <> T.pack path <> " doesn't exists."
         pure Nothing
