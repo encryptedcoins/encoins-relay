@@ -1,11 +1,12 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Server.Setup where
-import           Control.Monad.Reader   (MonadIO, ReaderT(..), MonadReader, asks)
-import           IO.Wallet              (HasWallet(..))
-import           Server.Internal        (Env (..))
-import           Utils.Logger           (HasLogger(..))
+module EncoinsServer.Setup where
+
+import Control.Monad.Reader   (MonadIO, ReaderT(..), MonadReader, asks)
+import IO.Wallet              (HasWallet(..))
+import Server.Internal        (Env (..))
+import Utils.Logger           (HasLogger(..))
 
 newtype SetupM s a = SetupM { unSetupM :: ReaderT (Env s) IO a }
     deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader (Env s))

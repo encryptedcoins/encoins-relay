@@ -29,94 +29,50 @@ common lang
 library
     import: lang
     exposed-modules:
-      Test.EncoinsServer
-      Test.TestingServer
-      Client.Main
-      Server.Main
-    other-modules:
-      Client.Opts
-      Client.Internal
-
-      Server.Config
-      Server.Endpoints.Balance 
-      Server.Endpoints.Mint 
-      Server.Endpoints.Ping
-      Server.Internal
-      Server.Opts
-      Server.Setup
-      Server.Tx
-
       EncoinsServer.Main
+    other-modules:
       EncoinsServer.Opts
-
-      TestingServer.Main
-      TestingServer.OnChain
-      TestingServer.OffChain
-
-      Test.Internal
-
-      Utils.Logger
-      Utils.Servant
-      Utils.Wait
+      EncoinsServer.Setup
     default-extensions:
       PartialTypeSignatures
     build-depends:
       base                          >= 4.9 && < 5,
-      base16-bytestring                      -any,
-      base64                                 -any,
       aeson                                  -any,
-      aeson-casing                           -any,
       bytestring                             -any,
-      cardano-api                            -any,
-      cardano-ledger-alonzo                  -any,
-      cardano-ledger-core                    -any,
-      cborg                                  -any,
-      containers                             -any,
-      data-default                           -any,
-      deriving-aeson                         -any,
+      cardano-server                         -any,
       directory                              -any,
       encoins-core                           -any,
       exceptions                             -any,
       extra                                  -any,
-      file-embed                             -any,
-      filepath                               -any,
-      freer-extras                           -any,
-      freer-simple                           -any,
-      flat                                   -any,
-      generic-arbitrary                      -any,
-      http-types                             -any,
-      lens                                   -any,
       mtl                                    -any,
-      http-client                            -any,
-      openapi3                               -any,
       optparse-applicative                   -any,
-      playground-common                      -any,
       plutus-common                          -any,
-      plutus-contract                        -any,
-      plutus-chain-index                     -any,
-      plutus-chain-index-core                -any,
-      plutus-tx-plugin                       -any,
       plutus-tx                              -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
-      plutus-ledger-constraints              -any,
-      plutus-script-utils                    -any,
-      plutus-use-cases                       -any,
-      prettyprinter                          -any,
-      purescript-bridge                      -any,
-      QuickCheck                             -any,
       random                                 -any,
-      req                                    -any,
-      serialise                              -any,
-      servant                                -any,
       servant-server                         -any,
       text                                   -any,
-      text-class                             -any,
-      time                                   -any,
-      uuid                                   -any,
-      warp                                   -any,
 
     hs-source-dirs: src
+
+test-suite encoins-relay-test
+  Type:                 exitcode-stdio-1.0
+  Default-Language:     Haskell2010
+  Hs-Source-Dirs:       test
+  Ghc-Options:          -rtsopts
+                        -fplugin-opt PlutusTx.Plugin:defer-errors
+  Main-Is:              Main.hs
+  Other-Modules:        Tests.EncoinsServer
+  Build-Depends:
+    base                          >= 4.9 && < 5,
+    cardano-server                             ,
+    encoins-core                               ,
+    encoins-relay                              ,
+    mtl                                        ,
+    plutus-common                              ,
+    plutus-ledger                              ,
+    plutus-tx                                  ,
 
 executable encoinsRelayServer
   default-language: Haskell2010
@@ -132,4 +88,6 @@ executable encoinsRelayClient
   main-is: Main.hs
   build-depends: 
     base                          >= 4.9 && < 5,
+    cardano-server                             ,
+    directory                                  ,
     encoins-relay                              ,
