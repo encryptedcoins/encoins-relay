@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DerivingVia           #-}
 {-# LANGUAGE EmptyDataDeriving     #-}
 {-# LANGUAGE EmptyCase             #-}
 {-# LANGUAGE FlexibleContexts      #-}
@@ -8,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module EncoinsServer.Main where
 
@@ -25,23 +27,23 @@ import           Data.Maybe                      (catMaybes, fromJust)
 import           Data.String                     (IsString(fromString))
 import qualified Data.Text                       as T
 import qualified Data.Text.Lazy.IO               as T
-import           ENCOINS.Core.BaseTypes          (MintingPolarity(..), toGroupElement, toFieldElement)
-import           ENCOINS.Core.Bulletproofs.Types (Secret(..), Proof(..))
-import           ENCOINS.Core.Bulletproofs.Prove (fromSecret)
+import           ENCOINS.BaseTypes               (MintingPolarity(..), toGroupElement)
+import           ENCOINS.Bulletproofs.Types      (Secret(..), Proof(..))
+import           ENCOINS.Bulletproofs.Prove      (fromSecret)
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol, encoinsTx, stakingValidatorAddress)
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
+import           ENCOINS.Crypto.Field            (toFieldElement)
 import           EncoinsServer.Opts              (ServerMode(..), runWithOpts, burnParser, mintParser, EncoinsRequestPiece(..), LovelaceM)
 import           EncoinsServer.Setup             (runSetupM)
-import           IO.Time                         (currentTime)
-import           IO.Wallet                       (HasWallet(..), getWalletAddr, getWalletKeyHashes)
-import           Ledger                          (TxOutRef, TxOutRef, unPaymentPubKeyHash)
+import           IO.Wallet                       (HasWallet(..), getWalletAddr)
+import           Ledger                          (TxOutRef, TxOutRef)
 import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
 import           Plutus.V2.Ledger.Api            (BuiltinByteString)
 import           PlutusTx.Builtins.Class         (FromBuiltin (fromBuiltin))
 import           Servant                         (NoContent)
 import           Server.Config                   (decodeOrErrorFromFile)
-import           Server.Endpoints.Mint           (HasMintEndpoint(..))
+import           Server.Endpoints.SubmitTx       (HasSubmitTxEndpoint(..))
 import qualified Server.Internal                 as Server
 import           Server.Internal                 (HasServer(..))
 import           Server.Main                     (runServer)
@@ -57,13 +59,13 @@ runEncoinsServer = do
         Run   -> runServer @EncoinsServer
         Setup -> do
             env <- Server.loadEnv @EncoinsServer
-            runSetupM env setupServer
+            runSetupM env setupEncoinsServer
 
-setupServer :: ( MonadReader (Server.Env EncoinsServer) m
+setupEncoinsServer :: ( MonadReader (Server.Env EncoinsServer) m
                , HasWallet m
                , HasLogger m
                ) => m ()
-setupServer = void $ do
+setupEncoinsServer = void $ do
     txOutRef <- asks Server.envAuxiliary
     walletAddr <- getWalletAddr
     mkTx [walletAddr] [beaconMintTx txOutRef]
@@ -85,16 +87,16 @@ instance HasServer EncoinsServer where
         bcs <- getCurrencySymbol
         mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
 
-instance HasMintEndpoint EncoinsServer where
+instance HasSubmitTxEndpoint EncoinsServer where
 
-    type MintApiResultOf EncoinsServer = '[NoContent]
+    type SubmitTxApiResultOf EncoinsServer = '[NoContent]
 
-    data MintErrorOf EncoinsServer
+    data SubmitTxErrorOf EncoinsServer
         deriving (Show, Exception)
 
-    checkForMintErros _ = pure ()
+    checkForSubmitTxErros _ = pure ()
 
-    mintErrorHanlder = \case
+    submitTxErrorHanlder = \case
 
 instance HasClient EncoinsServer where
 
@@ -118,18 +120,14 @@ genEncoinsRequestPiece = randomIO >>= \case
 mkEncoinsRedeemer :: (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
     -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
 mkEncoinsRedeemer (fileWork, val, inputs) = do
-    ct             <- liftIO currentTime
-    (walletPKH, _) <- getWalletKeyHashes
     beaconRef      <- asks envAuxiliary
-    let txParams = ( getLovelace val
-                   , stakingValidatorAddress $ encoinsSymbol $ beaconCurrencySymbol beaconRef
-                   , unPaymentPubKeyHash walletPKH
-                    , (0, ct + 3_600_000)
-                   )
+    let txParams   = stakingValidatorAddress $ encoinsSymbol $ beaconCurrencySymbol beaconRef
+        input      = (getLovelace val, inputs) 
         dummyFE    = toFieldElement 200
         dummyGE    = fromJust $ toGroupElement $ fromString "aaaa"
         dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE [dummyFE] [dummyFE] dummyFE
-    pure (liftIO fileWork, (txParams, inputs, dummyProof))
+        signature  = "" 
+    pure (liftIO fileWork, (txParams, input, dummyProof, signature))
 
 processPieces :: [EncoinsRequestPiece] 
     -> ClientM EncoinsServer (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
