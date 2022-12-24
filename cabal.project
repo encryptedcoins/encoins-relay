@@ -24,7 +24,7 @@ packages: ./.
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server.git
-  tag: 84d151fc85cf8ca3db5c073505d501723de36dc1
+  tag: fb879435345721f99b2324915eed805acb2592ef
 
 source-repository-package
   type: git

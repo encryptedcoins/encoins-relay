@@ -41,9 +41,8 @@ import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
 import           Plutus.V2.Ledger.Api            (BuiltinByteString)
 import           PlutusTx.Builtins.Class         (FromBuiltin (fromBuiltin))
-import           Servant                         (NoContent)
 import           Server.Config                   (decodeOrErrorFromFile)
-import           Server.Endpoints.SubmitTx       (HasSubmitTxEndpoint(..))
+import           Server.Endpoints.Tx.Internal    (HasTxEndpoints(..), DefaultTxApiResult)
 import qualified Server.Internal                 as Server
 import           Server.Internal                 (HasServer(..))
 import           Server.Main                     (runServer)
@@ -83,20 +82,20 @@ instance HasServer EncoinsServer where
 
     getCurrencySymbol = asks $ beaconCurrencySymbol . Server.envAuxiliary
 
-    processTokens red = void $ do
-        bcs <- getCurrencySymbol
-        mkTx [stakingValidatorAddress $ encoinsSymbol bcs] [encoinsTx bcs red]
+instance HasTxEndpoints EncoinsServer where
 
-instance HasSubmitTxEndpoint EncoinsServer where
+    type TxApiResultOf EncoinsServer = DefaultTxApiResult
 
-    type SubmitTxApiResultOf EncoinsServer = '[NoContent]
-
-    data SubmitTxErrorOf EncoinsServer
+    data TxEndpointsErrorOf EncoinsServer
         deriving (Show, Exception)
 
-    checkForSubmitTxErros _ = pure ()
+    checkForTxEndpointsErros _ = pure ()
 
-    submitTxErrorHanlder = \case
+    txEndpointsErrorHanlder = \case
+
+    txEndpointsTxBuilders red = do
+        bcs <- getCurrencySymbol
+        pure [encoinsTx bcs red]
 
 instance HasClient EncoinsServer where
 
