@@ -1,6 +1,6 @@
-# ENCOINS-relay
+# ENCOINS Relay App
 
-Encoins-relay server and client applications.
+Encoins Relay server and console client applications.
 
 # Server usage:
 
