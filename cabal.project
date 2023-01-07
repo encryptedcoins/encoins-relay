@@ -24,32 +24,27 @@ packages: ./.
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server.git
-  tag: fb879435345721f99b2324915eed805acb2592ef
+  tag: eb0f2690d0ed380df9d40078c74900bfd4a55329
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-tx-extra.git
-  tag: 8e9ab9d1baa91a97cbd9395dda4b32fe0ac1f65f
+  tag: ad216bcb85a419592d843463038f35dda3c308ad
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 15e789efe1b5c5994948af54d1df40bf19c2883f
+  tag: f4adc3de88c345f761da08a55c3ff6fab2444b44
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-bulletproofs
-  tag: aac10bf5f19dc20dc8548a365e8b83fc5c498502
+  tag: 33d74636bda1079b96432ab1606d846292e58b76
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 8fc6f4c0e3817e0bd331b9cf89edb932d3d8dfcb
-
-source-repository-package
-  type: git
-  location: https://github.com/cardmix/Cardano-Mixer-Lib.git
-  tag: c92ea8874f3b1fcdb7114583bae781546513ac5d
+  tag: 5df7b8d226442fe39a50c2d86ac139701df3cf12
 
 source-repository-package
   type: git

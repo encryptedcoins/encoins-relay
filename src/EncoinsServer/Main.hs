@@ -5,7 +5,6 @@
 {-# LANGUAGE EmptyCase             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
@@ -31,11 +30,13 @@ import           ENCOINS.BaseTypes               (MintingPolarity(..), toGroupEl
 import           ENCOINS.Bulletproofs.Types      (Secret(..), Proof(..))
 import           ENCOINS.Bulletproofs.Prove      (fromSecret)
 import           ENCOINS.Core.OffChain           (beaconCurrencySymbol, beaconMintTx, beaconSendTx, encoinsSymbol, encoinsTx, stakingValidatorAddress)
+import           ENCOINS.Core.V1.OffChain        (verifierPKH)
 import           ENCOINS.Core.OnChain            (EncoinsRedeemer, EncoinsRedeemer, bulletproofSetup)
 import           ENCOINS.Crypto.Field            (toFieldElement)
 import           EncoinsServer.Opts              (ServerMode(..), runWithOpts, burnParser, mintParser, EncoinsRequestPiece(..), LovelaceM)
 import           EncoinsServer.Setup             (runSetupM)
-import           IO.Wallet                       (HasWallet(..), getWalletAddr)
+import           IO.ChainIndex                   (getWalletUtxos)
+import           IO.Wallet                       (HasWallet(..))
 import           Ledger                          (TxOutRef, TxOutRef)
 import           Ledger.Ada                      (Ada(..), lovelaceOf)
 import           Plutus.V1.Ledger.Bytes          (encodeByteString)
@@ -66,9 +67,10 @@ setupEncoinsServer :: ( MonadReader (Server.Env EncoinsServer) m
                ) => m ()
 setupEncoinsServer = void $ do
     txOutRef <- asks Server.envAuxiliary
-    walletAddr <- getWalletAddr
-    mkTx [walletAddr] [beaconMintTx txOutRef]
-    mkTx [walletAddr] [beaconSendTx txOutRef]
+    utxos <- getWalletUtxos 
+    mkTx [] utxos [beaconMintTx txOutRef]
+    utxos' <- getWalletUtxos
+    mkTx [] utxos' [beaconSendTx txOutRef]
 
 data EncoinsServer
 
@@ -93,9 +95,13 @@ instance HasTxEndpoints EncoinsServer where
 
     txEndpointsErrorHanlder = \case
 
+    getTrackedAddresses = do
+        bcs <- getCurrencySymbol @EncoinsServer
+        return [stakingValidatorAddress $ encoinsSymbol (bcs, verifierPKH)]
+
     txEndpointsTxBuilders red = do
         bcs <- getCurrencySymbol
-        pure [encoinsTx bcs red]
+        pure [encoinsTx (bcs, verifierPKH) red]
 
 instance HasClient EncoinsServer where
 
@@ -120,19 +126,19 @@ mkEncoinsRedeemer :: (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
     -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
 mkEncoinsRedeemer (fileWork, val, inputs) = do
     beaconRef      <- asks envAuxiliary
-    let txParams   = stakingValidatorAddress $ encoinsSymbol $ beaconCurrencySymbol beaconRef
-        input      = (getLovelace val, inputs) 
+    let txParams   = stakingValidatorAddress $ encoinsSymbol (beaconCurrencySymbol beaconRef, verifierPKH)
+        input      = (getLovelace val, inputs)
         dummyFE    = toFieldElement 200
         dummyGE    = fromJust $ toGroupElement $ fromString "aaaa"
         dummyProof = Proof dummyGE dummyGE dummyGE dummyGE dummyFE dummyFE [dummyFE] [dummyFE] dummyFE
-        signature  = "" 
+        signature  = ""
     pure (liftIO fileWork, (txParams, input, dummyProof, signature))
 
-processPieces :: [EncoinsRequestPiece] 
+processPieces :: [EncoinsRequestPiece]
     -> ClientM EncoinsServer (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
 processPieces cReq = sequence . catMaybes <$> traverse processPiece cReq
 
-processPiece :: RequestPieceOf EncoinsServer 
+processPiece :: RequestPieceOf EncoinsServer
     -> ClientM s (Maybe (IO (), LovelaceM, (BuiltinByteString, MintingPolarity)))
 processPiece (RPMint ada) = do
     sGamma <- liftIO randomIO
