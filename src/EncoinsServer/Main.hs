@@ -12,7 +12,7 @@
 
 module EncoinsServer.Main where
 
-import           Client.Internal                 (ClientM, HasClient(..), envAuxiliary)
+import           Client.Class                    (ClientM, HasClient(..), envAuxiliary)
 import           Control.Applicative             (Alternative (..))
 import           Control.Monad                   ((>=>), void)
 import           Control.Monad.Catch             (Exception)
@@ -43,9 +43,9 @@ import           Plutus.V1.Ledger.Bytes          (encodeByteString)
 import           Plutus.V2.Ledger.Api            (BuiltinByteString)
 import           PlutusTx.Builtins.Class         (FromBuiltin (fromBuiltin))
 import           Server.Config                   (decodeOrErrorFromFile)
-import           Server.Endpoints.Tx.Internal    (HasTxEndpoints(..), DefaultTxApiResult)
-import qualified Server.Internal                 as Server
-import           Server.Internal                 (HasServer(..))
+import           Server.Endpoints.Tx.Class       (HasTxEndpoints(..), DefaultTxApiResult)
+import qualified Server.Class                    as Server
+import           Server.Class                    (HasServer(..))
 import           Server.Main                     (runServer)
 import           Server.Tx                       (mkTx)
 import           System.Directory                (listDirectory, doesFileExist, getDirectoryContents, listDirectory, removeFile)
@@ -80,9 +80,11 @@ instance HasServer EncoinsServer where
 
     loadAuxiliaryEnv = decodeOrErrorFromFile
 
-    type RedeemerOf EncoinsServer = EncoinsRedeemer
+    type InputOf EncoinsServer = EncoinsRedeemer
 
-    getCurrencySymbol = asks $ beaconCurrencySymbol . Server.envAuxiliary
+    serverTrackedAddresses = do
+        bcs <- asks $ beaconCurrencySymbol . Server.envAuxiliary
+        return [stakingValidatorAddress $ encoinsSymbol (bcs, verifierPKH)]
 
 instance HasTxEndpoints EncoinsServer where
 
@@ -90,31 +92,27 @@ instance HasTxEndpoints EncoinsServer where
 
     data TxEndpointsErrorOf EncoinsServer
         deriving (Show, Exception)
-
-    checkForTxEndpointsErros _ = pure ()
-
-    txEndpointsErrorHanlder = \case
-
-    getTrackedAddresses = do
-        bcs <- getCurrencySymbol @EncoinsServer
-        return [stakingValidatorAddress $ encoinsSymbol (bcs, verifierPKH)]
-
+    
     txEndpointsTxBuilders red = do
-        bcs <- getCurrencySymbol
+        bcs <- asks $ beaconCurrencySymbol . Server.envAuxiliary
         pure [encoinsTx (bcs, verifierPKH) red]
+
+    checkForTxEndpointsErrors _ = pure ()
+
+    txEndpointsErrorHandler = \case
 
 instance HasClient EncoinsServer where
 
-    type RequestPieceOf EncoinsServer = EncoinsRequestPiece
+    type RequestTermOf EncoinsServer = EncoinsRequestPiece
 
-    genRequestPiece = genEncoinsRequestPiece
+    genRequestTerm = genEncoinsRequestTerm
 
-    parseRequestPiece = mintParser <|> burnParser
+    parseRequestTerm = mintParser <|> burnParser
 
-    mkRedeemer = processPieces >=> mkEncoinsRedeemer
+    makeServerInput = processTerms >=> mkEncoinsRedeemer
 
-genEncoinsRequestPiece :: IO EncoinsRequestPiece
-genEncoinsRequestPiece = randomIO >>= \case
+genEncoinsRequestTerm :: IO EncoinsRequestPiece
+genEncoinsRequestTerm = randomIO >>= \case
         True  -> genMint
         False -> listDirectory "secrets" >>= \case
             [] -> genMint
@@ -123,7 +121,7 @@ genEncoinsRequestPiece = randomIO >>= \case
         genMint = RPMint . fromInteger <$> randomRIO (1, 10)
 
 mkEncoinsRedeemer :: (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
-    -> ClientM EncoinsServer (ClientM EncoinsServer (), RedeemerOf EncoinsServer)
+    -> ClientM EncoinsServer (ClientM EncoinsServer (), InputOf EncoinsServer)
 mkEncoinsRedeemer (fileWork, val, inputs) = do
     beaconRef      <- asks envAuxiliary
     let txParams   = stakingValidatorAddress $ encoinsSymbol (beaconCurrencySymbol beaconRef, verifierPKH)
@@ -134,13 +132,13 @@ mkEncoinsRedeemer (fileWork, val, inputs) = do
         signature  = ""
     pure (liftIO fileWork, (txParams, input, dummyProof, signature))
 
-processPieces :: [EncoinsRequestPiece]
+processTerms :: [EncoinsRequestPiece]
     -> ClientM EncoinsServer (IO (), LovelaceM, [(BuiltinByteString, MintingPolarity)])
-processPieces cReq = sequence . catMaybes <$> traverse processPiece cReq
+processTerms cReq = sequence . catMaybes <$> traverse processTerm cReq
 
-processPiece :: RequestPieceOf EncoinsServer
+processTerm :: RequestTermOf EncoinsServer
     -> ClientM s (Maybe (IO (), LovelaceM, (BuiltinByteString, MintingPolarity)))
-processPiece (RPMint ada) = do
+processTerm (RPMint ada) = do
     sGamma <- liftIO randomIO
     let secret = Secret sGamma (toFieldElement $ getLovelace ada)
         bs = snd $ fromSecret bulletproofSetup secret
@@ -149,7 +147,7 @@ processPiece (RPMint ada) = do
     logSmth bs
     pure $ Just (filework, ada, (bs, Mint))
 
-processPiece (RPBurn file) = do
+processTerm (RPBurn file) = do
     let path = "secrets/" <> file
     fileExists <- liftIO $ (file `elem`) <$> getDirectoryContents "secrets"
     if fileExists

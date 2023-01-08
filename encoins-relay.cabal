@@ -3,7 +3,9 @@ cabal-version:      3.0
 name:               encoins-relay
 version:            0.1.0.0
 
-maintainer:         encoins.crypto@ud.me
+author:             Grigory Petrov
+                    Vladimir Sinyakov
+maintainer:         team@encoins.io
 
 -- Plutus language settings
 common lang

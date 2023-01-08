@@ -5,7 +5,7 @@ module EncoinsServer.Setup where
 
 import Control.Monad.Reader   (MonadIO, ReaderT(..), MonadReader, asks)
 import IO.Wallet              (HasWallet(..))
-import Server.Internal        (Env (..))
+import Server.Class           (Env (..))
 import Utils.Logger           (HasLogger(..))
 
 newtype SetupM s a = SetupM { unSetupM :: ReaderT (Env s) IO a }
@@ -18,4 +18,4 @@ instance HasLogger (SetupM s) where
     loggerFilePath = "server.log"
 
 instance HasWallet (SetupM s) where
-    getRestoreWallet = asks envWallet
+    getRestoredWallet = asks envWallet
