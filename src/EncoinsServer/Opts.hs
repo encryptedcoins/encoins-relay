@@ -19,27 +19,27 @@ modeParser = subparser
         )
     where
         runDesc   = progDesc "Default server mode without any preliminary work."
-        setupDesc = progDesc "Mint and send encoins beacon token."
+        setupDesc = progDesc "Mint and send ENCOINS beacon token."
 
 --------------------------------- Client ---------------------------------
 
 type LovelaceM = Ada
 
-data EncoinsRequestPiece
+data EncoinsRequestTerm
     = RPMint LovelaceM
     | RPBurn FilePath
     deriving (Show, Eq)
 
-mintParser :: Parser EncoinsRequestPiece
+mintParser :: Parser EncoinsRequestTerm
 mintParser = RPMint . Lovelace <$> option auto
     (  long "mint"
-    <> help "Token name to mint."
+    <> help "Token ADA value to mint. Nonnegative integer between 0 and 2^20-1."
     )
 
-burnParser :: Parser EncoinsRequestPiece
+burnParser :: Parser EncoinsRequestTerm
 burnParser = RPBurn <$> option withoutQuotes
     (  long "burn"
-    <> help "Token name to burn."
+    <> help "Token to burn. A path to minting keys file."
     )
 
 withoutQuotes :: ReadM String

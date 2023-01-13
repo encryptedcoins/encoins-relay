@@ -4,3 +4,7 @@ cradle:
       component: "encoins-relay:lib:encoins-relay"
     - path: "test"
       component: "encoins-relay:test:encoins-relay-test"
+    - path: "app/Server"
+      component: "encoins-relay:exe:encoinsRelayServer"
+    - path: "app/Client"
+      component: "encoins-relay:exe:encoinsRelayClient"

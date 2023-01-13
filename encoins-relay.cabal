@@ -43,15 +43,18 @@ library
       bytestring                             -any,
       cardano-server                         -any,
       containers                             -any,
+      csl-types                              -any,
       directory                              -any,
       encoins-bulletproofs                   -any,
       encoins-core                           -any,
       exceptions                             -any,
       extra                                  -any,
+      hex-text                               -any,
       mtl                                    -any,
       optparse-applicative                   -any,
       plutus-apps-extra                      -any,
       plutus-tx                              -any,
+      plutus-tx-extra                        -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       random                                 -any,
@@ -65,7 +68,6 @@ library
 --   Default-Language:     Haskell2010
 --   Hs-Source-Dirs:       test
 --   Ghc-Options:          -rtsopts
---                         -fplugin-opt PlutusTx.Plugin:defer-errors
 --   Main-Is:              Main.hs
 --   Other-Modules:        Tests.EncoinsServer
 --   build-depends:

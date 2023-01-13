@@ -3,7 +3,7 @@
 
 module Tests.EncoinsServer where
 
-import           Client.Internal           (runClientM)
+import           Client.Class              (runClientM)
 import           Control.Monad.IO.Class    (MonadIO(..))
 import           Control.Monad.Reader      (asks)
 import           ENCOINS.BaseTypes         (MintingPolarity (..))
@@ -12,8 +12,8 @@ import           EncoinsServer.Main        (EncoinsServer, mkEncoinsRedeemer, se
 import           IO.Wallet                 (HasWallet(..))
 import           Ledger.Ada                (lovelaceOf)
 import           PlutusTx.Builtins.Class   (stringToBuiltinByteString)
-import           Server.Internal           (HasServer(..), envAuxiliary)
-import           Test.Internal             (runTestM, testBalance, testBalanceAll)
+import           Server.Class              (HasServer(..), envAuxiliary)
+import           Tests.Internal            (runTestM, testBalance, testBalanceAll)
 
 testES :: [(String, Integer)] -> IO ()
 testES args = runTestM @EncoinsServer $ do
