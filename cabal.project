@@ -12,56 +12,60 @@ repository cardano-haskell-packages
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
 -- See CONTRIBUTING.adoc for how to update index-state
-index-state: 2022-11-14T00:20:02Z
+index-state: 2022-12-22T00:00:00Z
 
 -- See CONTRIBUTING.adoc for how to update index-state
 index-state:
-  , hackage.haskell.org 2022-11-14T00:20:02Z
-  , cardano-haskell-packages 2022-11-17T04:56:26Z
+  , hackage.haskell.org 2022-12-22T00:00:00Z
+  , cardano-haskell-packages 2022-12-22T00:00:00Z
 
 packages: ./.
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server.git
-  tag: e2777cb75b06a8c2bea3faca605f04ded3ee8f8f
+  tag: 7bed0ca682987aef20586bc754373a429273dde1
+  subdir:
+    cardano-server
+    cardano-server-client
+    cardano-server-test
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-tx-extra.git
-  tag: aa025fdada9c9c67466c9967c08f4290ca79a13c
+  tag: eb321e30bda455de199d3515e0cc411f2d51e6fa
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 419660aaf2e2f65a437a6d73f42d6546515efa9e
+  tag: e41f29bdfb76af1086812c41c7a8fbb3a6319a8d
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/csl-types.git
-  tag: 9150efa641a316d1b48dcb92b9a2293c95fedf0d
+  tag: 4eec26ed0719d8142233d9993c13246966f93dfb
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-bulletproofs
-  tag: 9a733e34cfd19caaa70b89d4d59589653408bbb9
+  tag: 79073ff6c7c70c3adfd57a384ee4f183d995393f
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: d86cdebfd7cdb9f399d26a793830ba3bf4c35e5f
+  tag: d9c23d6f15c4c03360980f4c2d1d72130fe16af8
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/plutus-apps
-  tag: 7952b9d30d15779a7fd8103bdbc9612d5df18ec2
+  tag: cdbd932706108ec4799c0f09783d6fae95ac6103
   subdir: 
+    cardano-node-emulator
     cardano-streaming
     doc
     freer-extras
     marconi
     marconi-mamba
-    playground-common
     pab-blockfrost
     plutus-chain-index
     plutus-chain-index-core
@@ -122,6 +126,10 @@ constraints:
 
   -- newer typed-protocols need io-classes>=0.3.0.0 which is incompatible with dbvar's constraint above
   , typed-protocols==0.1.0.0
+
+  , aeson >= 2
+
+  , hedgehog >= 1.1
 
 -- The plugin will typically fail when producing Haddock documentation. However,
 -- in this instance you can simply tell it to defer any errors to runtime (which
@@ -186,20 +194,10 @@ source-repository-package
 -- Direct dependency.
 source-repository-package
     type: git
-    location: https://github.com/input-output-hk/servant-purescript
-    tag: 44e7cacf109f84984cd99cd3faf185d161826963
-
--- Direct dependency.
-source-repository-package
-    type: git
-    location: https://github.com/input-output-hk/purescript-bridge
-    tag: 47a1f11825a0f9445e0f98792f79172efef66c00
-
--- Direct dependency.
-source-repository-package
-    type: git
-    location: https://github.com/input-output-hk/quickcheck-dynamic
-    tag: c272906361471d684440f76c297e29ab760f6a1e
+    location: https://github.com/Quviq/quickcheck-contractmodel
+    tag: 462f8c25bea15f88e179e12ebf4e3a4ffcc92d18
+    subdir:
+      contractmodel
 
 -- Should follow cardano-wallet.
 source-repository-package

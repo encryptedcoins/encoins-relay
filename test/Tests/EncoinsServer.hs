@@ -3,17 +3,15 @@
 
 module Tests.EncoinsServer where
 
-import           Client.Class              (runClientM)
 import           Control.Monad.IO.Class    (MonadIO(..))
 import           Control.Monad.Reader      (asks)
 import           ENCOINS.BaseTypes         (MintingPolarity (..))
 import           ENCOINS.Bulletproofs      (Input(..))
-import           EncoinsServer.Main        (EncoinsServer, mkEncoinsRedeemer, setupEncoinsServer)
+import           EncoinsServer.Main        (EncoinsServer)
 import           IO.Wallet                 (HasWallet(..))
 import           Ledger.Ada                (lovelaceOf)
 import           PlutusTx.Builtins.Class   (stringToBuiltinByteString)
-import           Server.Class              (HasServer(..), envAuxiliary)
-import           Tests.Internal            (runTestM, testBalance, testBalanceAll)
+import           Tests.Internal            (testFunds, testFundsAll)
 
 testES :: [(String, Integer)] -> IO ()
 testES args = runTestM @EncoinsServer $ do
@@ -28,10 +26,10 @@ testES args = runTestM @EncoinsServer $ do
         adaToPolarity a = if a > 0 then Mint else Burn
          
 testBalanceES :: IO ()
-testBalanceES = testBalance @EncoinsServer
+testBalanceES = testFunds @EncoinsServer
 
 testBalanceAllES :: IO ()
-testBalanceAllES = testBalanceAll @EncoinsServer
+testBalanceAllES = testFundsAll @EncoinsServer
 
 setup :: IO ()
-setup = runTestM setupServer
+setup = runAppM setupServer

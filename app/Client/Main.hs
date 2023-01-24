@@ -2,9 +2,10 @@
 
 module Main where
 
-import Client.Main        (startClient)
-import EncoinsServer.Main (EncoinsServer)
-import System.Directory   (createDirectoryIfMissing)
+import           System.Directory             (createDirectoryIfMissing)
+
+import           Cardano.Server.Client.Client (startClient)
+import           EncoinsServer.Main           (EncoinsServer)
 
 main :: IO ()
 main = do
