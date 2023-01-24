@@ -36,12 +36,14 @@ import           ENCOINS.Bulletproofs              (fromSecret, bulletproof, par
 import           ENCOINS.Bulletproofs.Types        (Secret(..))
 import           ENCOINS.BaseTypes                 (MintingPolarity(..))
 import           ENCOINS.Core.OffChain             (beaconMintTx, beaconSendTx, encoinsTx)
+import           ENCOINS.Core.V1.OnChain           (hashRedeemer)
 import           ENCOINS.Core.V1.OffChain          (EncoinsRedeemerWithData, verifierPKH)
 import           ENCOINS.Core.OnChain              (beaconCurrencySymbol, encoinsSymbol, stakingValidatorAddress, bulletproofSetup)
 import           ENCOINS.Crypto.Field              (toFieldElement)
 import           EncoinsServer.Opts                (ServerMode(..), runWithOpts, EncoinsRequestTerm (..), mintParser, burnParser)
 import           IO.Wallet                         (getWalletUtxos)
 import           PlutusTx.Extra.ByteString         (toBytes)
+import           Utils.Crypto                      (sign)
 
 runEncoinsServer :: IO ()
 runEncoinsServer = do
@@ -82,9 +84,11 @@ instance HasTxEndpoints EncoinsServer where
             context = InputContextServer utxos
         return (redWithData, context)
 
-    txEndpointsTxBuilders red = do
+    txEndpointsTxBuilders (addr, red@(par, input, proof, _)) = do
         bcs <- asks $ beaconCurrencySymbol . envAuxiliary
-        pure [encoinsTx (bcs, verifierPKH) red]
+        let prvKey = "1DA4194798C1D3AA8B7E5E39EDA1F130D9123ACCC8CA31A82E033A6D007DA7EC"
+            red' = (par, input, proof, sign prvKey $ hashRedeemer red)
+        pure [encoinsTx (bcs, verifierPKH) (addr, red')]
 
 instance IsCardanoServerError (TxEndpointsErrorOf EncoinsServer) where
     errStatus _ = toEnum 422
