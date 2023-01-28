@@ -1,4 +1,4 @@
 dist-newstyle
-testnet/wallet.json
-logs/*
-secrets/*
+result/testnet-preview/wallets/*
+result/testnet-preview/secrets/*
+result/testnet-preview/logs/*

@@ -11,7 +11,6 @@ import           EncoinsServer.Main        (EncoinsServer)
 import           IO.Wallet                 (HasWallet(..))
 import           Ledger.Ada                (lovelaceOf)
 import           PlutusTx.Builtins.Class   (stringToBuiltinByteString)
-import           Tests.Internal            (testFunds, testFundsAll)
 
 testES :: [(String, Integer)] -> IO ()
 testES args = runTestM @EncoinsServer $ do
@@ -24,12 +23,6 @@ testES args = runTestM @EncoinsServer $ do
         inputs = map toInput args
         toInput (str, a) = Input (stringToBuiltinByteString str) (adaToPolarity a)
         adaToPolarity a = if a > 0 then Mint else Burn
-         
-testBalanceES :: IO ()
-testBalanceES = testFunds @EncoinsServer
-
-testBalanceAllES :: IO ()
-testBalanceAllES = testFundsAll @EncoinsServer
 
 setup :: IO ()
 setup = runAppM setupServer
