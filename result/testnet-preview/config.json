@@ -1,10 +1,11 @@
 { "server_address"      : "localhost:3000"
-, "node_address"        : ""
-, "chain_index_address" : ""
-, "auxiliary_env_file"  : "testnet/txOutRef.json"
-, "wallet_file"         : "../wallets/Bob.json"
+, "auxiliary_env_file"  : "txOutRef.json"
+, "wallet_file"         : "wallets/Bob.json"
 , "min_utxos_amount"    : 1
 , "network_id"          : {"tag" : "Testnet", "contents" : 2}
+, "collateral"          : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
+, "node_file_path"      : "../../../relay-app-setup/testnet-preview/node.sock"
+, "chain_index"         : "Plutus"
 , "inactive_endpoints"  :
     { "ping"          : false
     , "funds"         : false
