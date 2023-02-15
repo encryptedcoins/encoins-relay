@@ -1,6 +1,6 @@
 module Main where
 
-import Tests.EncoinsServer
+import Tests.EncoinsServer (testES)
 
 main :: IO ()
-main = testBalanceAllES
+main = testES
