@@ -1,43 +1,54 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DerivingVia           #-}
-{-# LANGUAGE EmptyDataDeriving     #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DerivingVia          #-}
+{-# LANGUAGE EmptyDataDeriving    #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module EncoinsServer.Main where
 
+import           CSL                                      (TransactionUnspentOutputs)
+import           CSL.Class                                (fromCSL)
+import           Cardano.Server.Class                     (Env (..), HasServer (..))
+import           Cardano.Server.Client.Class              (HasClient (..))
+import           Cardano.Server.Endpoints.Tx.Class        (HasTxEndpoints (..))
+import           Cardano.Server.Error                     (IsCardanoServerError (..))
+import           Cardano.Server.Input                     (InputContext (..))
+import           Cardano.Server.Internal                  (runAppM)
+import           Cardano.Server.Main                      (runServer)
+import           Cardano.Server.Tx                        (mkTx)
+import           Control.Applicative                      (Alternative (..))
 import           Control.Exception                        (throw)
 import           Control.Monad                            (void)
 import           Control.Monad.Reader                     (asks)
 import           Data.Default                             (def)
 import           Data.Map                                 (fromList)
-import           Data.Maybe                               (fromJust)
-import           Ledger                                   (TxOutRef (..), TxId (..))
-import           PlutusTx.Prelude                         (toBuiltin)
-import           Text.Hex                                 (decodeHex)
-
-import           Cardano.Server.Class                     (HasServer (..), Env (..))
-import           Cardano.Server.Endpoints.Tx.Class        (HasTxEndpoints(..))
-import           Cardano.Server.Error                     (IsCardanoServerError (..))
-import           Cardano.Server.Input                     (InputContext(..))
-import           Cardano.Server.Internal                  (runAppM)
-import           Cardano.Server.Main                      (runServer)
-import           Cardano.Server.Tx                        (mkTx)
-import           CSL                                      (TransactionUnspentOutputs)
-import           CSL.Class                                (fromCSL)
+import           Data.Maybe                               (fromJust, mapMaybe)
+import           ENCOINS.BaseTypes                        (MintingPolarity (..))
+import           ENCOINS.Bulletproofs                     (Secret (..), bulletproof, fromSecret, parseBulletproofParams)
 import           ENCOINS.Core.OffChain                    (beaconMintTx, beaconSendTx, encoinsTx)
+import           ENCOINS.Core.OnChain                     (beaconCurrencySymbol, bulletproofSetup, encoinsSymbol,
+                                                           stakingValidatorAddress)
+import           ENCOINS.Core.V1.OffChain                 (EncoinsRedeemerWithData, postEncoinsPolicyTx, postStakingValidatorTx,
+                                                           verifierPKH)
 import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
-import           ENCOINS.Core.V1.OffChain                 (EncoinsRedeemerWithData, verifierPKH, postEncoinsPolicyTx, postStakingValidatorTx)
-import           ENCOINS.Core.OnChain                     (beaconCurrencySymbol, encoinsSymbol, stakingValidatorAddress)
-import           EncoinsServer.Opts                       (ServerMode(..), runWithOpts)
+import           ENCOINS.Crypto.Field                     (toFieldElement)
+import           EncoinsServer.Opts                       (EncoinsRequestTerm (..), ServerMode (Run, Setup), burnParser,
+                                                           mintParser, runWithOpts)
+import           Ledger                                   (TxId (..), TxOutRef (..))
+import           Ledger.Ada                               (Ada (..))
 import           PlutusAppsExtra.IO.Wallet                (getWalletUtxos)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Utils.Crypto             (sign)
+import           PlutusTx.Extra.ByteString                (ToBuiltinByteString (..))
+import           PlutusTx.Prelude                         (toBuiltin)
+import           System.Random                            (randomIO)
+import           Text.Hex                                 (decodeHex)
 
 runEncoinsServer :: IO ()
 runEncoinsServer = do
@@ -101,27 +112,27 @@ instance IsCardanoServerError (TxEndpointsErrorOf EncoinsServer) where
         CorruptedExternalUTXOs -> "The request contained corrupted external UTXO data."
         IncorrectVerifierSignature -> "The request contained incorrect verifier signature."
 
--- instance HasClient EncoinsServer where
---     type ClientInput EncoinsServer = [EncoinsRequestTerm]
+instance HasClient EncoinsServer where
+    type ClientInput EncoinsServer = [EncoinsRequestTerm]
 
---     parseClientInput = some $ mintParser <|> burnParser
+    parseClientInput = some $ mintParser <|> burnParser
 
---     toServerInput terms = do
---         beaconRef      <- asks envAuxiliary
---         gammas         <- mapM (const randomIO) [1:: Integer ..]
---         randomness     <- randomIO
---         let f = \case
---                 RPMint a -> Just $ toFieldElement $ getLovelace a
---                 _        -> Nothing
---             g = \case
---                 RPBurn (Left s) -> Just s
---                 _                -> Nothing
---             secretsMint  = map (, Mint) $ zipWith Secret gammas $ mapMaybe f terms
---             secretsBurn  = map (, Burn) $ mapMaybe g terms
---             (secrets, ps) = unzip $ secretsBurn ++ secretsMint
---             addr    = stakingValidatorAddress $ encoinsSymbol (beaconCurrencySymbol beaconRef, verifierPKH)
---             par    = parseBulletproofParams $ toBytes addr
---             inputs      = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
---             (v, _, proof) = bulletproof bulletproofSetup par secrets ps randomness
---             signature  = ""
---         pure (addr, (addr, (v, inputs), proof, signature))
+    toServerInput terms = do
+        beaconRef      <- asks envAuxiliary
+        gammas         <- mapM (const randomIO) [1:: Integer ..]
+        randomness     <- randomIO
+        let f = \case
+                RPMint a -> Just $ toFieldElement $ getLovelace a
+                _        -> Nothing
+            g = \case
+                RPBurn (Left s) -> Just s
+                _                -> Nothing
+            secretsMint  = map (, Mint) $ zipWith Secret gammas $ mapMaybe f terms
+            secretsBurn  = map (, Burn) $ mapMaybe g terms
+            (secrets, ps) = unzip $ secretsBurn ++ secretsMint
+            addr    = stakingValidatorAddress $ encoinsSymbol (beaconCurrencySymbol beaconRef, verifierPKH)
+            par    = parseBulletproofParams $ toBytes addr
+            inputs      = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
+            (v, _, proof) = bulletproof bulletproofSetup par secrets ps randomness
+            signature  = ""
+        pure (addr, (addr, (v, inputs), proof, signature))
