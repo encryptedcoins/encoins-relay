@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
@@ -14,11 +15,14 @@ module EncoinsServer.Main where
 import           Control.Exception                        (throw)
 import           Control.Monad                            (void)
 import           Control.Monad.Reader                     (asks)
+import           Data.Aeson                               (decode)
+import           Data.ByteString.Lazy                     (fromStrict)
 import           Data.Default                             (def)
+import           Data.FileEmbed                           (embedFile)
 import           Data.Map                                 (fromList)
 import           Data.Maybe                               (fromJust)
-import           Ledger                                   (TxOutRef (..), TxId (..))
-import           PlutusTx.Prelude                         (toBuiltin)
+import           Ledger                                   (TxOutRef (..), TxId (..), Address)
+import           PlutusTx.Prelude                         (toBuiltin, BuiltinByteString)
 import           Text.Hex                                 (decodeHex)
 
 import           Cardano.Server.Class                     (HasServer (..), Env (..))
@@ -32,12 +36,26 @@ import           CSL                                      (TransactionUnspentOut
 import           CSL.Class                                (fromCSL)
 import           ENCOINS.Core.OffChain                    (beaconMintTx, beaconSendTx, encoinsTx)
 import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
-import           ENCOINS.Core.V1.OffChain                 (EncoinsRedeemerWithData, verifierPKH, postEncoinsPolicyTx, postStakingValidatorTx)
+import           ENCOINS.Core.V1.OffChain                 (EncoinsRedeemerWithData, postEncoinsPolicyTx, postStakingValidatorTx)
 import           ENCOINS.Core.OnChain                     (beaconCurrencySymbol, encoinsSymbol, stakingValidatorAddress)
 import           EncoinsServer.Opts                       (ServerMode(..), runWithOpts)
+import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex(..))
 import           PlutusAppsExtra.IO.Wallet                (getWalletUtxos)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
+import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Crypto             (sign)
+
+verifierPKH :: BuiltinByteString
+verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
+
+verifierPrvKey :: BuiltinByteString
+verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "config/prvKey.json")
+
+relayWalletAddress :: Address
+relayWalletAddress = fromJust $ bech32ToAddress "addr_test1qpzq37ll697quzlgmw8mmn4hstyayafrvlq52t87tdayklpu9sytuyrjjxlg6udmkvk6z8emjasmpxgl9fhkjs857wgqthuwzw"
+
+treasuryWalletAddress :: Address
+treasuryWalletAddress = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
 
 runEncoinsServer :: IO ()
 runEncoinsServer = do
@@ -61,7 +79,7 @@ instance HasServer EncoinsServer where
         mkTx [] (InputContextServer utxos) [beaconMintTx txOutRef]
         utxos' <- getWalletUtxos
         -- Send it to the staking address
-        mkTx [] (InputContextServer utxos') [beaconSendTx txOutRef]
+        mkTx [] (InputContextServer utxos') [beaconSendTx txOutRef verifierPKH]
         let encoinsParams = (beaconCurrencySymbol txOutRef, verifierPKH)
             stakingParams = encoinsSymbol encoinsParams
         -- Post the ENCOINS minting policy
@@ -75,6 +93,8 @@ instance HasServer EncoinsServer where
         ref <- asks envAuxiliary
         let symb = encoinsSymbol (beaconCurrencySymbol ref, verifierPKH)
         return [stakingValidatorAddress symb, alwaysFalseValidatorAddress 7]
+
+    defaultChainIndex = Kupo
 
 instance HasTxEndpoints EncoinsServer where
     type TxApiRequestOf EncoinsServer = (InputOf EncoinsServer, TransactionUnspentOutputs)
@@ -91,9 +111,8 @@ instance HasTxEndpoints EncoinsServer where
 
     txEndpointsTxBuilders (addr, red@(par, input, proof, _)) = do
         bcs <- asks $ beaconCurrencySymbol . envAuxiliary
-        let prvKey = toBuiltin $ fromJust $ decodeHex "1DA4194798C1D3AA8B7E5E39EDA1F130D9123ACCC8CA31A82E033A6D007DA7EC"
-            red' = (par, input, proof, sign prvKey $ hashRedeemer red)
-        pure [encoinsTx (bcs, verifierPKH) (addr, red')]
+        let red' = (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
+        pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (bcs, verifierPKH) (addr, red')]
 
 instance IsCardanoServerError (TxEndpointsErrorOf EncoinsServer) where
     errStatus _ = toEnum 422

@@ -51,6 +51,7 @@ library
       encoins-core                           -any,
       exceptions                             -any,
       extra                                  -any,
+      file-embed                             -any,
       hex-text                               -any,
       mtl                                    -any,
       optparse-applicative                   -any,
