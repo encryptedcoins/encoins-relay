@@ -9,10 +9,10 @@
 , "chain_index"         : "Kupo"
 , "inactive_endpoints"  :
     { "ping"          : false
-    , "funds"         : false
-    , "add_signature" : false
+    , "funds"         : true
+    , "add_signature" : true
     , "submit_tx"     : false
     , "new_tx"        : false
-    , "server_tx"     : false
+    , "server_tx"     : true
     }
 }
