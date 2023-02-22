@@ -52,7 +52,7 @@ verifierPrvKey :: BuiltinByteString
 verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "config/prvKey.json")
 
 relayWalletAddress :: Address
-relayWalletAddress = fromJust $ bech32ToAddress "addr_test1qpzq37ll697quzlgmw8mmn4hstyayafrvlq52t87tdayklpu9sytuyrjjxlg6udmkvk6z8emjasmpxgl9fhkjs857wgqthuwzw"
+relayWalletAddress = fromJust $ bech32ToAddress "addr_test1qrejftzwv7lckpzx6z3wsv9hzvftf79elxpzjua05rtvl0z3ky8mdwfpnthjm0k39km55frq38en0kdc2g935zs0xhmqlckudm"
 
 treasuryWalletAddress :: Address
 treasuryWalletAddress = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
@@ -75,7 +75,7 @@ instance HasServer EncoinsServer where
     serverSetup = void $ do
         txOutRef <- asks envAuxiliary
         utxos <- getWalletUtxos
-        -- Mint the beacon
+        -- -- Mint the beacon
         mkTx [] (InputContextServer utxos) [beaconMintTx txOutRef]
         utxos' <- getWalletUtxos
         -- Send it to the staking address
@@ -83,16 +83,16 @@ instance HasServer EncoinsServer where
         let encoinsParams = (beaconCurrencySymbol txOutRef, verifierPKH)
             stakingParams = encoinsSymbol encoinsParams
         -- Post the ENCOINS minting policy
-        mkTx [] def [postEncoinsPolicyTx encoinsParams 7]
+        mkTx [] def [postEncoinsPolicyTx encoinsParams 15]
         -- Post the staking validator policy
-        mkTx [] def [postStakingValidatorTx stakingParams 7]
+        mkTx [] def [postStakingValidatorTx stakingParams 15]
 
     serverIdle = pure ()
 
     serverTrackedAddresses = do
         ref <- asks envAuxiliary
         let symb = encoinsSymbol (beaconCurrencySymbol ref, verifierPKH)
-        return [stakingValidatorAddress symb, alwaysFalseValidatorAddress 7]
+        return [stakingValidatorAddress symb, alwaysFalseValidatorAddress 15]
 
     defaultChainIndex = Kupo
 

@@ -2,7 +2,7 @@
 , "min_utxos_number"    : 1
 , "max_utxos_number"    : 10
 , "auxiliary_env_file"  : "txOutRef.json"
-, "wallet_file"         : "wallets/Alice.json"
+, "wallet_file"         : "wallets/Relay.json"
 , "network_id"          : {"tag" : "Testnet", "contents" : 2}
 , "collateral"          : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
 , "node_file_path"      : "../../../relay-app-setup/testnet-preview/node.sock"
