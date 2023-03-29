@@ -1,19 +1,19 @@
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module EncoinsServer.Opts where
 
-import           Control.Monad.Reader       (ask)
-import           Data.Aeson                 (ToJSON)
-import           Data.Bool                  (bool)
-import           ENCOINS.Bulletproofs.Types (Secret)
-import           GHC.Generics               (Generic)
-import           Ledger.Ada                 (Ada (..))
-import           Options.Applicative        (Parser, auto, command, execParser, fullDesc, help, helper, info, long, metavar,
-                                             option, progDesc, subparser, (<**>))
-import           Options.Applicative.Types  (ReadM (..))
-import           System.Random              (Random (..))
+import Control.Monad.Reader       (ask)
+import Data.Aeson                 (ToJSON)
+import Data.Bool                  (bool)
+import GHC.Generics               (Generic)
+import Ledger.Ada                 (Ada(..))
+import Options.Applicative        (Parser, (<**>), auto, command, execParser, fullDesc, info, help, helper, long, option, progDesc, subparser)
+import Options.Applicative.Types  (ReadM(..))
+import System.Random              (Random(..))
+
+import ENCOINS.Bulletproofs.Types (Secret)
 
 --------------------------------- Server ---------------------------------
 
@@ -56,16 +56,14 @@ instance Random [EncoinsRequestTerm] where
 
 mintParser :: Parser EncoinsRequestTerm
 mintParser = RPMint . Lovelace <$> option auto
-    (  long    "mint"
-    <> help    "Token ADA value to mint. Nonnegative integer between 0 and 2^20-1."
-    <> metavar "ADA"
+    (  long "mint"
+    <> help "Token ADA value to mint. Nonnegative integer between 0 and 2^20-1."
     )
 
 burnParser :: Parser EncoinsRequestTerm
 burnParser = RPBurn . Right <$> option withoutQuotes
-    (  long    "burn"
-    <> help    "Token to burn. A path to minting keys file."
-    <> metavar "FILEPATH"
+    (  long "burn"
+    <> help "Token to burn. A path to minting keys file."
     )
 
 withoutQuotes :: ReadM String

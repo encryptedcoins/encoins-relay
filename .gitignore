@@ -2,3 +2,4 @@ dist-newstyle
 result/testnet-preview/wallets/*
 result/testnet-preview/secrets/*
 result/testnet-preview/logs/*
+config/*
