@@ -1,4 +1,5 @@
-{ "server_address"      : "localhost:3000"
+{ "host"                : "localhost"
+, "port"                : 3000
 , "min_utxos_number"    : 1
 , "max_utxos_number"    : 10
 , "node_file_path"      : "../../../encoins-tools/testnet-preview/apps/cardano-node/node.sock"
