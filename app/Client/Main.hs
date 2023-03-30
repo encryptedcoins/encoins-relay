@@ -1,13 +1,6 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Main where
 
-import           System.Directory             (createDirectoryIfMissing)
-
-import           Cardano.Server.Client.Client (startClient)
-import           EncoinsServer.Main           (EncoinsServer)
+import EncoinsServer.Main (runEncoinsClient)
 
 main :: IO ()
-main = do
-    createDirectoryIfMissing True "secrets"
-    startClient @EncoinsServer
+main = runEncoinsClient
