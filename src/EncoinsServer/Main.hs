@@ -13,16 +13,17 @@
 module EncoinsServer.Main where
 
 import           Control.Exception                        (throw)
-import           Control.Monad                            (void)
+import           Control.Monad                            (void, unless)
+import           Control.Monad.Catch                      (throwM)
 import           Control.Monad.Reader                     (asks)
 import           Data.Aeson                               (decode)
 import           Data.ByteString.Lazy                     (fromStrict)
 import           Data.Default                             (def)
 import           Data.FileEmbed                           (embedFile)
-import           Data.Map                                 (fromList)
-import           Data.Maybe                               (fromJust)
+import           Data.Map                                 (fromList, delete)
+import           Data.Maybe                               (fromJust, fromMaybe)
 import           Ledger                                   (TxOutRef (..), TxId (..), Address)
-import           PlutusTx.Prelude                         (toBuiltin, BuiltinByteString)
+import           PlutusTx.Prelude                         (toBuiltin, BuiltinByteString, sha2_256)
 import           Text.Hex                                 (decodeHex)
 
 import           Cardano.Server.Class                     (HasServer (..), Env (..))
@@ -34,16 +35,25 @@ import           Cardano.Server.Main                      (runServer)
 import           Cardano.Server.Tx                        (mkTx)
 import           CSL                                      (TransactionUnspentOutputs)
 import           CSL.Class                                (fromCSL)
-import           ENCOINS.Core.OffChain                    (beaconMintTx, beaconSendTx, encoinsTx)
+import           ENCOINS.BaseTypes                        (toGroupElement)
+import           ENCOINS.Bulletproofs                     (BulletproofSetup, Input (..), verify, parseBulletproofParams)
+import           ENCOINS.Core.OffChain                    (encoinsTx, stakeOwnerTx, beaconTx, postStakingValidatorTx)
+import           ENCOINS.Core.V1.OffChain                 (postEncoinsPolicyTx)
 import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
-import           ENCOINS.Core.V1.OffChain                 (EncoinsRedeemerWithData, postEncoinsPolicyTx, postStakingValidatorTx)
-import           ENCOINS.Core.OnChain                     (beaconCurrencySymbol, encoinsSymbol, stakingValidatorAddress)
+import           ENCOINS.Core.OnChain                     (beaconCurrencySymbol, encoinsSymbol, ledgerValidatorAddress, EncoinsRedeemer)
 import           EncoinsServer.Opts                       (ServerMode(..), runWithOpts)
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex(..))
 import           PlutusAppsExtra.IO.Wallet                (getWalletUtxos)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Crypto             (sign)
+import           PlutusTx.Extra.ByteString                (toBytes)
+
+referenceScriptSalt :: Integer
+referenceScriptSalt = 19
+
+bulletproofSetup :: BulletproofSetup
+bulletproofSetup = fromJust $ decode $ fromStrict $(embedFile "config/bulletproof_setup.json")
 
 verifierPKH :: BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
@@ -68,57 +78,67 @@ data EncoinsServer
 
 instance HasServer EncoinsServer where
 
-    type AuxiliaryEnvOf EncoinsServer = TxOutRef
+    type AuxiliaryEnvOf EncoinsServer = (TxOutRef, TxOutRef)
 
-    type InputOf EncoinsServer = EncoinsRedeemerWithData
+    type InputOf EncoinsServer = EncoinsRedeemer
 
     serverSetup = void $ do
-        txOutRef <- asks envAuxiliary
+        (refStakeOwner, refBeacon) <- asks envAuxiliary
+        -- Mint the stake owner token
         utxos <- getWalletUtxos
-        -- -- Mint the beacon
-        mkTx [] (InputContextServer utxos) [beaconMintTx txOutRef]
-        utxos' <- getWalletUtxos
-        -- Send it to the staking address
-        mkTx [] (InputContextServer utxos') [beaconSendTx txOutRef verifierPKH]
-        let encoinsParams = (beaconCurrencySymbol txOutRef, verifierPKH)
-            stakingParams = encoinsSymbol encoinsParams
+        let utxos' = delete refBeacon utxos
+        mkTx [] (InputContextServer utxos') [stakeOwnerTx refStakeOwner]
+        -- Mint and send the beacon
+        utxos'' <- getWalletUtxos
+        mkTx [] (InputContextServer utxos'') [beaconTx refBeacon verifierPKH refStakeOwner]
+        -- Define scripts' parameters
+        let encoinsParams = (beaconCurrencySymbol refBeacon, verifierPKH)
+            ledgerParams  = encoinsSymbol encoinsParams
         -- Post the ENCOINS minting policy
-        mkTx [] def [postEncoinsPolicyTx encoinsParams 15]
+        mkTx [] def [postEncoinsPolicyTx encoinsParams referenceScriptSalt]
         -- Post the staking validator policy
-        mkTx [] def [postStakingValidatorTx stakingParams 15]
+        mkTx [] def [postStakingValidatorTx ledgerParams referenceScriptSalt]
 
     serverIdle = pure ()
 
     serverTrackedAddresses = do
-        ref <- asks envAuxiliary
-        let symb = encoinsSymbol (beaconCurrencySymbol ref, verifierPKH)
-        return [stakingValidatorAddress symb, alwaysFalseValidatorAddress 15]
+        (refStakeOwner, refBeacon) <- asks envAuxiliary
+        let encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
+            stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
+        return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
 
     defaultChainIndex = Kupo
 
 instance HasTxEndpoints EncoinsServer where
     type TxApiRequestOf EncoinsServer = (InputOf EncoinsServer, TransactionUnspentOutputs)
 
-    data TxEndpointsErrorOf EncoinsServer = CorruptedExternalUTXOs | IncorrectVerifierSignature
+    data TxEndpointsErrorOf EncoinsServer = CorruptedExternalUTXOs | IncorrectInput | IncorrectProof
         deriving (Show)
 
-    txEndpointsProcessRequest (redWithData@(addr, _), utxosCSL) = do
+    txEndpointsProcessRequest (red@((_, addr), _, _, _), utxosCSL) = do
         let utxos   = maybe (throw CorruptedExternalUTXOs) fromList $ fromCSL utxosCSL
             context = InputContextClient utxos utxos
                 (TxOutRef (TxId "") 1)
                 addr
-        return (redWithData, context)
+        return (red, context)
 
-    txEndpointsTxBuilders (addr, red@(par, input, proof, _)) = do
-        bcs <- asks $ beaconCurrencySymbol . envAuxiliary
-        let red' = (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
-        pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (bcs, verifierPKH) (addr, red')]
+    txEndpointsTxBuilders red@(par, input, proof, _) = do
+        (refStakeOwner, refBeacon) <- asks envAuxiliary
+        let beaconSymb = beaconCurrencySymbol refBeacon
+            stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
+            red' = (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
+            bp   = parseBulletproofParams $ sha2_256 $ toBytes par
+            v    = fst input
+            ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
+        unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
+        pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' 1]
 
 instance IsCardanoServerError (TxEndpointsErrorOf EncoinsServer) where
     errStatus _ = toEnum 422
     errMsg = \case
         CorruptedExternalUTXOs -> "The request contained corrupted external UTXO data."
-        IncorrectVerifierSignature -> "The request contained incorrect verifier signature."
+        IncorrectInput         -> "The request contained incorrect public input."
+        IncorrectProof         -> "The request contained incorrect proof."
 
 -- instance HasClient EncoinsServer where
 --     type ClientInput EncoinsServer = [EncoinsRequestTerm]
