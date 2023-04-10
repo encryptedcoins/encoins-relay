@@ -38,7 +38,7 @@ import           CSL.Class                                (fromCSL)
 import           ENCOINS.BaseTypes                        (toGroupElement)
 import           ENCOINS.Bulletproofs                     (BulletproofSetup, Input (..), verify, parseBulletproofParams)
 import           ENCOINS.Core.OffChain                    (encoinsTx, stakeOwnerTx, beaconTx, postStakingValidatorTx)
-import           ENCOINS.Core.V1.OffChain                 (postEncoinsPolicyTx)
+import           ENCOINS.Core.V1.OffChain                 (postEncoinsPolicyTx, EncoinsMode (..))
 import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
 import           ENCOINS.Core.OnChain                     (beaconCurrencySymbol, encoinsSymbol, ledgerValidatorAddress, EncoinsRedeemer)
 import           EncoinsServer.Opts                       (ServerMode(..), runWithOpts)
@@ -50,7 +50,7 @@ import           PlutusAppsExtra.Utils.Crypto             (sign)
 import           PlutusTx.Extra.ByteString                (toBytes)
 
 referenceScriptSalt :: Integer
-referenceScriptSalt = 19
+referenceScriptSalt = 20
 
 bulletproofSetup :: BulletproofSetup
 bulletproofSetup = fromJust $ decode $ fromStrict $(embedFile "config/bulletproof_setup.json")
@@ -80,7 +80,7 @@ instance HasServer EncoinsServer where
 
     type AuxiliaryEnvOf EncoinsServer = (TxOutRef, TxOutRef)
 
-    type InputOf EncoinsServer = EncoinsRedeemer
+    type InputOf EncoinsServer = (EncoinsRedeemer, EncoinsMode)
 
     serverSetup = void $ do
         (refStakeOwner, refBeacon) <- asks envAuxiliary
@@ -115,14 +115,14 @@ instance HasTxEndpoints EncoinsServer where
     data TxEndpointsErrorOf EncoinsServer = CorruptedExternalUTXOs | IncorrectInput | IncorrectProof
         deriving (Show)
 
-    txEndpointsProcessRequest (red@((_, addr), _, _, _), utxosCSL) = do
+    txEndpointsProcessRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
         let utxos   = maybe (throw CorruptedExternalUTXOs) fromList $ fromCSL utxosCSL
-            context = InputContextClient utxos utxos
-                (TxOutRef (TxId "") 1)
-                addr
-        return (red, context)
+            context = case mode of
+                WalletMode -> InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
+                LedgerMode -> InputContextServer mempty
+        return ((red, mode), context)
 
-    txEndpointsTxBuilders red@(par, input, proof, _) = do
+    txEndpointsTxBuilders (red@(par, input, proof, _), mode) = do
         (refStakeOwner, refBeacon) <- asks envAuxiliary
         let beaconSymb = beaconCurrencySymbol refBeacon
             stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
@@ -131,7 +131,7 @@ instance HasTxEndpoints EncoinsServer where
             v    = fst input
             ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
         unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
-        pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' 1]
+        pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' mode]
 
 instance IsCardanoServerError (TxEndpointsErrorOf EncoinsServer) where
     errStatus _ = toEnum 422
