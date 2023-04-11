@@ -15,7 +15,7 @@ import           PlutusTx.Builtins.Class   (stringToBuiltinByteString)
 testES :: [(String, Integer)] -> IO ()
 testES args = runTestM @EncoinsServer $ do
         wallet <- getRestoreWallet
-        aEnv <- asks envAuxiliary
+        aEnv <- getAuxillaryEnv
         (_, red) <- liftIO $ runClientM aEnv wallet $ mkEncoinsRedeemer (pure (), lovelaceOf ada, inputs)
         processTokens red
     where

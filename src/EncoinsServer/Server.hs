@@ -13,17 +13,8 @@
 
 module EncoinsServer.Server where
 
-import           Control.Exception                        (Exception, throw)
-import           Control.Monad                            (void)
-import           Data.Aeson                               (decode)
-import           Data.ByteString.Lazy                     (fromStrict)
-import           Data.Default                             (def)
-import           Data.FileEmbed                           (embedFile)
-import           Data.Maybe                               (fromJust)
-import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
-import           PlutusTx.Prelude                         (BuiltinByteString, toBuiltin)
-import           Text.Hex                                 (Text, decodeHex)
-
+import           CSL                                      (TransactionUnspentOutputs)
+import           CSL.Class                                (FromCSL (..))
 import           Cardano.Server.Config                    (decodeOrErrorFromFile)
 import           Cardano.Server.Error                     (IsCardanoServerError (errMsg, errStatus), toEnvelope)
 import           Cardano.Server.Input                     (InputContext (..))
@@ -31,22 +22,33 @@ import           Cardano.Server.Internal                  (AuxillaryEnvOf, Input
                                                            getAuxillaryEnv)
 import           Cardano.Server.Main                      (ServerApi)
 import           Cardano.Server.Tx                        (mkTx)
-
-import           CSL                                      (TransactionUnspentOutputs)
-
-import           ENCOINS.Core.OffChain                    (beaconMintTx, beaconSendTx, encoinsTx)
-import           ENCOINS.Core.OnChain                     (beaconCurrencySymbol, encoinsSymbol, stakingValidatorAddress)
-import           ENCOINS.Core.V1.OffChain                 (EncoinsRedeemerWithData, postEncoinsPolicyTx, postStakingValidatorTx)
-import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
-
-import           CSL.Class                                (FromCSL (..))
+import           Control.Exception                        (Exception, throw)
+import           Control.Monad                            (unless, void)
+import           Control.Monad.Catch                      (MonadThrow (..))
+import           Data.Aeson                               (decode, eitherDecode)
+import           Data.ByteString.Lazy                     (fromStrict)
+import           Data.Default                             (def)
+import           Data.FileEmbed                           (embedFile)
 import qualified Data.Map                                 as Map
+import           Data.Maybe                               (fromJust, fromMaybe)
+import           ENCOINS.BaseTypes                        (toGroupElement)
+import           ENCOINS.Bulletproofs                     (verify)
+import           ENCOINS.Bulletproofs.Types               (BulletproofSetup, Input (Input), parseBulletproofParams)
+import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, postEncoinsPolicyTx, postStakingValidatorTx,
+                                                           stakeOwnerTx)
+import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, beaconCurrencySymbol, encoinsSymbol,
+                                                           ledgerValidatorAddress)
+import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
+import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex (..))
 import           PlutusAppsExtra.IO.Wallet                (getWalletUtxos)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder)
 import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Crypto             (sign)
+import           PlutusTx.Extra.ByteString                (ToBuiltinByteString (..))
+import           PlutusTx.Prelude                         (BuiltinByteString, sha2_256, toBuiltin)
+import           Text.Hex                                 (Text, decodeHex)
 
 verifierPKH :: BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
@@ -55,12 +57,18 @@ verifierPrvKey :: BuiltinByteString
 verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "config/prvKey.json")
 
 relayWalletAddress :: Address
-relayWalletAddress = fromJust $ bech32ToAddress 
+relayWalletAddress = fromJust $ bech32ToAddress
     "addr_test1qrejftzwv7lckpzx6z3wsv9hzvftf79elxpzjua05rtvl0z3ky8mdwfpnthjm0k39km55frq38en0kdc2g935zs0xhmqlckudm"
 
 treasuryWalletAddress :: Address
-treasuryWalletAddress = fromJust $ bech32ToAddress 
+treasuryWalletAddress = fromJust $ bech32ToAddress
     "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
+
+referenceScriptSalt :: Integer
+referenceScriptSalt = 19
+
+bulletproofSetup :: BulletproofSetup
+bulletproofSetup = either error id $ eitherDecode $ fromStrict $(embedFile "config/bulletproof_setup.json")
 
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do
@@ -75,59 +83,69 @@ mkServerHandle = do
         (const $ toEnvelope $ pure "Not implemented yet.")
 
 type EncoinsApi = ServerApi
-    (EncoinsRedeemerWithData, TransactionUnspentOutputs)
+    (EncoinsRedeemer, TransactionUnspentOutputs)
     EncoinsTxApiError
     ()
     '[]
     Text
 
-type instance InputOf        EncoinsApi = EncoinsRedeemerWithData
-type instance AuxillaryEnvOf EncoinsApi = TxOutRef
+type instance InputOf        EncoinsApi = EncoinsRedeemer
+type instance AuxillaryEnvOf EncoinsApi = (TxOutRef, TxOutRef)
 
 data EncoinsTxApiError
     = CorruptedExternalUTXOs
-    | IncorrectVerifierSignature
+    | IncorrectInput
+    | IncorrectProof
     deriving (Show, Exception)
 
 instance IsCardanoServerError EncoinsTxApiError where
     errStatus _ = toEnum 422
     errMsg = \case
-        CorruptedExternalUTXOs     -> "The request contained corrupted external UTXO data."
-        IncorrectVerifierSignature -> "The request contained incorrect verifier signature."
+        CorruptedExternalUTXOs -> "The request contained corrupted external UTXO data."
+        IncorrectInput         -> "The request contained incorrect public input."
+        IncorrectProof         -> "The request contained incorrect proof."
 
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
-    txOutRef <- getAuxillaryEnv
-    utxos    <- getWalletUtxos
-    -- -- Mint the beacon
-    mkTx [] (InputContextServer utxos) [beaconMintTx txOutRef]
-    utxos' <- getWalletUtxos
-    -- Send it to the staking address
-    mkTx [] (InputContextServer utxos') [beaconSendTx txOutRef verifierPKH]
-    let encoinsParams = (beaconCurrencySymbol txOutRef, verifierPKH)
-        stakingParams = encoinsSymbol encoinsParams
+    (refStakeOwner, refBeacon) <- getAuxillaryEnv
+    -- Mint the stake owner token
+    utxos <- getWalletUtxos
+    let utxos' = Map.delete refBeacon utxos
+    mkTx [] (InputContextServer utxos') [stakeOwnerTx refStakeOwner]
+    -- Mint and send the beacon
+    utxos'' <- getWalletUtxos
+    mkTx [] (InputContextServer utxos'') [beaconTx refBeacon verifierPKH refStakeOwner]
+    -- Define scripts' parameters
+    let encoinsParams = (beaconCurrencySymbol refBeacon, verifierPKH)
+        ledgerParams  = encoinsSymbol encoinsParams
     -- Post the ENCOINS minting policy
-    mkTx [] def [postEncoinsPolicyTx encoinsParams 15]
+    mkTx [] def [postEncoinsPolicyTx encoinsParams referenceScriptSalt]
     -- Post the staking validator policy
-    mkTx [] def [postStakingValidatorTx stakingParams 15]
+    mkTx [] def [postStakingValidatorTx ledgerParams referenceScriptSalt]
 
 getTrackedAddresses :: ServerM EncoinsApi [Address]
 getTrackedAddresses = do
-    txOutRef <- getAuxillaryEnv
-    let symb = encoinsSymbol (beaconCurrencySymbol txOutRef, verifierPKH)
-    return [stakingValidatorAddress symb, alwaysFalseValidatorAddress 15]
+    (refStakeOwner, refBeacon) <- getAuxillaryEnv
+    let encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
+        stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
+    return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
 
-processRequest :: (EncoinsRedeemerWithData, TransactionUnspentOutputs)
-    -> ServerM EncoinsApi (InputWithContext EncoinsApi)
-processRequest (redWithData@(addr, _), utxosCSL) = do
+processRequest :: (EncoinsRedeemer, TransactionUnspentOutputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
+processRequest (red@((_, addr), _, _, _), utxosCSL) = do
     let utxos   = maybe (throw CorruptedExternalUTXOs) Map.fromList $ fromCSL utxosCSL
         context = InputContextClient utxos utxos
-            (TxOutRef (TxId "") 0)
+            (TxOutRef (TxId "") 1)
             addr
-    return (redWithData, context)
+    return (red, context)
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
-txBuilders (addr, red@(par, input, proof, _)) = do
-    bcs <- beaconCurrencySymbol <$> getAuxillaryEnv
-    let red' = (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
-    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (bcs, verifierPKH) (addr, red')]
+txBuilders red@(par, input, proof, _) = do
+    (refStakeOwner, refBeacon) <- getAuxillaryEnv
+    let beaconSymb = beaconCurrencySymbol refBeacon
+        stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
+        red' = (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
+        bp   = parseBulletproofParams $ sha2_256 $ toBytes par
+        v    = fst input
+        ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
+    unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
+    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' 1]
