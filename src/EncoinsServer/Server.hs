@@ -38,6 +38,7 @@ import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, 
                                                            stakeOwnerTx)
 import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, beaconCurrencySymbol, encoinsSymbol,
                                                            ledgerValidatorAddress)
+import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..))
 import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
 import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex (..))
@@ -65,7 +66,7 @@ treasuryWalletAddress = fromJust $ bech32ToAddress
     "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
 
 referenceScriptSalt :: Integer
-referenceScriptSalt = 19
+referenceScriptSalt = 20
 
 bulletproofSetup :: BulletproofSetup
 bulletproofSetup = either error id $ eitherDecode $ fromStrict $(embedFile "config/bulletproof_setup.json")
@@ -83,13 +84,13 @@ mkServerHandle = do
         (const $ toEnvelope $ pure "Not implemented yet.")
 
 type EncoinsApi = ServerApi
-    (EncoinsRedeemer, TransactionUnspentOutputs)
+    ((EncoinsRedeemer, EncoinsMode), TransactionUnspentOutputs)
     EncoinsTxApiError
     ()
     '[]
     Text
 
-type instance InputOf        EncoinsApi = EncoinsRedeemer
+type instance InputOf        EncoinsApi = (EncoinsRedeemer, EncoinsMode)
 type instance AuxillaryEnvOf EncoinsApi = (TxOutRef, TxOutRef)
 
 data EncoinsTxApiError
@@ -130,16 +131,16 @@ getTrackedAddresses = do
         stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
     return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
 
-processRequest :: (EncoinsRedeemer, TransactionUnspentOutputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
-processRequest (red@((_, addr), _, _, _), utxosCSL) = do
+processRequest :: (InputOf EncoinsApi, TransactionUnspentOutputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
+processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
     let utxos   = maybe (throw CorruptedExternalUTXOs) Map.fromList $ fromCSL utxosCSL
-        context = InputContextClient utxos utxos
-            (TxOutRef (TxId "") 1)
-            addr
-    return (red, context)
+        context = case mode of
+            WalletMode -> InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
+            LedgerMode -> InputContextServer mempty
+    return ((red, mode), context)
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
-txBuilders red@(par, input, proof, _) = do
+txBuilders (red@(par, input, proof, _), mode) = do
     (refStakeOwner, refBeacon) <- getAuxillaryEnv
     let beaconSymb = beaconCurrencySymbol refBeacon
         stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
@@ -148,4 +149,4 @@ txBuilders red@(par, input, proof, _) = do
         v    = fst input
         ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
     unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
-    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' 1]
+    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' mode]

@@ -1,4 +1,3 @@
-
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ImplicitParams      #-}
@@ -17,8 +16,8 @@ import           CSL                            (TransactionUnspentOutputs)
 import           CSL.Class                      (ToCSL (..))
 import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWith, manualWith)
 import           Cardano.Server.Client.Internal (ClientEndpoint, EndpointArg, Interval, ServerEndpoint, endpointClient)
-import           Cardano.Server.Internal        (ServerM, getAuxillaryEnv, getNetworkId)
-import           Cardano.Server.Tx              (mkWalletTxOutRefs)
+import           Cardano.Server.Internal        (InputOf, ServerM, getAuxillaryEnv, getNetworkId)
+import           Cardano.Server.Tx              (checkForCleanUtxos)
 import           Cardano.Server.Utils.Logger    (logMsg)
 import           Cardano.Server.Utils.Wait      (waitTime)
 import           Control.Monad.Extra            (filterM, forever, ifM, replicateM, zipWithM)
@@ -35,7 +34,8 @@ import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
 import           ENCOINS.Bulletproofs           (Secret (..), bulletproof, fromSecret, parseBulletproofParams)
-import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams, beaconCurrencySymbol, encoinsSymbol)
+import           ENCOINS.Core.OnChain           (TxParams, beaconCurrencySymbol, encoinsSymbol)
+import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           ENCOINS.Crypto.Field           (Field, FiniteField, fromFieldElement, toFieldElement)
 import           EncoinsServer.Opts             (EncoinsRequestTerm (..), readTerms)
 import           EncoinsServer.Server           (EncoinsApi, bulletproofSetup, getTrackedAddresses, verifierPKH)
@@ -63,7 +63,7 @@ clientHandle = def
 
 autoTxClient :: forall (e :: ServerEndpoint).
     ( ClientEndpoint e EncoinsApi
-    , EndpointArg e EncoinsApi ~ (EncoinsRedeemer, TransactionUnspentOutputs)
+    , EndpointArg e EncoinsApi ~ (InputOf EncoinsApi, TransactionUnspentOutputs)
     , HasServantClientEnv
     ) => Interval -> ServerM EncoinsApi (Proxy e)
 autoTxClient i = forever $ do
@@ -84,25 +84,25 @@ genTerms = do
             modify $ delete secret
             pure $ RPBurn $ Right secret
         randomMintTerm = randomRIO (1, 100) <&> RPMint . lovelaceOf
-        alreadyMinted vs fp = readSecretFile fp <&> (`elem` vs) . TokenName . snd . fromSecret bulletproofSetup
+        alreadyMinted minted fp = readSecretFile fp <&> (`elem` minted) . TokenName . snd . fromSecret bulletproofSetup
         filterCS encoinsCS cs tokenName = if cs == encoinsCS then Just tokenName else Nothing
 
 manualTxClient :: forall (e :: ServerEndpoint).
     ( ClientEndpoint e EncoinsApi
-    , EndpointArg e EncoinsApi ~ (EncoinsRedeemer, TransactionUnspentOutputs)
+    , EndpointArg e EncoinsApi ~ (InputOf EncoinsApi, TransactionUnspentOutputs)
     , HasServantClientEnv
     ) =>  Text -> ServerM EncoinsApi (Proxy (e :: ServerEndpoint))
 manualTxClient txt = Proxy <$ txClient @e (fromMaybe (error "Unparsable input.") $ readTerms txt)
 
 txClient :: forall (e :: ServerEndpoint).
     ( ClientEndpoint e EncoinsApi
-    , EndpointArg e EncoinsApi ~ (EncoinsRedeemer, TransactionUnspentOutputs)
+    , EndpointArg e EncoinsApi ~ (InputOf EncoinsApi, TransactionUnspentOutputs)
     , HasServantClientEnv
     ) => [EncoinsRequestTerm] -> ServerM EncoinsApi (Proxy (e :: ServerEndpoint))
 txClient terms = Proxy <$ do
-        mkWalletTxOutRefs <$> getWalletAddr <*> pure 10
+        checkForCleanUtxos
         secrets <- termsToSecrets terms
-        reqBody@((_,(v, inputs),_,_),_) <- secretsToReqBody secrets
+        reqBody@(((_,(v, inputs),_,_),_),_) <- secretsToReqBody secrets
         logMsg $ "Sending request with:\n" 
             <> foldl prettyInput "" (zip (map fst secrets) inputs) 
             <> "\n= " 
@@ -141,7 +141,7 @@ readSecretFile s = readFile ("secrets/" <> s) <&> Secret (stringToFe s) . string
 stringToFe :: FiniteField c => String -> Field c
 stringToFe s = toFieldElement $ fromMaybe (error s) $ readMaybe s
 
-secretsToReqBody :: [(Secret, MintingPolarity)] -> ServerM EncoinsApi (EncoinsRedeemer, TransactionUnspentOutputs)
+secretsToReqBody :: [(Secret, MintingPolarity)] -> ServerM EncoinsApi (InputOf EncoinsApi, TransactionUnspentOutputs)
 secretsToReqBody (unzip -> (secrets, ps)) = do
     randomness <- randomIO
     networkId  <- getNetworkId
@@ -154,4 +154,4 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
         inputs = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
         (v, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
         signature  = ""
-    pure ((par, (v, inputs), proof, signature), outputs)
+    pure (((par, (v, inputs), proof, signature), WalletMode), outputs)
