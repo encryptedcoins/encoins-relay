@@ -1,20 +1,22 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module EncoinsServer.Opts where
 
-import Control.Monad.Reader       (ask)
-import Data.Aeson                 (ToJSON)
-import Data.Bool                  (bool)
-import GHC.Generics               (Generic)
-import Ledger.Ada                 (Ada(..))
-import Options.Applicative        (Parser, (<**>), auto, command, execParser, fullDesc, info, help, helper, long, option, progDesc, subparser, metavar)
-import Options.Applicative.Types  (ReadM(..))
-import System.Random              (Random(..))
-
-import ENCOINS.Bulletproofs.Types (Secret)
+import           Data.Aeson                 (ToJSON)
+import           Data.Bool                  (bool)
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
+import           ENCOINS.Bulletproofs.Types (Secret (..))
+import           GHC.Generics               (Generic)
+import           Ledger.Ada                 (Ada (..))
+import           Options.Applicative        (Alternative ((<|>)), Parser, command, execParser, fullDesc, helper, info, progDesc,
+                                             subparser, (<**>))
+import           System.Random              (Random (..))
+import           Text.Read                  (readMaybe)
 
 --------------------------------- Server ---------------------------------
 
@@ -24,7 +26,7 @@ runWithOpts = execParser $ info (modeParser <**> helper) fullDesc
 data ServerMode = Run | Setup
 
 modeParser :: Parser ServerMode
-modeParser = subparser
+modeParser = (<|> pure Run) $ subparser
         (  command "run"   (info (pure Run  ) runDesc)
         <> command "setup" (info (pure Setup) setupDesc)
         )
@@ -34,10 +36,8 @@ modeParser = subparser
 
 --------------------------------- Client ---------------------------------
 
-type LovelaceM = Ada
-
 data EncoinsRequestTerm
-    = RPMint LovelaceM
+    = RPMint Ada
     | RPBurn (Either Secret FilePath)
     deriving (Show, Eq, Generic, ToJSON)
 
@@ -46,7 +46,7 @@ instance Random EncoinsRequestTerm where
         let (b, g')   = random g
             (a, g'')  = random g'
             (s, g''') = random g''
-        in bool (RPMint $ Lovelace (abs a `mod` 10_000_000_000), g'') (RPBurn $ Left s, g''') b
+        in bool (RPMint $ Lovelace a, g'') (RPBurn $ Left s, g''') b
     randomR _ = random
 
 instance Random [EncoinsRequestTerm] where
@@ -55,19 +55,10 @@ instance Random [EncoinsRequestTerm] where
         in (reqTerms, gNew)
     randomR _ = random
 
-mintParser :: Parser EncoinsRequestTerm
-mintParser = RPMint . Lovelace <$> option auto
-    (  long "mint"
-    <> help "Token ADA value to mint. Nonnegative integer between 0 and 2^20-1."
-    <> metavar "ADA"
-    )
-
-burnParser :: Parser EncoinsRequestTerm
-burnParser = RPBurn . Right <$> option withoutQuotes
-    (  long "burn"
-    <> help "Token to burn. A path to minting keys file."
-    <> metavar "FILEPATH"
-    )
-
-withoutQuotes :: ReadM String
-withoutQuotes = ReadM $ ask >>= pure
+readTerms :: Text -> Maybe [EncoinsRequestTerm]
+readTerms = mapM (readTerm . T.unpack) . T.splitOn ","
+    where
+        readTerm = \case
+            'b':fp  -> Just $ RPBurn $ Right fp
+            'm':ada -> fmap (RPMint . fromInteger) . readMaybe $ ada
+            _       -> Nothing

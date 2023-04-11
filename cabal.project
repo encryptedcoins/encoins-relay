@@ -24,7 +24,7 @@ packages: ./.
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: e44525cae9b9f1dba28f5206b5def7160a982e6c
+  tag: 61ce85b39d5526e6144de231220d412feeef385d
   subdir:
     cardano-server
     cardano-server-client
@@ -37,7 +37,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 3adb35ec7d66bac6e5f099dff04deb3279409714
+  tag: e3b169fb7c7a824d6062ea1fbeed05d31f82073c
 
 source-repository-package
   type: git
@@ -47,12 +47,12 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-bulletproofs
-  tag: f75e5776ba4079e342907e3189cd33e3c9cf35b6
+  tag: 48ca7b5b8d685e3cb5bf9d5d56c122abd3b942ee
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: d67ebea7f06c9790de97cfc60a8811c996595446
+  tag: 83d23dbf5a24459f12499cf8db548cb9e15a0d1d
 
 source-repository-package
   type: git
