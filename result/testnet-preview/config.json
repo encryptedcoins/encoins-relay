@@ -6,7 +6,7 @@
 , "protocol_parameters" : "protocol-parameters.json"
 , "wallet_file"         : "wallets/Relay.json"
 , "auxiliary_env_file"  : "txOutRef.json"
-, "network_id"          : {"tag" : "Testnet", "contents" : 1}
+, "network_id"          : {"tag" : "Testnet", "contents" : 2}
 , "collateral"          : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
 , "chain_index"         : "Kupo"
 , "inactive_endpoints"  :
