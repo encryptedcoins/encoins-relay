@@ -1,6 +1,6 @@
 cabal-version:      3.0
 
-name:               encoins-relay
+name:               encoins-relay-client
 version:            0.1.0.0
 
 author:             Grigory Petrov
@@ -31,18 +31,14 @@ common lang
 library
     import: lang
     exposed-modules:
-      EncoinsServer.Main
-      EncoinsServer.Client
-      EncoinsServer.Opts
-      EncoinsServer.Server
+      Encoins.Relay.Client.Main
+      Encoins.Relay.Client.Client
+      Encoins.Relay.Client.Opts
     other-modules:
-    default-extensions:
-      PartialTypeSignatures
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,
       bytestring                             -any,
-      cardano-api                            -any,
       cardano-server                         -any,
       cardano-server-client                  -any,
       containers                             -any,
@@ -51,9 +47,8 @@ library
       directory                              -any,
       encoins-bulletproofs                   -any,
       encoins-core                           -any,
-      exceptions                             -any,
+      encoins-relay-server                   -any,
       extra                                  -any,
-      file-embed                             -any,
       hex-text                               -any,
       mtl                                    -any,
       optparse-applicative                   -any,
@@ -62,7 +57,6 @@ library
       plutus-tx-extra                        -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
-      prettyprinter                          -any,
       random                                 -any,
       servant-client                         -any,
       servant-server                         -any,
@@ -70,39 +64,10 @@ library
 
     hs-source-dirs: src
 
-test-suite encoins-relay-test
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  Hs-Source-Dirs:       test
-  Ghc-Options:          -rtsopts
-  Main-Is:              Main.hs
-  Other-Modules:        EncoinsServer.ServerSpec
-  build-depends:
-    base                          >= 4.9 && < 5,
-    cardano-server                         -any,
-    cardano-server-client                  -any,
-    cardano-server-test                    -any,
-    directory                              -any,
-    encoins-bulletproofs                   -any,
-    encoins-relay                          -any,
-    hspec                                  -any,
-    plutus-apps-extra                      -any,
-    plutus-ledger                          -any,
-    random                                 -any,
-    time                                   -any,
-
-executable encoins-relay-server
-  default-language: Haskell2010
-  hs-source-dirs: app/Server
-  main-is: Main.hs
-  build-depends: 
-    base                          >= 4.9 && < 5,
-    encoins-relay                              ,
-
 executable encoins-relay-client
   default-language: Haskell2010
-  hs-source-dirs: app/Client
+  hs-source-dirs: app
   main-is: Main.hs
   build-depends: 
     base                          >= 4.9 && < 5,
-    encoins-relay                              ,
+    encoins-relay-client                       ,

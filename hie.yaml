@@ -1,10 +1,20 @@
 cradle:
   cabal:
-    - path: "src"
-      component: "encoins-relay:lib:encoins-relay"
-    - path: "test"
-      component: "encoins-relay:test:encoins-relay-test"
-    - path: "app/Server"
-      component: "encoins-relay:exe:encoins-relay-server"
-    - path: "app/Client"
-      component: "encoins-relay:exe:encoins-relay-client"
+
+    #Server
+    - path: "encoins-relay-server/src"
+      component: "encoins-relay-server:lib:encoins-relay-server"
+
+    - path: "encoins-relay-server/app"
+      component: "encoins-relay-server:exe:encoins-relay-server"
+
+    #Client
+    - path: "encoins-relay-client/src"
+      component: "encoins-relay-client:lib:encoins-relay-client"
+
+    - path: "encoins-relay-client/app"
+      component: "encoins-relay-client:exe:encoins-relay-client"
+
+    #Test
+    - path: "encoins-relay-test/test"
+      component: "encoins-relay-test:test:encoins-relay-test"

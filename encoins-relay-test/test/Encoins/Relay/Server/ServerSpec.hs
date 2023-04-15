@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
-module EncoinsServer.ServerSpec where
+module Encoins.Relay.Server.ServerSpec where
 
 import           Cardano.Server.Client.Handle   (HasServantClientEnv)
 import           Cardano.Server.Client.Internal (ServerEndpoint (ServerTxE))
@@ -19,10 +19,10 @@ import           Data.Fixed                     (Pico)
 import           Data.List                      (partition)
 import qualified Data.Time                      as Time
 import           ENCOINS.BaseTypes              (MintingPolarity (Mint))
-import           EncoinsServer.Client           (getWalletEncoinsTokens, processFile, randomMintTerm, secretsToReqBody,
+import           Encoins.Relay.Client.Client    (getWalletEncoinsTokens, processFile, randomMintTerm, secretsToReqBody,
                                                  sendTxClientRequest, termsToSecrets, txClient)
-import           EncoinsServer.Opts             (EncoinsRequestTerm (RPBurn))
-import           EncoinsServer.Server           (EncoinsApi, mkServerHandle)
+import           Encoins.Relay.Client.Opts             (EncoinsRequestTerm (RPBurn))
+import           Encoins.Relay.Server.Server           (EncoinsApi, mkServerHandle)
 import           Ledger                         (TokenName)
 import           Ledger.Value                   (TokenName (..))
 import           PlutusAppsExtra.IO.Wallet      (getWalletAda)

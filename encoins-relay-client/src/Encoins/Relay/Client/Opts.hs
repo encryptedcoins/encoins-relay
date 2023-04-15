@@ -4,7 +4,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module EncoinsServer.Opts where
+module Encoins.Relay.Client.Opts where
 
 import           Data.Aeson                 (ToJSON)
 import           Data.Bool                  (bool)
@@ -13,28 +13,8 @@ import qualified Data.Text                  as T
 import           ENCOINS.Bulletproofs.Types (Secret (..))
 import           GHC.Generics               (Generic)
 import           Ledger.Ada                 (Ada (..))
-import           Options.Applicative        (Alternative ((<|>)), Parser, command, execParser, fullDesc, helper, info, progDesc,
-                                             subparser, (<**>))
 import           System.Random              (Random (..))
 import           Text.Read                  (readMaybe)
-
---------------------------------- Server ---------------------------------
-
-runWithOpts :: IO ServerMode
-runWithOpts = execParser $ info (modeParser <**> helper) fullDesc
-
-data ServerMode = Run | Setup
-
-modeParser :: Parser ServerMode
-modeParser = (<|> pure Run) $ subparser
-        (  command "run"   (info (pure Run  ) runDesc)
-        <> command "setup" (info (pure Setup) setupDesc)
-        )
-    where
-        runDesc   = progDesc "Default server mode without any preliminary work."
-        setupDesc = progDesc "Mint and send ENCOINS beacon token."
-
---------------------------------- Client ---------------------------------
 
 data EncoinsRequestTerm
     = RPMint Ada

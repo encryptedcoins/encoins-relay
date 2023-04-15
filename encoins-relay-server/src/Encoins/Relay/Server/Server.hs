@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module EncoinsServer.Server where
+module Encoins.Relay.Server.Server where
 
 import           CSL                                      (TransactionUnspentOutputs)
 import           CSL.Class                                (FromCSL (..))
@@ -55,7 +55,7 @@ verifierPKH :: BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
 
 verifierPrvKey :: BuiltinByteString
-verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "config/prvKey.json")
+verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "../config/prvKey.json")
 
 relayWalletAddress :: Address
 relayWalletAddress = fromJust $ bech32ToAddress
@@ -69,7 +69,7 @@ referenceScriptSalt :: Integer
 referenceScriptSalt = 20
 
 bulletproofSetup :: BulletproofSetup
-bulletproofSetup = either error id $ eitherDecode $ fromStrict $(embedFile "config/bulletproof_setup.json")
+bulletproofSetup = either error id $ eitherDecode $ fromStrict $(embedFile "../config/bulletproof_setup.json")
 
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do

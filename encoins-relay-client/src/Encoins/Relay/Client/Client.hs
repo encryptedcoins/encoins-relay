@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ImplicitParams      #-}
@@ -10,14 +11,14 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE ConstraintKinds #-}
 
-module EncoinsServer.Client where
+module  Encoins.Relay.Client.Client where
 
 import           CSL                            (TransactionUnspentOutputs)
 import           CSL.Class                      (ToCSL (..))
 import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWith, manualWith)
-import           Cardano.Server.Client.Internal (ClientEndpoint, EndpointArg, Interval, ServerEndpoint, endpointClient, EndpointRes)
+import           Cardano.Server.Client.Internal (ClientEndpoint, EndpointArg, EndpointRes, Interval, ServerEndpoint,
+                                                 endpointClient)
 import           Cardano.Server.Internal        (InputOf, ServerM, getAuxillaryEnv, getNetworkId)
 import           Cardano.Server.Tx              (checkForCleanUtxos)
 import           Cardano.Server.Utils.Logger    (logMsg)
@@ -39,8 +40,8 @@ import           ENCOINS.Bulletproofs           (Secret (..), bulletproof, fromS
 import           ENCOINS.Core.OnChain           (TxParams, beaconCurrencySymbol, encoinsSymbol)
 import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           ENCOINS.Crypto.Field           (Field, FiniteField, fromFieldElement, toFieldElement)
-import           EncoinsServer.Opts             (EncoinsRequestTerm (..), readTerms)
-import           EncoinsServer.Server           (EncoinsApi, bulletproofSetup, getTrackedAddresses, verifierPKH)
+import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readTerms)
+import           Encoins.Relay.Server.Server    (EncoinsApi, bulletproofSetup, getTrackedAddresses, verifierPKH)
 import           Ledger.Ada                     (Ada (getLovelace), lovelaceOf)
 import           Plutus.V1.Ledger.Api           (TokenName (TokenName), Value (getValue), fromBuiltin)
 import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletUtxos, getWalletValue)
@@ -48,11 +49,11 @@ import qualified PlutusTx.AssocMap              as PAM
 import           PlutusTx.Builtins              (sha2_256)
 import           PlutusTx.Extra.ByteString      (ToBuiltinByteString (..))
 import           Servant.Client                 (runClientM)
+import qualified Servant.Client                 as Servant
 import           System.Directory               (listDirectory, removeFile)
 import           System.Random                  (randomIO, randomRIO)
 import           Text.Hex                       (encodeHex)
 import           Text.Read                      (readMaybe)
-import qualified Servant.Client as Servant
 
 clientHandle :: ClientHandle EncoinsApi
 clientHandle = def

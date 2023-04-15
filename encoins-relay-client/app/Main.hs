@@ -1,6 +1,6 @@
 module Main where
 
-import EncoinsServer.Main (runEncoinsClient)
+import  Encoins.Relay.Client.Main (runEncoinsClient)
 
 main :: IO ()
 main = runEncoinsClient
