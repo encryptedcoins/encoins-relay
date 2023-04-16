@@ -3,18 +3,49 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Encoins.Relay.Client.Opts where
 
-import           Data.Aeson                 (ToJSON)
-import           Data.Bool                  (bool)
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           ENCOINS.Bulletproofs.Types (Secret (..))
-import           GHC.Generics               (Generic)
-import           Ledger.Ada                 (Ada (..))
-import           System.Random              (Random (..))
-import           Text.Read                  (readMaybe)
+import           Cardano.Server.Client.Internal (Mode, ServerEndpoint)
+import           Cardano.Server.Client.Opts     (CommonOptions (..), autoModeParser, manualModeParser, serverEndpointParser)
+import           Control.Applicative            ((<|>), liftA3)
+import           Data.Aeson                     (ToJSON)
+import           Data.Bool                      (bool)
+import           Data.Text                      (Text)
+import qualified Data.Text                      as T
+import           ENCOINS.Bulletproofs.Types     (Secret (..))
+import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
+import           GHC.Generics                   (Generic)
+import           Ledger.Ada                     (Ada (..))
+import           Options.Applicative            (Parser, argument, auto, execParser, fullDesc, helper, info, metavar, value,
+                                                 (<**>))
+import           System.Random                  (Random (..))
+import           Text.Read                      (readMaybe)
+
+data Options = Options
+    { optsEndpoint    :: ServerEndpoint
+    , optsMode        :: Mode
+    , optsEncoinsMode :: EncoinsMode
+    } deriving (Show, Eq)
+
+runWithOpts :: IO Options
+runWithOpts = execParser $ info (optionsParser <**> helper) fullDesc
+
+optionsParser :: Parser Options
+optionsParser = liftA3 Options 
+    serverEndpointParser 
+    (autoModeParser <|> manualModeParser) 
+    encoinsModeParser
+
+encoinsModeParser :: Parser EncoinsMode
+encoinsModeParser = argument auto
+    (  value WalletMode
+    <> metavar "WalletMode | LedgerMode"
+    )
+
+extractCommonOptions :: Options -> CommonOptions
+extractCommonOptions Options{..} = CommonOptions optsEndpoint optsMode
 
 data EncoinsRequestTerm
     = RPMint Ada

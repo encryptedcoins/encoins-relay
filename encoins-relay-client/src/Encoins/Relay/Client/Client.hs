@@ -55,8 +55,8 @@ import           System.Random                  (randomIO, randomRIO)
 import           Text.Hex                       (encodeHex)
 import           Text.Read                      (readMaybe)
 
-clientHandle :: ClientHandle EncoinsApi
-clientHandle = def
+mkClientHandle :: EncoinsMode -> ClientHandle EncoinsApi
+mkClientHandle mode = let ?mode = mode in def
     { autoNewTx      = autoTxClient
     , autoServerTx   = autoTxClient
     , autoStatus     = autoWith (pure ())
@@ -65,10 +65,13 @@ clientHandle = def
     , manualStatus   = manualWith (const $ pure ())
     }
 
+type HasEncoinsMode = ?mode :: EncoinsMode
+
 type TxClientCosntraints (e :: ServerEndpoint) =
     ( ClientEndpoint e EncoinsApi
     , EndpointArg e EncoinsApi ~ (InputOf EncoinsApi, TransactionUnspentOutputs)
     , HasServantClientEnv
+    , HasEncoinsMode
     )
 
 autoTxClient :: forall e. TxClientCosntraints e => Interval -> ServerM EncoinsApi (Proxy e)
@@ -124,7 +127,7 @@ genTerms = do
 randomMintTerm :: MonadIO m => m EncoinsRequestTerm
 randomMintTerm = randomRIO (1, 100) <&> RPMint . lovelaceOf
 
-secretsToReqBody :: [(Secret, MintingPolarity)] -> ServerM EncoinsApi (InputOf EncoinsApi, TransactionUnspentOutputs)
+secretsToReqBody :: HasEncoinsMode => [(Secret, MintingPolarity)] -> ServerM EncoinsApi (InputOf EncoinsApi, TransactionUnspentOutputs)
 secretsToReqBody (unzip -> (secrets, ps)) = do
     randomness <- randomIO
     networkId  <- getNetworkId
@@ -137,7 +140,7 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
         inputs = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
         (v, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
         signature  = ""
-    pure (((par, (v, inputs), proof, signature), LedgerMode), outputs)
+    pure (((par, (v, inputs), proof, signature), ?mode), outputs)
 
 termsToSecrets :: [EncoinsRequestTerm] -> ServerM EncoinsApi [(Secret, MintingPolarity)]
 termsToSecrets terms = do
