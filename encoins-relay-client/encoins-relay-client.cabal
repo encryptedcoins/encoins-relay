@@ -34,6 +34,7 @@ library
       Encoins.Relay.Client.Main
       Encoins.Relay.Client.Client
       Encoins.Relay.Client.Opts
+      Encoins.Relay.Client.Secrets
     other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
@@ -61,6 +62,7 @@ library
       servant-client                         -any,
       servant-server                         -any,
       text                                   -any,
+      time                                   -any,
 
     hs-source-dirs: src
 

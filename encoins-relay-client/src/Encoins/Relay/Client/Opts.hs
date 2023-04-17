@@ -1,15 +1,16 @@
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module Encoins.Relay.Client.Opts where
 
 import           Cardano.Server.Client.Internal (Mode, ServerEndpoint)
 import           Cardano.Server.Client.Opts     (CommonOptions (..), autoModeParser, manualModeParser, serverEndpointParser)
-import           Control.Applicative            ((<|>), liftA3)
+import           Control.Applicative            (liftA3, (<|>))
 import           Data.Aeson                     (ToJSON)
 import           Data.Bool                      (bool)
 import           Data.Text                      (Text)
@@ -70,6 +71,6 @@ readTerms :: Text -> Maybe [EncoinsRequestTerm]
 readTerms = mapM (readTerm . T.unpack) . T.splitOn ","
     where
         readTerm = \case
-            'b':fp  -> Just $ RPBurn $ Right fp
+            'b':t   -> Just $ RPBurn $ Right $ "secrets/" <> t <> ".json"
             'm':ada -> fmap (RPMint . fromInteger) . readMaybe $ ada
             _       -> Nothing

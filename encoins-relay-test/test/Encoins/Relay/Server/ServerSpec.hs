@@ -1,7 +1,10 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Encoins.Relay.Server.ServerSpec where
 
@@ -17,30 +20,34 @@ import           Data.Bifunctor                 (Bifunctor (bimap, first))
 import           Data.Either                    (isLeft, isRight)
 import           Data.Fixed                     (Pico)
 import           Data.List                      (partition)
+import           Data.List.Extra                (dropSuffix, partition)
+import           Data.String                    (IsString (..))
 import qualified Data.Time                      as Time
 import           ENCOINS.BaseTypes              (MintingPolarity (Mint))
-import           Encoins.Relay.Client.Client    (getWalletEncoinsTokens, processFile, randomMintTerm, secretsToReqBody,
-                                                 sendTxClientRequest, termsToSecrets, txClient)
-import           Encoins.Relay.Client.Opts             (EncoinsRequestTerm (RPBurn))
-import           Encoins.Relay.Server.Server           (EncoinsApi, mkServerHandle)
+import           ENCOINS.Core.V1.OffChain       (EncoinsMode (WalletMode))
+import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
+                                                 txClient)
+import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))
+import           Encoins.Relay.Client.Secrets   (getWalletEncoinsTokens, mkSecretFile, randomMintTerm)
+import           Encoins.Relay.Server.Server    (EncoinsApi, mkServerHandle)
 import           Ledger                         (TokenName)
 import           Ledger.Value                   (TokenName (..))
 import           PlutusAppsExtra.IO.Wallet      (getWalletAda)
 import           System.Directory               (listDirectory)
 import           System.Random                  (randomRIO)
-import           Test.Hspec                     (Expectation, Spec, describe, expectationFailure, hspec, it, shouldBe,
-                                                 shouldSatisfy, context)
+import           Test.Hspec                     (Expectation, Spec, context, describe, expectationFailure, hspec, it, shouldBe,
+                                                 shouldSatisfy)
 
 spec :: HasServantClientEnv => Spec
 spec = describe "encoins server" $ do
 
-    context "wallet mode" $ do
+    context "wallet mode" $ let ?mode = WalletMode in do
 
         it "mint tokens" propMint
 
         it "burn tokens" propBurn
 
-propMint :: HasServantClientEnv => Expectation
+propMint :: TxClientCosntraints ServerTxE => Expectation
 propMint = join $ runEncoinsServerM $ do
     startAda <- getWalletAda
     l        <- randomRIO (1,5)
@@ -49,7 +56,7 @@ propMint = join $ runEncoinsServerM $ do
     sendTxClientRequest @ServerTxE secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
-            mapM_ processFile secrets
+            mapM_ (uncurry mkSecretFile) secrets
             (((_,(v, inputs),_,_),_),_) <- secretsToReqBody secrets
             currentTime  <- liftIO Time.getCurrentTime
             tokensMinted <- confirmTokensInWallet currentTime $ map (first TokenName) inputs
@@ -58,10 +65,10 @@ propMint = join $ runEncoinsServerM $ do
                 tokensMinted `shouldBe` True
                 compare finishAda startAda `shouldBe` LT
 
-propBurn :: HasServantClientEnv => Expectation
+propBurn :: TxClientCosntraints ServerTxE => Expectation
 propBurn = join $ runEncoinsServerM $ do
     startAda <- getWalletAda
-    terms    <- map (RPBurn . Right) <$> liftIO (listDirectory "secrets")
+    terms    <- map (RPBurn . Right . ("secrets/" <>)) <$> liftIO (listDirectory "secrets")
     secrets  <- termsToSecrets terms
     sendTxClientRequest @ServerTxE secrets >>= \case
         Left err -> pure $ expectationFailure $ show err

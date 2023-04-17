@@ -10,6 +10,5 @@ runEncoinsClient :: IO ()
 runEncoinsClient = do
     createDirectoryIfMissing True "secrets"
     opts <- runWithOpts
-    print opts
     sh   <- mkServerHandle
     runClientWithOpts sh (mkClientHandle $ optsEncoinsMode opts) $ extractCommonOptions opts
