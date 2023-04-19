@@ -17,6 +17,7 @@ import           Data.Functor                ((<&>))
 import           Data.List                   (delete, partition)
 import           Data.Maybe                  (catMaybes)
 import           Data.Time                   (UTCTime, getCurrentTime)
+import qualified Data.Time                   as Time
 import           ENCOINS.BaseTypes           (FieldElement, MintingPolarity (..))
 import           ENCOINS.Bulletproofs        (Secret (..), fromSecret)
 import           ENCOINS.Core.OnChain        (beaconCurrencySymbol, encoinsSymbol)
@@ -75,6 +76,10 @@ confirmTokens = do
         confirmedBurn = filter ((`notElem` tokens) . csName) confirmBurn
     mapM_ (confirmFile . clientSecretToFilePath) confirmedMint
     mapM_ (liftIO . removeFile . clientSecretToFilePath) confirmedBurn
+    ct <- liftIO getCurrentTime
+    toRemove <- filter (\ClientSecret{..} -> not csConfirmed && Time.diffUTCTime ct csCreated > Time.nominalDay)
+        <$> readSecretFiles
+    mapM_ (liftIO . removeFile . clientSecretToFilePath) toRemove
 
 confirmFile :: MonadIO m => FilePath -> m ()
 confirmFile fp = liftIO $ readSecretFile fp >>= \case
