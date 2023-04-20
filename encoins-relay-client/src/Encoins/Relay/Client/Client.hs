@@ -38,7 +38,7 @@ import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElemen
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readTerms)
 import           Encoins.Relay.Client.Secrets   (clientSecretToSecret, confirmTokens, genTerms, getEncoinsSymbol, mkSecretFile,
                                                  readSecretFile)
-import           Encoins.Relay.Server.Server    (EncoinsApi, bulletproofSetup, getTrackedAddresses)
+import           Encoins.Relay.Server.Server    (EncoinsApi, bulletproofSetup, getLedgerAddress)
 import           Ledger                         (DecoratedTxOut (..))
 import           Ledger.Ada                     (Ada (getLovelace))
 import           Ledger.Value                   (TokenName (..), adaOnlyValue, assetClassValueOf)
@@ -113,7 +113,7 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
     randomness <- randomIO
     networkId  <- getNetworkId
     walletAddr <- getWalletAddr
-    ledgerAddr <- head <$> getTrackedAddresses
+    ledgerAddr <- getLedgerAddress
     ecs        <- getEncoinsSymbol
     utxos      <- getWalletUtxos
     let par = (ledgerAddr, walletAddr) :: TxParams

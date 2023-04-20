@@ -131,6 +131,9 @@ getTrackedAddresses = do
         stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
     return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
 
+getLedgerAddress :: ServerM EncoinsApi Address
+getLedgerAddress = head <$> getTrackedAddresses
+
 processRequest :: (InputOf EncoinsApi, TransactionUnspentOutputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
     let utxos   = maybe (throw CorruptedExternalUTXOs) Map.fromList $ fromCSL utxosCSL

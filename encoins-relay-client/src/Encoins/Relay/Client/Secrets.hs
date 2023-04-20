@@ -88,9 +88,8 @@ confirmFile fp = liftIO $ readSecretFile fp >>= \case
 
 getWalletEncoinsTokens :: ServerM EncoinsApi [TokenName]
 getWalletEncoinsTokens = do
-    (_, refBeacon) <- getAuxillaryEnv
-    let encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
-        filterCS cs tokenName = if cs == encoinsSymb then Just tokenName else Nothing
+    encoinsSymb <- getEncoinsSymbol
+    let filterCS cs tokenName = if cs == encoinsSymb then Just tokenName else Nothing
     concatMap PAM.keys . PAM.elems . PAM.mapMaybeWithKey filterCS . getValue <$> getWalletValue
 
 genTerms :: ServerM EncoinsApi [EncoinsRequestTerm]
