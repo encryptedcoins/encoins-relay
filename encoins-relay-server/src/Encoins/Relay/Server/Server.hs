@@ -137,9 +137,7 @@ getLedgerAddress = head <$> getTrackedAddresses
 processRequest :: (InputOf EncoinsApi, TransactionUnspentOutputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
     let utxos   = maybe (throw CorruptedExternalUTXOs) Map.fromList $ fromCSL utxosCSL
-        context = case mode of
-            WalletMode -> InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
-            LedgerMode -> InputContextServer mempty
+        context = InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
     return ((red, mode), context)
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]

@@ -21,6 +21,7 @@ import           Cardano.Server.Client.Internal (ClientEndpoint (..), Interval, 
 import           Cardano.Server.Internal        (InputOf, ServerM, getNetworkId)
 import           Cardano.Server.Utils.Logger    (logMsg)
 import           Cardano.Server.Utils.Wait      (waitTime)
+import           Control.Applicative            (liftA2)
 import           Control.Monad                  (join)
 import           Control.Monad.Extra            (forever, replicateM, zipWithM)
 import           Control.Monad.IO.Class         (MonadIO (..))
@@ -36,21 +37,17 @@ import           ENCOINS.Core.OnChain           (TxParams)
 import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readTerms)
-import           Encoins.Relay.Client.Secrets   (clientSecretToSecret, confirmTokens, genTerms, getEncoinsSymbol, mkSecretFile,
-                                                 readSecretFile)
+import           Encoins.Relay.Client.Secrets   (clientSecretToSecret, confirmTokens, genTerms, mkSecretFile, readSecretFile)
 import           Encoins.Relay.Server.Server    (EncoinsApi, bulletproofSetup, getLedgerAddress)
-import           Ledger                         (DecoratedTxOut (..))
 import           Ledger.Ada                     (Ada (getLovelace))
-import           Ledger.Value                   (TokenName (..), adaOnlyValue, assetClassValueOf)
-import           Plutus.V1.Ledger.Api           (fromBuiltin)
-import           Plutus.V1.Ledger.Value         (assetClass)
+import           Ledger.Value                   (TokenName (..))
+import           PlutusAppsExtra.IO.ChainIndex  (getUtxosAt)
 import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletUtxos)
 import           PlutusTx.Builtins              (sha2_256)
 import           PlutusTx.Extra.ByteString      (ToBuiltinByteString (..))
 import           Servant.Client                 (runClientM)
 import qualified Servant.Client                 as Servant
 import           System.Random                  (randomIO, randomRIO)
-import           Text.Hex                       (encodeHex)
 
 mkClientHandle :: EncoinsMode -> ClientHandle EncoinsApi
 mkClientHandle mode = let ?mode = mode in def
@@ -103,9 +100,9 @@ sendTxClientRequest secrets = do
             [ acc
             , "\n"
             , case p of {Mint -> "M "; Burn -> "B "}
-            , T.pack (show $ fromFieldElement v)
+            , T.pack $ show $ fromFieldElement v
             , " "
-            , encodeHex (fromBuiltin bbs)
+            , T.pack $ show $ TokenName bbs
             ]
 
 secretsToReqBody :: HasEncoinsMode => [(Secret, MintingPolarity)] -> ServerM EncoinsApi (InputOf EncoinsApi, TransactionUnspentOutputs)
@@ -114,20 +111,15 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
     networkId  <- getNetworkId
     walletAddr <- getWalletAddr
     ledgerAddr <- getLedgerAddress
-    ecs        <- getEncoinsSymbol
-    utxos      <- getWalletUtxos
+    outputs    <- fromMaybe [] . toCSL . (,networkId) . Map.toList <$> case ?mode of
+        WalletMode -> getWalletUtxos
+        LedgerMode -> liftA2 (<>) getWalletUtxos (getLedgerAddress >>= getUtxosAt)
     let par = (ledgerAddr, walletAddr) :: TxParams
         bp   = parseBulletproofParams $ sha2_256 $ toBytes par
         inputs = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
-        tokensToBurn = map (TokenName . fst) $ filter ((== Burn) . snd) inputs
         (v, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
         signature  = ""
-        outputs = mkOutputs networkId $  Map.filter (isClientUtxo ecs tokensToBurn) utxos
     pure (((par, (v, inputs), proof, signature), ?mode), outputs)
-    where
-        mkOutputs networkId = fromMaybe [] . toCSL . (,networkId) . Map.toList
-        isClientUtxo ecs tokensToBurn (_decoratedTxOutValue -> v) = 
-            adaOnlyValue v == v || any (> 0) (assetClassValueOf v <$> map (assetClass ecs) tokensToBurn)
 
 termsToSecrets :: [EncoinsRequestTerm] -> ServerM EncoinsApi [(Secret, MintingPolarity)]
 termsToSecrets terms = do

@@ -1,5 +1,5 @@
-[{ "txOutRefId"  : {"getTxId" : "53cafd08c8f309d0fbdff986b65dfbe9008f1d6658eed48d736d89c4a2e522a2"}
-, "txOutRefIdx" : 0
-}, { "txOutRefId"  : {"getTxId" : "961c9f01189852e298e46c3e48bb63616a7ddaa05210fd13af06f95f1db99fc2"}
+[{ "txOutRefId"  : {"getTxId" : "55c57f7befbd9916f2518fbef7be5a4f08612fcdc0cc9594650e1fbe0d4a595b"}
+, "txOutRefIdx" : 1
+}, { "txOutRefId"  : {"getTxId" : "5e262781d694f609a84e79c8518986e8bf331844420dcad2e4792b44caa106f5"}
 , "txOutRefIdx" : 0
 }]
