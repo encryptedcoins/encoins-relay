@@ -1,5 +1,7 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveAnyClass  #-}
 {-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE ImplicitParams  #-}
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -22,15 +24,19 @@ import           ENCOINS.BaseTypes           (FieldElement, MintingPolarity (..)
 import           ENCOINS.Bulletproofs        (Secret (..), fromSecret)
 import           ENCOINS.Core.OnChain        (beaconCurrencySymbol, encoinsSymbol)
 import           Encoins.Relay.Client.Opts   (EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Server (EncoinsApi, bulletproofSetup, verifierPKH)
+import           Encoins.Relay.Server.Server (EncoinsApi, bulletproofSetup, getLedgerAddress, verifierPKH)
 import           GHC.Generics                (Generic)
 import           Ledger                      (CurrencySymbol, TokenName)
 import           Ledger.Ada                  (lovelaceOf)
 import           Ledger.Value                (TokenName (..), getValue)
 import           PlutusAppsExtra.IO.Wallet   (getWalletValue)
+import           PlutusAppsExtra.IO.ChainIndex (getValueAt)
 import qualified PlutusTx.AssocMap           as PAM
 import           System.Directory            (listDirectory, removeFile)
 import           System.Random               (randomIO, randomRIO)
+import           ENCOINS.Core.V1.OffChain    (EncoinsMode (..))
+
+type HasEncoinsMode = ?mode :: EncoinsMode
 
 data ClientSecret = ClientSecret
     { csGamma     :: FieldElement
@@ -39,14 +45,15 @@ data ClientSecret = ClientSecret
     , csName      :: TokenName
     , csConfirmed :: Bool
     , csCreated   :: UTCTime
+    , csMode      :: EncoinsMode
     } deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 readSecretFile :: FilePath -> IO (Maybe ClientSecret)
 readSecretFile = fmap (eitherToMaybe . eitherDecode) . LBS.readFile
 
-readSecretFiles :: MonadIO m => m [ClientSecret]
+readSecretFiles :: (MonadIO m, HasEncoinsMode) => m [ClientSecret]
 readSecretFiles = liftIO $ listDirectory "secrets"
-    >>= mapM (readSecretFile . ("secrets/" <>)) <&> catMaybes
+    >>= mapM (readSecretFile . ("secrets/" <>)) <&> filter ((== ?mode) . csMode) . catMaybes
 
 clientSecretToFilePath :: ClientSecret -> FilePath
 clientSecretToFilePath = tokenNameToFilePath . csName
@@ -60,16 +67,16 @@ secretToTokenName = TokenName . snd . fromSecret bulletproofSetup
 clientSecretToSecret :: ClientSecret -> Secret
 clientSecretToSecret ClientSecret{..} = Secret csGamma csValue
 
-mkSecretFile :: MonadIO m => Secret -> MintingPolarity -> m ()
+mkSecretFile :: (MonadIO m, HasEncoinsMode) => Secret -> MintingPolarity -> m ()
 mkSecretFile Secret{..} pol = do
     ct <- liftIO getCurrentTime
     let name = secretToTokenName Secret{..}
-        cs   = ClientSecret secretGamma secretV pol name False ct
+        cs   = ClientSecret secretGamma secretV pol name False ct ?mode
     liftIO $ LBS.writeFile (clientSecretToFilePath cs) $ encode cs
 
-confirmTokens :: ServerM EncoinsApi ()
+confirmTokens :: HasEncoinsMode => ServerM EncoinsApi ()
 confirmTokens = do
-    tokens <- getWalletEncoinsTokens
+    tokens <- getEncoinsTokensFromMode
     (confirmMint, confirmBurn) <- partition ((== Mint) . csPolarity) . filter ((== False) . csConfirmed)
         <$> readSecretFiles
     let confirmedMint = filter ((`elem` tokens) . csName) confirmMint
@@ -86,17 +93,20 @@ confirmFile fp = liftIO $ readSecretFile fp >>= \case
     Just sf -> LBS.writeFile fp $ encode sf{csConfirmed = True}
     Nothing -> removeFile fp
 
-getWalletEncoinsTokens :: ServerM EncoinsApi [TokenName]
-getWalletEncoinsTokens = do
+getEncoinsTokensFromMode :: HasEncoinsMode => ServerM EncoinsApi [TokenName]
+getEncoinsTokensFromMode = do
     encoinsSymb <- getEncoinsSymbol
     let filterCS cs tokenName = if cs == encoinsSymb then Just tokenName else Nothing
-    concatMap PAM.keys . PAM.elems . PAM.mapMaybeWithKey filterCS . getValue <$> getWalletValue
+    concatMap PAM.keys . PAM.elems . PAM.mapMaybeWithKey filterCS . getValue <$> case ?mode of
+        WalletMode -> getWalletValue
+        LedgerMode -> getLedgerAddress >>= getValueAt
 
-genTerms :: ServerM EncoinsApi [EncoinsRequestTerm]
+-- It is possible to send 5 tokens, but in this case, the size of the tx will 
+-- most likely not fit into the utxo size restrictions.
+genTerms :: HasEncoinsMode => ServerM EncoinsApi [EncoinsRequestTerm]
 genTerms = do
-    secrets <- map csName . filter (\ClientSecret{..} -> csPolarity == Mint && csConfirmed)
-        <$> readSecretFiles
-    l <- randomRIO (1, 5)
+    secrets <- map csName . filter (\ClientSecret{..} -> csPolarity == Mint && csConfirmed) <$> readSecretFiles
+    l <- randomRIO (1, 4)
     if length secrets > 10
     then pure $ map (RPBurn . Right . tokenNameToFilePath) $ take l secrets
     else (`evalStateT` secrets) $ replicateM l genTerm

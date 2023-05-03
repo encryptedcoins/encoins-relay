@@ -17,7 +17,7 @@ module Encoins.Relay.Client.Client where
 import           CSL                            (TransactionUnspentOutputs)
 import           CSL.Class                      (ToCSL (..))
 import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWith, manualWith)
-import           Cardano.Server.Client.Internal (ClientEndpoint (..), Interval, ServerEndpoint (NewTxE, ServerTxE))
+import           Cardano.Server.Client.Internal (ClientEndpoint (..), ServerEndpoint (NewTxE, ServerTxE))
 import           Cardano.Server.Internal        (InputOf, ServerM, getNetworkId)
 import           Cardano.Server.Utils.Logger    (logMsg)
 import           Cardano.Server.Utils.Wait      (waitTime)
@@ -37,7 +37,8 @@ import           ENCOINS.Core.OnChain           (TxParams)
 import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readTerms)
-import           Encoins.Relay.Client.Secrets   (clientSecretToSecret, confirmTokens, genTerms, mkSecretFile, readSecretFile)
+import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, clientSecretToSecret, confirmTokens, genTerms, mkSecretFile,
+                                                 readSecretFile)
 import           Encoins.Relay.Server.Server    (EncoinsApi, bulletproofSetup, getLedgerAddress)
 import           Ledger.Ada                     (Ada (getLovelace))
 import           Ledger.Value                   (TokenName (..))
@@ -60,19 +61,12 @@ mkClientHandle mode = let ?mode = mode in def
     }
     where waitI i = randomRIO (1, i * 2) >>= waitTime
 
-type HasEncoinsMode = ?mode :: EncoinsMode
-
 type TxClientCosntraints (e :: ServerEndpoint) =
     ( ClientEndpoint e EncoinsApi
     , EndpointArg e EncoinsApi ~ (InputOf EncoinsApi, TransactionUnspentOutputs)
     , HasServantClientEnv
     , HasEncoinsMode
     )
-
-autoTxClient :: forall e. TxClientCosntraints e => Interval -> ServerM EncoinsApi (Proxy e)
-autoTxClient i = forever $ do
-    genTerms >>= txClient @e
-    waitTime =<< randomRIO (1, i * 2)
 
 manualTxClient :: forall e. TxClientCosntraints e => Text -> ServerM EncoinsApi (ServerM EncoinsApi ())
 manualTxClient txt = txClient @e (fromMaybe (error "Unparsable input.") $ readTerms txt)
@@ -129,4 +123,5 @@ termsToSecrets terms = do
         toSecret g = \case
             RPMint a          -> pure $ (, Mint) $ Secret g $ toFieldElement $ getLovelace a
             RPBurn (Left s)   -> pure $ (, Burn) s
-            RPBurn (Right fp) -> (, Burn) . clientSecretToSecret . fromMaybe (error fp) <$> readSecretFile fp
+            RPBurn (Right fp) -> (, Burn) . clientSecretToSecret . fromMaybe (fpError fp) <$> readSecretFile fp
+        fpError = error . ("Secret file doesn't exists:\n" <>)

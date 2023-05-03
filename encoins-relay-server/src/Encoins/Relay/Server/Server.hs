@@ -42,7 +42,7 @@ import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..))
 import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
 import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex (..))
-import           PlutusAppsExtra.IO.Wallet                (getWalletUtxos)
+import           PlutusAppsExtra.IO.Wallet                (getWalletUtxos, getWalletAddr)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder)
 import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
@@ -56,10 +56,6 @@ verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC936541
 
 verifierPrvKey :: BuiltinByteString
 verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "../config/prvKey.json")
-
-relayWalletAddress :: Address
-relayWalletAddress = fromJust $ bech32ToAddress
-    "addr_test1qrejftzwv7lckpzx6z3wsv9hzvftf79elxpzjua05rtvl0z3ky8mdwfpnthjm0k39km55frq38en0kdc2g935zs0xhmqlckudm"
 
 treasuryWalletAddress :: Address
 treasuryWalletAddress = fromJust $ bech32ToAddress
@@ -143,6 +139,7 @@ processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
 txBuilders (red@(par, input, proof, _), mode) = do
     (refStakeOwner, refBeacon) <- getAuxillaryEnv
+    relayWalletAddress <- getWalletAddr
     let beaconSymb = beaconCurrencySymbol refBeacon
         stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
         red' = (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
