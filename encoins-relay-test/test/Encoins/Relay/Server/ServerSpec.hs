@@ -25,20 +25,22 @@ import           Data.String                    (IsString (..))
 import qualified Data.Time                      as Time
 import           ENCOINS.BaseTypes              (MintingPolarity (Mint))
 import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
-import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest,
-                                                 termsToSecrets, txClient)
+import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
+                                                 txClient)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))
-import           Encoins.Relay.Client.Secrets   (getEncoinsSymbol, mkSecretFile, randomMintTerm, HasEncoinsMode, getEncoinsTokensFromMode)
-import           Encoins.Relay.Server.Server    (EncoinsApi, mkServerHandle, getLedgerAddress)
+import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, getEncoinsSymbol, getEncoinsTokensFromMode, mkSecretFile,
+                                                 randomMintTerm)
+import           Encoins.Relay.Server.Server    (EncoinsApi, getLedgerAddress, mkServerHandle)
+import           Internal                       (runEncoinsServerM)
 import           Ledger                         (Ada, Address, TokenName)
 import           Ledger.Value                   (TokenName (..), getValue)
-import           PlutusAppsExtra.IO.Wallet      (getWalletAda)
 import           PlutusAppsExtra.IO.ChainIndex  (getAdaAt, getValueAt)
+import           PlutusAppsExtra.IO.Wallet      (getWalletAda)
 import qualified PlutusTx.AssocMap              as PAM
 import           System.Directory               (listDirectory)
 import           System.Random                  (randomRIO)
-import           Test.Hspec                     (Expectation, Spec, context, describe, expectationFailure, hspec, it, shouldBe,
-                                                 shouldSatisfy, parallel)
+import           Test.Hspec                     (Expectation, Spec, context, describe, expectationFailure, hspec, it, parallel,
+                                                 shouldBe, shouldSatisfy)
 
 spec :: HasServantClientEnv => Spec
 spec = describe "encoins server" $ do
@@ -93,11 +95,6 @@ getAdaFromMode :: HasEncoinsMode => ServerM EncoinsApi Ada
 getAdaFromMode = case ?mode of
     WalletMode -> getWalletAda
     LedgerMode -> getAdaAt =<< getLedgerAddress
-
-runEncoinsServerM :: ServerM EncoinsApi a -> IO a
-runEncoinsServerM ma = do
-    env <- mkServerHandle >>= loadEnv
-    runServerM env {envLogger = mutedLogger} ma
 
 maxConfirmationTime :: Pico -- Seconds
 maxConfirmationTime = 120

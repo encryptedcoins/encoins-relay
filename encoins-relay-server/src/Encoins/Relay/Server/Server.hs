@@ -15,7 +15,6 @@ module Encoins.Relay.Server.Server where
 
 import           CSL                                      (TransactionUnspentOutputs)
 import           CSL.Class                                (FromCSL (..))
-import           Cardano.Server.Client.Client             (createServantClientEnv)
 import           Cardano.Server.Config                    (decodeOrErrorFromFile)
 import           Cardano.Server.Error                     (IsCardanoServerError (errMsg, errStatus), toEnvelope)
 import           Cardano.Server.Input                     (InputContext (..))
@@ -30,14 +29,13 @@ import           Control.Monad.IO.Class                   (MonadIO (..))
 import           Data.Default                             (def)
 import qualified Data.Map                                 as Map
 import           Data.Maybe                               (fromJust)
-import qualified Data.Text                                as T
 import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, postEncoinsPolicyTx, postStakingValidatorTx,
                                                            stakeOwnerTx)
 import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, beaconCurrencySymbol, encoinsSymbol,
                                                            ledgerValidatorAddress)
 import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..))
-import           Encoins.Relay.Verifier.Client            (verifierClient)
-import           Encoins.Relay.Verifier.Server            (VerifierApiError (..), VerifierConfig (..), loadVerifierConfig)
+import           Encoins.Relay.Verifier.Client            (mkVerifierClientEnv, verifierClient)
+import           Encoins.Relay.Verifier.Server            (VerifierApiError (..))
 import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex (..))
 import           PlutusAppsExtra.IO.Wallet                (getWalletAddr, getWalletUtxos)
@@ -45,7 +43,7 @@ import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorA
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder)
 import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
 import           PlutusTx.Prelude                         (BuiltinByteString, toBuiltin)
-import           Servant.Client                           (BaseUrl (..), ClientEnv (..), Scheme (..))
+import           Servant.Client                           (ClientEnv (..))
 import           Text.Hex                                 (Text, decodeHex)
 
 verifierPKH :: BuiltinByteString
@@ -61,9 +59,7 @@ referenceScriptSalt = 20
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do
     envTxOutRefs <- decodeOrErrorFromFile "txOutRef.json"
-    VerifierConfig{..} <- loadVerifierConfig
-    cEnv <- createServantClientEnv
-    let envVerifierClientEnv = cEnv{baseUrl = BaseUrl Http (T.unpack cHost) cPort ""}
+    envVerifierClientEnv <- mkVerifierClientEnv
     pure $ ServerHandle
         Kupo
         EncoinsRelayEnv{..}

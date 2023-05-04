@@ -34,7 +34,10 @@ test-suite encoins-relay-test
   Hs-Source-Dirs:       test
   Ghc-Options:          -rtsopts
   Main-Is:              Main.hs
-  Other-Modules:        Encoins.Relay.Server.ServerSpec
+  Other-Modules:
+    Encoins.Relay.Server.ServerSpec
+    Encoins.Relay.Verifier.ServerSpec
+    Internal
   build-depends:
     base                          >= 4.9 && < 5,
     cardano-server                         -any,

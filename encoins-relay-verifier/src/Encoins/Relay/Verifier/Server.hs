@@ -84,7 +84,7 @@ verifierHandler red@(par, input, proof, _) = handle errHandler $ do
 data VerifierApiError
     = IncorrectInput
     | IncorrectProof
-    deriving (Show, Exception)
+    deriving (Show, Exception, Eq)
 
 instance IsCardanoServerError VerifierApiError where
     errStatus _ = toEnum 422

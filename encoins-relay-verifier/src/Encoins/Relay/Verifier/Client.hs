@@ -4,19 +4,23 @@
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 
 module Encoins.Relay.Verifier.Client where
 
+import           Cardano.Server.Client.Client  (createServantClientEnv)
 import           Cardano.Server.Client.Handle  (HasServantClientEnv)
 import           Cardano.Server.Error          (IsCardanoServerError (..))
 import           Cardano.Server.Utils.Logger   ((.<))
 import           Control.Exception             (Exception)
 import           Data.Text                     (Text)
+import qualified Data.Text                     as T
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer)
-import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..))
+import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..), VerifierConfig (..), loadVerifierConfig)
 import           Servant                       (Proxy (Proxy), WithStatus (..))
-import           Servant.Client                (ClientError, client, foldMapUnion, runClientM)
+import           Servant.Client                (BaseUrl (..), ClientEnv, ClientError, Scheme (..), baseUrl, client, foldMapUnion,
+                                                runClientM)
 
 verifierClient :: HasServantClientEnv => EncoinsRedeemer -> IO (Either VerifierClientError EncoinsRedeemer)
 verifierClient red 
@@ -27,10 +31,16 @@ verifierClient red
     where
         foldUnion = foldMapUnion (Proxy @UnUnionVerifierResult) unUnion
 
+mkVerifierClientEnv :: IO ClientEnv
+mkVerifierClientEnv = do
+    VerifierConfig{..} <- loadVerifierConfig
+    cEnv <- createServantClientEnv
+    pure cEnv{baseUrl = BaseUrl Http (T.unpack cHost) cPort ""}
+
 data VerifierClientError 
     = VerifierApiError VerifierApiError
     | VerifierClientError ClientError
-    deriving (Show, Exception)
+    deriving (Show, Exception, Eq)
 
 instance IsCardanoServerError VerifierClientError where
     errStatus _ = toEnum 422

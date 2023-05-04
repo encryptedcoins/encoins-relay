@@ -2,15 +2,16 @@
 
 module Main where
 
-import           Cardano.Server.Test.Utils       (withCardanoServer)
-import qualified Control.Concurrent              as C
-import           Control.Exception               (bracket, bracket_, try)
-import           Control.Monad                   (void)
-import           Control.Monad.IO.Class          (MonadIO (..))
-import           Encoins.Relay.Server.Server     (mkServerHandle)
-import qualified Encoins.Relay.Server.ServerSpec as Server
-import           Encoins.Relay.Verifier.Server   (runVerifierServer)
-import           System.Directory                (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory)
+import           Cardano.Server.Test.Utils         (withCardanoServer)
+import qualified Control.Concurrent                as C
+import           Control.Exception                 (bracket, bracket_, try)
+import           Control.Monad                     (void)
+import           Control.Monad.IO.Class            (MonadIO (..))
+import           Encoins.Relay.Server.Server       (mkServerHandle)
+import qualified Encoins.Relay.Server.ServerSpec   as Server
+import           Encoins.Relay.Verifier.Server     (runVerifierServer)
+import qualified Encoins.Relay.Verifier.ServerSpec as Verifier
+import           System.Directory                  (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory)
 
 main :: IO ()
 main = bracket
@@ -26,4 +27,5 @@ main = bracket
     $ const $ do
         sHandle <- mkServerHandle
         withCardanoServer sHandle $ do
+            Verifier.spec
             Server.spec
