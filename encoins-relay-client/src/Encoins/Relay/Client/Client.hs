@@ -39,7 +39,8 @@ import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElemen
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readTerms)
 import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, clientSecretToSecret, confirmTokens, genTerms, mkSecretFile,
                                                  readSecretFile)
-import           Encoins.Relay.Server.Server    (EncoinsApi, bulletproofSetup, getLedgerAddress)
+import           Encoins.Relay.Server.Server    (EncoinsApi, getLedgerAddress)
+import           Encoins.Relay.Verifier.Server  (bulletproofSetup)
 import           Ledger.Ada                     (Ada (getLovelace))
 import           Ledger.Value                   (TokenName (..))
 import           PlutusAppsExtra.IO.ChainIndex  (getUtxosAt)

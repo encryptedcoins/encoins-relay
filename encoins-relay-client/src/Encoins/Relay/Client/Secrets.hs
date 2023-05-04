@@ -7,34 +7,35 @@
 
 module Encoins.Relay.Client.Secrets where
 
-import           Cardano.Server.Internal     (ServerM, getAuxillaryEnv)
-import           Control.Monad               (replicateM)
-import           Control.Monad.Extra         (ifM)
-import           Control.Monad.IO.Class      (MonadIO (..))
-import           Control.Monad.State         (MonadState (..), evalStateT, modify)
-import           Data.Aeson                  (FromJSON, ToJSON, eitherDecode, encode)
-import qualified Data.ByteString.Lazy        as LBS
-import           Data.Either.Extra           (eitherToMaybe)
-import           Data.Functor                ((<&>))
-import           Data.List                   (delete, partition)
-import           Data.Maybe                  (catMaybes)
-import           Data.Time                   (UTCTime, getCurrentTime)
-import qualified Data.Time                   as Time
-import           ENCOINS.BaseTypes           (FieldElement, MintingPolarity (..))
-import           ENCOINS.Bulletproofs        (Secret (..), fromSecret)
-import           ENCOINS.Core.OnChain        (beaconCurrencySymbol, encoinsSymbol)
-import           Encoins.Relay.Client.Opts   (EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Server (EncoinsApi, bulletproofSetup, getLedgerAddress, verifierPKH)
-import           GHC.Generics                (Generic)
-import           Ledger                      (CurrencySymbol, TokenName)
-import           Ledger.Ada                  (lovelaceOf)
-import           Ledger.Value                (TokenName (..), getValue)
-import           PlutusAppsExtra.IO.Wallet   (getWalletValue)
+import           Cardano.Server.Internal       (ServerM, getAuxillaryEnv)
+import           Control.Monad                 (replicateM)
+import           Control.Monad.Extra           (ifM)
+import           Control.Monad.IO.Class        (MonadIO (..))
+import           Control.Monad.State           (MonadState (..), evalStateT, modify)
+import           Data.Aeson                    (FromJSON, ToJSON, eitherDecode, encode)
+import qualified Data.ByteString.Lazy          as LBS
+import           Data.Either.Extra             (eitherToMaybe)
+import           Data.Functor                  ((<&>))
+import           Data.List                     (delete, partition)
+import           Data.Maybe                    (catMaybes)
+import           Data.Time                     (UTCTime, getCurrentTime)
+import qualified Data.Time                     as Time
+import           ENCOINS.BaseTypes             (FieldElement, MintingPolarity (..))
+import           ENCOINS.Bulletproofs          (Secret (..), fromSecret)
+import           ENCOINS.Core.OnChain          (beaconCurrencySymbol, encoinsSymbol)
+import           ENCOINS.Core.V1.OffChain      (EncoinsMode (..))
+import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
+import           Encoins.Relay.Server.Server   (EncoinsApi, EncoinsRelayEnv (..), getLedgerAddress, verifierPKH)
+import           Encoins.Relay.Verifier.Server (bulletproofSetup)
+import           GHC.Generics                  (Generic)
+import           Ledger                        (CurrencySymbol, TokenName)
+import           Ledger.Ada                    (lovelaceOf)
+import           Ledger.Value                  (TokenName (..), getValue)
 import           PlutusAppsExtra.IO.ChainIndex (getValueAt)
-import qualified PlutusTx.AssocMap           as PAM
-import           System.Directory            (listDirectory, removeFile)
-import           System.Random               (randomIO, randomRIO)
-import           ENCOINS.Core.V1.OffChain    (EncoinsMode (..))
+import           PlutusAppsExtra.IO.Wallet     (getWalletValue)
+import qualified PlutusTx.AssocMap             as PAM
+import           System.Directory              (listDirectory, removeFile)
+import           System.Random                 (randomIO, randomRIO)
 
 type HasEncoinsMode = ?mode :: EncoinsMode
 
@@ -121,5 +122,5 @@ randomMintTerm = randomRIO (1, 100) <&> RPMint . lovelaceOf
 
 getEncoinsSymbol :: ServerM EncoinsApi CurrencySymbol
 getEncoinsSymbol = do
-    (_, refBeacon) <- getAuxillaryEnv
+    (_, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
     pure $ encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)

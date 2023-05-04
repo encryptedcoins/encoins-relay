@@ -49,6 +49,7 @@ library
       encoins-bulletproofs                   -any,
       encoins-core                           -any,
       encoins-relay-server                   -any,
+      encoins-relay-verifier                 -any,
       extra                                  -any,
       hex-text                               -any,
       mtl                                    -any,

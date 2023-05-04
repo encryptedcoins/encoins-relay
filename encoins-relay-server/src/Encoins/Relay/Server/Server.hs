@@ -4,10 +4,10 @@
 {-# LANGUAGE EmptyDataDeriving    #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE ImplicitParams       #-}
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -15,6 +15,7 @@ module Encoins.Relay.Server.Server where
 
 import           CSL                                      (TransactionUnspentOutputs)
 import           CSL.Class                                (FromCSL (..))
+import           Cardano.Server.Client.Client             (createServantClientEnv)
 import           Cardano.Server.Config                    (decodeOrErrorFromFile)
 import           Cardano.Server.Error                     (IsCardanoServerError (errMsg, errStatus), toEnvelope)
 import           Cardano.Server.Input                     (InputContext (..))
@@ -23,39 +24,32 @@ import           Cardano.Server.Internal                  (AuxillaryEnvOf, Input
 import           Cardano.Server.Main                      (ServerApi)
 import           Cardano.Server.Tx                        (mkTx)
 import           Control.Exception                        (Exception, throw)
-import           Control.Monad                            (unless, void)
+import           Control.Monad                            (void)
 import           Control.Monad.Catch                      (MonadThrow (..))
-import           Data.Aeson                               (decode, eitherDecode)
-import           Data.ByteString.Lazy                     (fromStrict)
+import           Control.Monad.IO.Class                   (MonadIO (..))
 import           Data.Default                             (def)
-import           Data.FileEmbed                           (embedFile)
 import qualified Data.Map                                 as Map
-import           Data.Maybe                               (fromJust, fromMaybe)
-import           ENCOINS.BaseTypes                        (toGroupElement)
-import           ENCOINS.Bulletproofs                     (verify)
-import           ENCOINS.Bulletproofs.Types               (BulletproofSetup, Input (Input), parseBulletproofParams)
+import           Data.Maybe                               (fromJust)
+import qualified Data.Text                                as T
 import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, postEncoinsPolicyTx, postStakingValidatorTx,
                                                            stakeOwnerTx)
 import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, beaconCurrencySymbol, encoinsSymbol,
                                                            ledgerValidatorAddress)
 import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..))
-import           ENCOINS.Core.V1.OnChain                  (hashRedeemer)
+import           Encoins.Relay.Verifier.Client            (verifierClient)
+import           Encoins.Relay.Verifier.Server            (VerifierApiError (..), VerifierConfig (..), loadVerifierConfig)
 import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex (..))
-import           PlutusAppsExtra.IO.Wallet                (getWalletUtxos, getWalletAddr)
+import           PlutusAppsExtra.IO.Wallet                (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder)
 import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
-import           PlutusAppsExtra.Utils.Crypto             (sign)
-import           PlutusTx.Extra.ByteString                (ToBuiltinByteString (..))
-import           PlutusTx.Prelude                         (BuiltinByteString, sha2_256, toBuiltin)
+import           PlutusTx.Prelude                         (BuiltinByteString, toBuiltin)
+import           Servant.Client                           (BaseUrl (..), ClientEnv (..), Scheme (..))
 import           Text.Hex                                 (Text, decodeHex)
 
 verifierPKH :: BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
-
-verifierPrvKey :: BuiltinByteString
-verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "../config/prvKey.json")
 
 treasuryWalletAddress :: Address
 treasuryWalletAddress = fromJust $ bech32ToAddress
@@ -64,15 +58,15 @@ treasuryWalletAddress = fromJust $ bech32ToAddress
 referenceScriptSalt :: Integer
 referenceScriptSalt = 20
 
-bulletproofSetup :: BulletproofSetup
-bulletproofSetup = either error id $ eitherDecode $ fromStrict $(embedFile "../config/bulletproof_setup.json")
-
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do
-    aEnv <- decodeOrErrorFromFile "txOutRef.json"
+    envTxOutRefs <- decodeOrErrorFromFile "txOutRef.json"
+    VerifierConfig{..} <- loadVerifierConfig
+    cEnv <- createServantClientEnv
+    let envVerifierClientEnv = cEnv{baseUrl = BaseUrl Http (T.unpack cHost) cPort ""}
     pure $ ServerHandle
         Kupo
-        aEnv
+        EncoinsRelayEnv{..}
         getTrackedAddresses
         txBuilders
         (pure ())
@@ -87,24 +81,28 @@ type EncoinsApi = ServerApi
     Text
 
 type instance InputOf        EncoinsApi = (EncoinsRedeemer, EncoinsMode)
-type instance AuxillaryEnvOf EncoinsApi = (TxOutRef, TxOutRef)
+type instance AuxillaryEnvOf EncoinsApi = EncoinsRelayEnv
+
+data EncoinsRelayEnv = EncoinsRelayEnv
+    { envTxOutRefs         :: (TxOutRef, TxOutRef)
+    , envVerifierClientEnv :: ClientEnv
+    }
 
 data EncoinsTxApiError
     = CorruptedExternalUTXOs
-    | IncorrectInput
-    | IncorrectProof
+    | VerifierError VerifierApiError
     deriving (Show, Exception)
 
 instance IsCardanoServerError EncoinsTxApiError where
     errStatus _ = toEnum 422
     errMsg = \case
-        CorruptedExternalUTXOs -> "The request contained corrupted external UTXO data."
-        IncorrectInput         -> "The request contained incorrect public input."
-        IncorrectProof         -> "The request contained incorrect proof."
+        CorruptedExternalUTXOs       -> "The request contained corrupted external UTXO data."
+        VerifierError IncorrectInput -> "The request contained incorrect public input."
+        VerifierError IncorrectProof -> "The request contained incorrect proof."
 
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
-    (refStakeOwner, refBeacon) <- getAuxillaryEnv
+    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
     -- Mint the stake owner token
     utxos <- getWalletUtxos
     let utxos' = Map.delete refBeacon utxos
@@ -122,7 +120,7 @@ serverSetup = void $ do
 
 getTrackedAddresses :: ServerM EncoinsApi [Address]
 getTrackedAddresses = do
-    (refStakeOwner, refBeacon) <- getAuxillaryEnv
+    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
     let encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
         stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
     return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
@@ -137,14 +135,16 @@ processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
     return ((red, mode), context)
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
-txBuilders (red@(par, input, proof, _), mode) = do
-    (refStakeOwner, refBeacon) <- getAuxillaryEnv
+txBuilders (red, mode) = do
+    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
     relayWalletAddress <- getWalletAddr
     let beaconSymb = beaconCurrencySymbol refBeacon
         stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
-        red' = (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
-        bp   = parseBulletproofParams $ sha2_256 $ toBytes par
-        v    = fst input
-        ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
-    unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
+    red' <- verifyRedeemer red
     pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' mode]
+
+verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemer
+verifyRedeemer red = do
+    verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
+    let ?servantClientEnv = verifierClientEnv
+    liftIO (verifierClient red) >>= either throwM pure

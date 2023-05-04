@@ -15,6 +15,13 @@ cradle:
     - path: "encoins-relay-client/app"
       component: "encoins-relay-client:exe:encoins-relay-client"
 
+    #Verifier
+    - path: "encoins-relay-verifier/src"
+      component: "encoins-relay-verifier:lib:encoins-relay-verifier"
+
+    - path: "encoins-relay-verifier/app"
+      component: "encoins-relay-verifier:exe:encoins-relay-verifier"
+
     #Test
     - path: "encoins-relay-test/test"
       component: "encoins-relay-test:test:encoins-relay-test"

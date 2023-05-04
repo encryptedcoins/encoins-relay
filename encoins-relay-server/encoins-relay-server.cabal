@@ -40,13 +40,14 @@ library
       aeson                                  -any,
       bytestring                             -any,
       cardano-server                         -any,
+      cardano-server-client                  -any,
       containers                             -any,
       csl-types                              -any,
       data-default                           -any,
       encoins-bulletproofs                   -any,
       encoins-core                           -any,
+      encoins-relay-verifier                 -any,
       exceptions                             -any,
-      file-embed                             -any,
       hex-text                               -any,
       mtl                                    -any,
       optparse-applicative                   -any,
@@ -54,6 +55,8 @@ library
       plutus-tx                              -any,
       plutus-tx-extra                        -any,
       plutus-ledger                          -any,
+      servant-client                         -any,
+      text                                   -any,
 
     hs-source-dirs: src
 

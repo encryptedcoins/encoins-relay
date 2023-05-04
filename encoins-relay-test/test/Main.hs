@@ -3,17 +3,27 @@
 module Main where
 
 import           Cardano.Server.Test.Utils       (withCardanoServer)
+import qualified Control.Concurrent              as C
 import           Control.Exception               (bracket, bracket_, try)
 import           Control.Monad                   (void)
+import           Control.Monad.IO.Class          (MonadIO (..))
 import           Encoins.Relay.Server.Server     (mkServerHandle)
 import qualified Encoins.Relay.Server.ServerSpec as Server
+import           Encoins.Relay.Verifier.Server   (runVerifierServer)
 import           System.Directory                (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory)
 
 main :: IO ()
-main = bracket_ 
-    (try @IOError (renameDirectory "secrets" "secrets_") >> createDirectoryIfMissing True "secrets") 
-    (removeDirectoryRecursive "secrets" >> try @IOError (renameDirectory "secrets_" "secrets"))
-    $ do
+main = bracket
+
+    (try @IOError (renameDirectory "secrets" "secrets_")
+        >> createDirectoryIfMissing True "secrets" 
+        >> liftIO (C.forkIO runVerifierServer))
+
+    (\verifierServerThreadId ->  C.killThread verifierServerThreadId
+        >> removeDirectoryRecursive "secrets" 
+        >> try @IOError (renameDirectory "secrets_" "secrets"))
+
+    $ const $ do
         sHandle <- mkServerHandle
         withCardanoServer sHandle $ do
             Server.spec

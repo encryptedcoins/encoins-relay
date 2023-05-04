@@ -22,12 +22,13 @@ index-state:
 packages:
     encoins-relay-server
     encoins-relay-client
+    encoins-relay-verifier
     encoins-relay-test
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: b1c6d064d00f4163ad5ef3a2b5a1aefd555d7b63
+  tag: ff4c0a881e57c8cbe0659e9824387a5e7c06884c
   subdir:
     cardano-server
     cardano-server-client
@@ -56,7 +57,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 43b2f6151b392f256074a11e9e44403cfcd9b813
+  tag: 3c26cfc9bcf441511e2a6a50260d7a781b4079bc
 
 source-repository-package
   type: git

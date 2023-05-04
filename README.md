@@ -31,7 +31,7 @@ $ cabal run encoins-relay-client -- [ping | funds | newTx | serverTx | submitTx 
 ```
 &emsp;&emsp;For example:
 ```console
-$ cabal run encoins-relay-client -- newTx --manual m30,m4,b0x05e229b5959b43c4cf5358e1687d68d253fb08aa96068ab47f19f2be7207d9ec
+$ cabal run encoins-relay-client -- serverTx --manual m30,m4,b0x05e229b5959b43c4cf5358e1687d68d253fb08aa96068ab47f19f2be7207d9ec
 ```
 Note that the maximum number of tokens in one request is 5.
 
