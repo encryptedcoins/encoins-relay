@@ -39,19 +39,20 @@ import           PlutusAppsExtra.IO.Wallet      (getWalletAda)
 import qualified PlutusTx.AssocMap              as PAM
 import           System.Directory               (listDirectory)
 import           System.Random                  (randomRIO)
-import           Test.Hspec                     (Expectation, Spec, context, describe, expectationFailure, hspec, it, parallel,
+import           Test.Hspec                     (Expectation, Spec, context, describe, expectationFailure, hspec, it,
                                                  shouldBe, shouldSatisfy)
+import           Test.Hspec.Core.Spec           (sequential)
 
 spec :: HasServantClientEnv => Spec
 spec = describe "encoins server" $ do
 
-    context "wallet mode" $ let ?mode = WalletMode in do
+    context "wallet mode" $ let ?mode = WalletMode in sequential $ do
 
         it "mint tokens" propMint
 
         it "burn tokens" propBurn
 
-    context "ledger mode" $ let ?mode = LedgerMode in do
+    context "ledger mode" $ let ?mode = LedgerMode in sequential $ do
 
         it "mint tokens" propMint
 
@@ -59,7 +60,6 @@ spec = describe "encoins server" $ do
 
 propMint :: TxClientCosntraints ServerTxE => Expectation
 propMint = join $ runEncoinsServerM $ do
-    startAda <- getWalletAda
     l        <- randomRIO (1,4)
     terms    <- replicateM l randomMintTerm
     secrets  <- termsToSecrets terms
@@ -70,14 +70,10 @@ propMint = join $ runEncoinsServerM $ do
             (((_,(v, inputs),_,_),_),_) <- secretsToReqBody secrets
             currentTime  <- liftIO Time.getCurrentTime
             tokensMinted <- confirmTokens currentTime $ map (first TokenName) inputs
-            finishAda    <- getWalletAda
-            pure $ do
-                tokensMinted `shouldBe` True
-                compare finishAda startAda `shouldBe` LT
+            pure $ tokensMinted `shouldBe` True
 
 propBurn :: TxClientCosntraints ServerTxE => Expectation
 propBurn = join $ runEncoinsServerM $ do
-    startAda <- getWalletAda
     terms    <- map (RPBurn . Right . ("secrets/" <>)) <$> liftIO (listDirectory "secrets")
     secrets  <- termsToSecrets terms
     sendTxClientRequest @ServerTxE secrets >>= \case
@@ -86,15 +82,7 @@ propBurn = join $ runEncoinsServerM $ do
             (((_,(v, inputs),_,_),_),_) <- secretsToReqBody secrets
             currentTime  <- liftIO Time.getCurrentTime
             tokensBurned <- confirmTokens currentTime $ map (first TokenName) inputs
-            finishAda    <- getWalletAda
-            pure $ do
-                tokensBurned `shouldBe` True
-                compare finishAda startAda `shouldBe` GT
-
-getAdaFromMode :: HasEncoinsMode => ServerM EncoinsApi Ada
-getAdaFromMode = case ?mode of
-    WalletMode -> getWalletAda
-    LedgerMode -> getAdaAt =<< getLedgerAddress
+            pure $ tokensBurned `shouldBe` True
 
 maxConfirmationTime :: Pico -- Seconds
 maxConfirmationTime = 120

@@ -12,6 +12,7 @@ import qualified Encoins.Relay.Server.ServerSpec   as Server
 import           Encoins.Relay.Verifier.Server     (runVerifierServer)
 import qualified Encoins.Relay.Verifier.ServerSpec as Verifier
 import           System.Directory                  (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory)
+import           Test.Hspec                        (parallel)
 
 main :: IO ()
 main = bracket
@@ -26,6 +27,6 @@ main = bracket
 
     $ const $ do
         sHandle <- mkServerHandle
-        withCardanoServer sHandle $ do
+        withCardanoServer sHandle $ parallel $ do
             Verifier.spec
             Server.spec

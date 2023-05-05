@@ -51,6 +51,7 @@ test-suite encoins-relay-test
     encoins-relay-verifier                 -any,
     extra                                  -any,
     hspec                                  -any,
+    hspec-core                             -any,
     plutus-apps-extra                      -any,
     plutus-ledger                          -any,
     plutus-tx                              -any,
