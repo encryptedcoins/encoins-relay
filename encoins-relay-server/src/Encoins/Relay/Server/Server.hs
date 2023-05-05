@@ -29,10 +29,9 @@ import           Control.Monad.IO.Class                   (MonadIO (..))
 import           Data.Default                             (def)
 import qualified Data.Map                                 as Map
 import           Data.Maybe                               (fromJust)
-import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, postEncoinsPolicyTx, postStakingValidatorTx,
+import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
                                                            stakeOwnerTx)
-import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, beaconCurrencySymbol, encoinsSymbol,
-                                                           ledgerValidatorAddress)
+import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, ledgerValidatorAddress, EncoinsProtocolParams)
 import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..))
 import           Encoins.Relay.Verifier.Client            (mkVerifierClientEnv, verifierClient)
 import           Encoins.Relay.Verifier.Server            (VerifierApiError (..))
@@ -58,7 +57,8 @@ referenceScriptSalt = 20
 
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do
-    envTxOutRefs <- decodeOrErrorFromFile "txOutRef.json"
+    txOutRefs <- decodeOrErrorFromFile "txOutRef.json"
+    let envEncoinsProtocolParams = (fst txOutRefs, snd txOutRefs, verifierPKH)
     envVerifierClientEnv <- mkVerifierClientEnv
     pure $ ServerHandle
         Kupo
@@ -80,8 +80,8 @@ type instance InputOf        EncoinsApi = (EncoinsRedeemer, EncoinsMode)
 type instance AuxillaryEnvOf EncoinsApi = EncoinsRelayEnv
 
 data EncoinsRelayEnv = EncoinsRelayEnv
-    { envTxOutRefs         :: (TxOutRef, TxOutRef)
-    , envVerifierClientEnv :: ClientEnv
+    { envEncoinsProtocolParams :: EncoinsProtocolParams
+    , envVerifierClientEnv     :: ClientEnv
     }
 
 data EncoinsTxApiError
@@ -98,28 +98,23 @@ instance IsCardanoServerError EncoinsTxApiError where
 
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
-    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
+    encoinsProtocolParams@(_, refBeacon, _) <- envEncoinsProtocolParams <$> getAuxillaryEnv
     -- Mint the stake owner token
     utxos <- getWalletUtxos
     let utxos' = Map.delete refBeacon utxos
-    mkTx [] (InputContextServer utxos') [stakeOwnerTx refStakeOwner]
+    mkTx [] (InputContextServer utxos') [stakeOwnerTx encoinsProtocolParams]
     -- Mint and send the beacon
     utxos'' <- getWalletUtxos
-    mkTx [] (InputContextServer utxos'') [beaconTx refBeacon verifierPKH refStakeOwner]
-    -- Define scripts' parameters
-    let encoinsParams = (beaconCurrencySymbol refBeacon, verifierPKH)
-        ledgerParams  = encoinsSymbol encoinsParams
+    mkTx [] (InputContextServer utxos'') [beaconTx encoinsProtocolParams]
     -- Post the ENCOINS minting policy
-    mkTx [] def [postEncoinsPolicyTx encoinsParams referenceScriptSalt]
+    mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
     -- Post the staking validator policy
-    mkTx [] def [postStakingValidatorTx ledgerParams referenceScriptSalt]
+    mkTx [] def [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
 
 getTrackedAddresses :: ServerM EncoinsApi [Address]
 getTrackedAddresses = do
-    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
-    let encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
-        stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
-    return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
+    encoinsProtocolParams <- envEncoinsProtocolParams <$> getAuxillaryEnv
+    return [ledgerValidatorAddress encoinsProtocolParams, alwaysFalseValidatorAddress referenceScriptSalt]
 
 getLedgerAddress :: ServerM EncoinsApi Address
 getLedgerAddress = head <$> getTrackedAddresses
@@ -132,12 +127,10 @@ processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
 txBuilders (red, mode) = do
-    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
+    encoinsProtocolParams <- envEncoinsProtocolParams <$> getAuxillaryEnv
     relayWalletAddress <- getWalletAddr
-    let beaconSymb = beaconCurrencySymbol refBeacon
-        stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
     red' <- verifyRedeemer red
-    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) (beaconSymb, verifierPKH) stakeOwnerSymb red' mode]
+    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) encoinsProtocolParams red' mode]
 
 verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemer
 verifyRedeemer red = do
