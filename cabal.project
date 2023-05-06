@@ -28,7 +28,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: ff4c0a881e57c8cbe0659e9824387a5e7c06884c
+  tag: 86f8a6cf6ad062c0baba93a3006e7f86f3c46fde
   subdir:
     cardano-server
     cardano-server-client
@@ -52,12 +52,12 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-bulletproofs
-  tag: 48ca7b5b8d685e3cb5bf9d5d56c122abd3b942ee
+  tag: 4336461c4a1a4a33b28fc84af8b3ea2bbf267656
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 36b616b58524e9a7eaabcc9a546d577dd6662df8
+  tag: 1f4f33130d69c29509d72ab200d38d8b229df661
 
 source-repository-package
   type: git
