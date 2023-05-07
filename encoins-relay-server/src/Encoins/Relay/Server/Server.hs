@@ -31,11 +31,12 @@ import qualified Data.Map                                 as Map
 import           Data.Maybe                               (fromJust)
 import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
                                                            stakeOwnerTx)
-import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, ledgerValidatorAddress, EncoinsProtocolParams)
-import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..))
+import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress, EncoinsProtocolParams)
+import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..), ledgerModifyTx)
 import           Encoins.Relay.Verifier.Client            (mkVerifierClientEnv, verifierClient)
 import           Encoins.Relay.Verifier.Server            (VerifierApiError (..))
-import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
+import           Ledger                                   (Address, TxId (TxId), TxOutRef (..), maxMinAdaTxOut)
+import           Ledger.Ada                               (toValue)
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex (..))
 import           PlutusAppsExtra.IO.Wallet                (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
@@ -110,6 +111,8 @@ serverSetup = void $ do
     mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
     -- Post the staking validator policy
     mkTx [] def [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
+    -- Add initial funds to the ENCOINS Ledger
+    mkTx [] def [ledgerModifyTx encoinsProtocolParams (toValue maxMinAdaTxOut)]
 
 getTrackedAddresses :: ServerM EncoinsApi [Address]
 getTrackedAddresses = do
@@ -132,7 +135,7 @@ txBuilders (red, mode) = do
     red' <- verifyRedeemer red
     pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) encoinsProtocolParams red' mode]
 
-verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemer
+verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
 verifyRedeemer red = do
     verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
     let ?servantClientEnv = verifierClientEnv

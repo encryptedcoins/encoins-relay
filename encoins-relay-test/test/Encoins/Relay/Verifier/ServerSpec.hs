@@ -18,6 +18,8 @@ import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVeri
 import           Encoins.Relay.Verifier.Server (VerifierApiError (..), verifierPrvKey)
 import           Internal                      (runEncoinsServerM)
 import           PlutusAppsExtra.Utils.Crypto  (sign)
+import           PlutusTx.Extra.ByteString     (toBytes)
+import           PlutusTx.Prelude              (sha2_256)
 import           System.Random                 (randomRIO)
 import           Test.Hspec                    (Expectation, Spec, describe, it, runIO, shouldBe)
 
@@ -44,7 +46,8 @@ spec = describe "encoins-verifier" $ do
 propOk :: HasServantClientEnv => EncoinsRedeemer -> Expectation
 propOk red@(par, input, proof, _) = do
     res <- verifierClient red
-    res `shouldBe` Right (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
+    let redOnChain = (par, input, sha2_256 $ toBytes proof, "")
+    res `shouldBe` Right (par, input, sha2_256 $ toBytes proof, sign verifierPrvKey $ hashRedeemer redOnChain)
 
 propIncorrectInput :: HasServantClientEnv => EncoinsRedeemer -> Expectation
 propIncorrectInput red@(par, _, proof, sig) = do

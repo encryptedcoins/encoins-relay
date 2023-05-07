@@ -24,14 +24,14 @@ import           Control.Monad.IO.Class       (MonadIO)
 import           Data.Aeson                   (FromJSON (..), decode, eitherDecode, genericParseJSON)
 import           Data.Aeson.Casing            (aesonPrefix, snakeCase)
 import           Data.ByteString.Lazy         (fromStrict)
-import           Data.FileEmbed               (embedFile)
+import           Data.FileEmbed               (embedFile, makeRelativeToProject)
 import           Data.Maybe                   (fromJust, fromMaybe)
 import           Data.String                  (IsString (..))
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           ENCOINS.BaseTypes            (toGroupElement)
 import           ENCOINS.Bulletproofs         (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
-import           ENCOINS.Core.OnChain         (EncoinsRedeemer, hashRedeemer)
+import           ENCOINS.Core.OnChain         (EncoinsRedeemer, hashRedeemer, EncoinsRedeemerOnChain)
 import           GHC.Generics                 (Generic)
 import           GHC.Stack                    (HasCallStack)
 import qualified Network.Wai.Handler.Warp     as Warp
@@ -68,15 +68,16 @@ instance HasLogger VerifierM where
 
 type VerifierApi = "API" :> ReqBody '[JSON] EncoinsRedeemer :> UVerb 'GET '[JSON] VerifierApiResult
 
-type VerifierApiResult = '[WithStatus 200 EncoinsRedeemer, WithStatus 422 Text]
+type VerifierApiResult = '[WithStatus 200 EncoinsRedeemerOnChain, WithStatus 422 Text]
 
 verifierHandler :: EncoinsRedeemer -> VerifierM (Union VerifierApiResult)
-verifierHandler red@(par, input, proof, _) = handle errHandler $ do
+verifierHandler (par, input, proof, _) = handle errHandler $ do
     let bp   = parseBulletproofParams $ sha2_256 $ toBytes par
         v    = fst input
         ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
     unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
-    respond $ WithStatus @200 (par, input, proof, sign verifierPrvKey $ hashRedeemer red)
+    let redOnChain = (par, input, sha2_256 $ toBytes proof, "")
+    respond $ WithStatus @200 (par, input, sha2_256 $ toBytes proof, sign verifierPrvKey $ hashRedeemer redOnChain)
     where
         errHandler :: VerifierApiError -> VerifierM (Union VerifierApiResult)
         errHandler = respond . WithStatus @422 . errMsg
@@ -104,7 +105,7 @@ loadVerifierConfig :: HasCallStack => IO VerifierConfig
 loadVerifierConfig = decodeOrErrorFromFile "verifierConfig.json"
 
 bulletproofSetup :: BulletproofSetup
-bulletproofSetup = either error id $ eitherDecode $ fromStrict $(embedFile "../config/bulletproof_setup.json")
+bulletproofSetup = either error id $ eitherDecode $ fromStrict $(makeRelativeToProject "../config/bulletproof_setup.json" >>= embedFile)
 
 verifierPrvKey :: BuiltinByteString
-verifierPrvKey = fromJust $ decode $ fromStrict $(embedFile "../config/prvKey.json")
+verifierPrvKey = fromJust $ decode $ fromStrict $(makeRelativeToProject "../config/prvKey.json" >>= embedFile)
