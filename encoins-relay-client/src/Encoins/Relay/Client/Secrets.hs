@@ -22,11 +22,10 @@ import           Data.Time                     (UTCTime, getCurrentTime)
 import qualified Data.Time                     as Time
 import           ENCOINS.BaseTypes             (FieldElement, MintingPolarity (..))
 import           ENCOINS.Bulletproofs          (Secret (..), fromSecret)
-import           ENCOINS.Core.OnChain          (beaconCurrencySymbol, encoinsSymbol)
+import           ENCOINS.Core.OnChain          (encoinsSymbol)
 import           ENCOINS.Core.V1.OffChain      (EncoinsMode (..))
 import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Config   (verifierPKH)
-import           Encoins.Relay.Server.Server   (EncoinsApi, getLedgerAddress, getRefs)
+import           Encoins.Relay.Server.Server   (EncoinsApi, EncoinsRelayEnv (..), getLedgerAddress)
 import           Encoins.Relay.Verifier.Server (bulletproofSetup)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (CurrencySymbol, TokenName)
@@ -123,5 +122,5 @@ randomMintTerm = randomRIO (1, 100) <&> RPMint . lovelaceOf
 
 getEncoinsSymbol :: ServerM EncoinsApi CurrencySymbol
 getEncoinsSymbol = do
-    (_, refBeacon) <- getRefs
-    pure $ encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
+    encoinsProtocolParams <- envEncoinsProtocolParams <$> getAuxillaryEnv
+    pure $ encoinsSymbol encoinsProtocolParams

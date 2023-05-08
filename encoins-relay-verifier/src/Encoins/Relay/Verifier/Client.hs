@@ -16,13 +16,13 @@ import           Cardano.Server.Utils.Logger   ((.<))
 import           Control.Exception             (Exception)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
-import           ENCOINS.Core.OnChain          (EncoinsRedeemer)
-import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..), VerifierConfig (..))
+import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..), VerifierConfig (..), loadVerifierConfig)
 import           Servant                       (Proxy (Proxy), WithStatus (..))
 import           Servant.Client                (BaseUrl (..), ClientEnv, ClientError, Scheme (..), baseUrl, client, foldMapUnion,
                                                 runClientM)
 
-verifierClient :: HasServantClientEnv => EncoinsRedeemer -> IO (Either VerifierClientError EncoinsRedeemer)
+verifierClient :: HasServantClientEnv => EncoinsRedeemer -> IO (Either VerifierClientError EncoinsRedeemerOnChain)
 verifierClient red 
     = (`runClientM` ?servantClientEnv) (foldUnion <$> client (Proxy @VerifierApi) red) >>= \case
         Right (Right red')  -> pure $ Right red'
@@ -31,8 +31,9 @@ verifierClient red
     where
         foldUnion = foldMapUnion (Proxy @UnUnionVerifierResult) unUnion
 
-mkVerifierClientEnv :: VerifierConfig -> IO ClientEnv
-mkVerifierClientEnv VerifierConfig{..} = do
+mkVerifierClientEnv :: IO ClientEnv
+mkVerifierClientEnv = do
+    VerifierConfig{..} <- loadVerifierConfig
     cEnv <- createServantClientEnv
     pure cEnv{baseUrl = BaseUrl Http (T.unpack cHost) cPort ""}
 
@@ -48,9 +49,9 @@ instance IsCardanoServerError VerifierClientError where
         VerifierClientError cErr -> "Encoins verifier is unavailable:" .< cErr
 
 class UnUnionVerifierResult a where
-    unUnion :: a -> Either VerifierApiError EncoinsRedeemer
+    unUnion :: a -> Either VerifierApiError EncoinsRedeemerOnChain
 
-instance UnUnionVerifierResult (WithStatus 200 EncoinsRedeemer) where
+instance UnUnionVerifierResult (WithStatus 200 EncoinsRedeemerOnChain) where
     unUnion (WithStatus red) = Right red
 
 instance UnUnionVerifierResult (WithStatus 422 Text) where
