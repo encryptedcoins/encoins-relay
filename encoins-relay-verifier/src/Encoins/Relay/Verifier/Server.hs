@@ -14,8 +14,7 @@ module Encoins.Relay.Verifier.Server where
 
 import           Cardano.Server.Config        (decodeOrErrorFromFile)
 import           Cardano.Server.Error         (IsCardanoServerError (..))
-import           Cardano.Server.Utils.Logger  (HasLogger (..), logMsg, (.<))
-import qualified Cardano.Server.Utils.Logger  as Logger
+import           Cardano.Server.Utils.Logger  (HasLogger (..), logMsg, logger, (.<))
 import           Control.Exception            (Exception, throw)
 import           Control.Monad                (unless)
 import           Control.Monad.Catch          (MonadCatch, MonadThrow (..), handle)
@@ -63,8 +62,8 @@ newtype VerifierM a = VerifierM {unVerifierM :: IO a}
     deriving newtype (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch)
 
 instance HasLogger VerifierM where
-    getLogger = pure Logger.logger
-    getLoggerFilePath = pure $ Just $ Logger.mkFullPath "verifier"
+    getLogger = pure logger
+    getLoggerFilePath = pure $ Just "verifier.log"
 
 type VerifierApi = "API" :> ReqBody '[JSON] EncoinsRedeemer :> UVerb 'GET '[JSON] VerifierApiResult
 

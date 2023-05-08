@@ -1,39 +1,36 @@
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE DeriveAnyClass       #-}
-{-# LANGUAGE DerivingVia          #-}
-{-# LANGUAGE EmptyDataDeriving    #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE ImplicitParams       #-}
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE ImplicitParams    #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Encoins.Relay.Server.Server where
 
 import           CSL                                      (TransactionUnspentOutputs)
 import           CSL.Class                                (FromCSL (..))
-import           Cardano.Server.Config                    (decodeOrErrorFromFile)
+import           Cardano.Server.Config                    (Config (..), decodeOrErrorFromFile, loadConfig)
 import           Cardano.Server.Error                     (IsCardanoServerError (errMsg, errStatus), toEnvelope)
 import           Cardano.Server.Input                     (InputContext (..))
 import           Cardano.Server.Internal                  (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
                                                            getAuxillaryEnv)
 import           Cardano.Server.Main                      (ServerApi)
 import           Cardano.Server.Tx                        (mkTx)
+import           Control.Arrow                            ((&&&))
 import           Control.Exception                        (Exception, throw)
 import           Control.Monad                            (void)
 import           Control.Monad.Catch                      (MonadThrow (..))
 import           Control.Monad.IO.Class                   (MonadIO (..))
 import           Data.Default                             (def)
 import qualified Data.Map                                 as Map
-import           Data.Maybe                               (fromJust)
 import           ENCOINS.Core.OffChain                    (beaconTx, encoinsTx, postEncoinsPolicyTx, postStakingValidatorTx,
                                                            stakeOwnerTx)
 import           ENCOINS.Core.OnChain                     (EncoinsRedeemer, beaconCurrencySymbol, encoinsSymbol,
                                                            ledgerValidatorAddress)
 import           ENCOINS.Core.V1.OffChain                 (EncoinsMode (..))
+import           Encoins.Relay.Server.Config              (EncoinsRelayConfig (..), referenceScriptSalt, treasuryWalletAddress,
+                                                           verifierPKH)
 import           Encoins.Relay.Verifier.Client            (mkVerifierClientEnv, verifierClient)
 import           Encoins.Relay.Verifier.Server            (VerifierApiError (..))
 import           Ledger                                   (Address, TxId (TxId), TxOutRef (..))
@@ -41,28 +38,16 @@ import           PlutusAppsExtra.IO.ChainIndex            (ChainIndex (..))
 import           PlutusAppsExtra.IO.Wallet                (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder)
-import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
-import           PlutusTx.Prelude                         (BuiltinByteString, toBuiltin)
 import           Servant.Client                           (ClientEnv (..))
-import           Text.Hex                                 (Text, decodeHex)
-
-verifierPKH :: BuiltinByteString
-verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
-
-treasuryWalletAddress :: Address
-treasuryWalletAddress = fromJust $ bech32ToAddress
-    "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
-
-referenceScriptSalt :: Integer
-referenceScriptSalt = 20
+import           Text.Hex                                 (Text)
 
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do
-    envTxOutRefs <- decodeOrErrorFromFile "txOutRef.json"
-    envVerifierClientEnv <- mkVerifierClientEnv
+    EncoinsRelayConfig{..} <- loadConfig >>= decodeOrErrorFromFile . cAuxiliaryEnvFile
+    verifierClientEnv <- decodeOrErrorFromFile cVerifierConfig >>= mkVerifierClientEnv
     pure $ ServerHandle
         Kupo
-        EncoinsRelayEnv{..}
+        (EncoinsRelayEnv cRefStakeOwner cRefBeacon verifierClientEnv)
         getTrackedAddresses
         txBuilders
         (pure ())
@@ -79,11 +64,6 @@ type EncoinsApi = ServerApi
 type instance InputOf        EncoinsApi = (EncoinsRedeemer, EncoinsMode)
 type instance AuxillaryEnvOf EncoinsApi = EncoinsRelayEnv
 
-data EncoinsRelayEnv = EncoinsRelayEnv
-    { envTxOutRefs         :: (TxOutRef, TxOutRef)
-    , envVerifierClientEnv :: ClientEnv
-    }
-
 data EncoinsTxApiError
     = CorruptedExternalUTXOs
     | VerifierError VerifierApiError
@@ -98,7 +78,7 @@ instance IsCardanoServerError EncoinsTxApiError where
 
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
-    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
+    (refStakeOwner, refBeacon) <- getRefs
     -- Mint the stake owner token
     utxos <- getWalletUtxos
     let utxos' = Map.delete refBeacon utxos
@@ -114,16 +94,6 @@ serverSetup = void $ do
     -- Post the staking validator policy
     mkTx [] def [postStakingValidatorTx ledgerParams referenceScriptSalt]
 
-getTrackedAddresses :: ServerM EncoinsApi [Address]
-getTrackedAddresses = do
-    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
-    let encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
-        stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
-    return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
-
-getLedgerAddress :: ServerM EncoinsApi Address
-getLedgerAddress = head <$> getTrackedAddresses
-
 processRequest :: (InputOf EncoinsApi, TransactionUnspentOutputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
     let utxos   = maybe (throw CorruptedExternalUTXOs) Map.fromList $ fromCSL utxosCSL
@@ -132,7 +102,7 @@ processRequest ((red@((_, addr), _, _, _), mode), utxosCSL) = do
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
 txBuilders (red, mode) = do
-    (refStakeOwner, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
+    (refStakeOwner, refBeacon) <- getRefs
     relayWalletAddress <- getWalletAddr
     let beaconSymb = beaconCurrencySymbol refBeacon
         stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
@@ -144,3 +114,24 @@ verifyRedeemer red = do
     verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
     let ?servantClientEnv = verifierClientEnv
     liftIO (verifierClient red) >>= either throwM pure
+
+----------------------------------------------------------------- Env ---------------------------------------------------------------------
+
+data EncoinsRelayEnv = EncoinsRelayEnv
+    { envRefStakeOwner     :: TxOutRef
+    , envRefBeacon         :: TxOutRef
+    , envVerifierClientEnv :: ClientEnv
+    }
+
+getRefs :: ServerM EncoinsApi (TxOutRef, TxOutRef)
+getRefs = (envRefStakeOwner &&& envRefBeacon) <$> getAuxillaryEnv
+
+getTrackedAddresses :: ServerM EncoinsApi [Address]
+getTrackedAddresses = do
+    (refStakeOwner, refBeacon) <- getRefs
+    let encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
+        stakeOwnerSymb = beaconCurrencySymbol refStakeOwner
+    return [ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb), alwaysFalseValidatorAddress referenceScriptSalt]
+
+getLedgerAddress :: ServerM EncoinsApi Address
+getLedgerAddress = head <$> getTrackedAddresses

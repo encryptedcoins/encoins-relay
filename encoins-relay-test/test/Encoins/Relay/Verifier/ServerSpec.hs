@@ -15,7 +15,7 @@ import           ENCOINS.Core.V1.OffChain      (EncoinsMode (..))
 import           Encoins.Relay.Client.Client   (secretsToReqBody, termsToSecrets)
 import           Encoins.Relay.Client.Secrets  (randomMintTerm)
 import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVerifierClientEnv, verifierClient)
-import           Encoins.Relay.Verifier.Server (VerifierApiError (..), verifierPrvKey)
+import           Encoins.Relay.Verifier.Server (VerifierApiError (..), verifierPrvKey, loadVerifierConfig)
 import           Internal                      (runEncoinsServerM)
 import           PlutusAppsExtra.Utils.Crypto  (sign)
 import           System.Random                 (randomRIO)
@@ -24,7 +24,7 @@ import           Test.Hspec                    (Expectation, Spec, describe, it,
 spec :: Spec
 spec = describe "encoins-verifier" $ do
 
-    cEnv <- runIO mkVerifierClientEnv
+    cEnv <- runIO $ loadVerifierConfig >>= mkVerifierClientEnv
 
     let ?mode = WalletMode
         ?servantClientEnv = cEnv

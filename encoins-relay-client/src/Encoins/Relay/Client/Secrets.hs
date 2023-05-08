@@ -7,7 +7,7 @@
 
 module Encoins.Relay.Client.Secrets where
 
-import           Cardano.Server.Internal       (ServerM, getAuxillaryEnv)
+import           Cardano.Server.Internal       (ServerM)
 import           Control.Monad                 (replicateM)
 import           Control.Monad.Extra           (ifM)
 import           Control.Monad.IO.Class        (MonadIO (..))
@@ -25,7 +25,8 @@ import           ENCOINS.Bulletproofs          (Secret (..), fromSecret)
 import           ENCOINS.Core.OnChain          (beaconCurrencySymbol, encoinsSymbol)
 import           ENCOINS.Core.V1.OffChain      (EncoinsMode (..))
 import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Server   (EncoinsApi, EncoinsRelayEnv (..), getLedgerAddress, verifierPKH)
+import           Encoins.Relay.Server.Config   (verifierPKH)
+import           Encoins.Relay.Server.Server   (EncoinsApi, getLedgerAddress, getRefs)
 import           Encoins.Relay.Verifier.Server (bulletproofSetup)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (CurrencySymbol, TokenName)
@@ -122,5 +123,5 @@ randomMintTerm = randomRIO (1, 100) <&> RPMint . lovelaceOf
 
 getEncoinsSymbol :: ServerM EncoinsApi CurrencySymbol
 getEncoinsSymbol = do
-    (_, refBeacon) <- envTxOutRefs <$> getAuxillaryEnv
+    (_, refBeacon) <- getRefs
     pure $ encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)

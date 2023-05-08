@@ -17,7 +17,7 @@ import           Control.Exception             (Exception)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer)
-import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..), VerifierConfig (..), loadVerifierConfig)
+import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..), VerifierConfig (..))
 import           Servant                       (Proxy (Proxy), WithStatus (..))
 import           Servant.Client                (BaseUrl (..), ClientEnv, ClientError, Scheme (..), baseUrl, client, foldMapUnion,
                                                 runClientM)
@@ -31,9 +31,8 @@ verifierClient red
     where
         foldUnion = foldMapUnion (Proxy @UnUnionVerifierResult) unUnion
 
-mkVerifierClientEnv :: IO ClientEnv
-mkVerifierClientEnv = do
-    VerifierConfig{..} <- loadVerifierConfig
+mkVerifierClientEnv :: VerifierConfig -> IO ClientEnv
+mkVerifierClientEnv VerifierConfig{..} = do
     cEnv <- createServantClientEnv
     pure cEnv{baseUrl = BaseUrl Http (T.unpack cHost) cPort ""}
 

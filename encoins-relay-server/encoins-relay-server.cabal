@@ -31,6 +31,7 @@ common lang
 library
     import: lang
     exposed-modules:
+      Encoins.Relay.Server.Config
       Encoins.Relay.Server.Main
       Encoins.Relay.Server.Opts
       Encoins.Relay.Server.Server
@@ -38,6 +39,7 @@ library
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,
+      aeson-casing                           -any,
       bytestring                             -any,
       cardano-server                         -any,
       cardano-server-client                  -any,
