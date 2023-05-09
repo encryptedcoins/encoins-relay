@@ -9,6 +9,7 @@ import           Control.Monad                     (void)
 import           Control.Monad.IO.Class            (MonadIO (..))
 import           Encoins.Relay.Server.Server       (mkServerHandle)
 import qualified Encoins.Relay.Server.ServerSpec   as Server
+import qualified Encoins.Relay.Server.StatusSpec   as Status
 import           Encoins.Relay.Verifier.Server     (runVerifierServer)
 import qualified Encoins.Relay.Verifier.ServerSpec as Verifier
 import           System.Directory                  (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory)
@@ -28,5 +29,6 @@ main = bracket
     $ const $ do
         sHandle <- mkServerHandle
         withCardanoServer sHandle $ parallel $ do
+            Status.spec
             Verifier.spec
             Server.spec

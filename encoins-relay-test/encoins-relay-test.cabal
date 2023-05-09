@@ -36,6 +36,7 @@ test-suite encoins-relay-test
   Main-Is:              Main.hs
   Other-Modules:
     Encoins.Relay.Server.ServerSpec
+    Encoins.Relay.Server.StatusSpec
     Encoins.Relay.Verifier.ServerSpec
     Internal
   build-depends:
@@ -49,6 +50,7 @@ test-suite encoins-relay-test
     encoins-relay-server                   -any,
     encoins-relay-client                   -any,
     encoins-relay-verifier                 -any,
+    exceptions                             -any,
     extra                                  -any,
     hspec                                  -any,
     hspec-core                             -any,
@@ -57,4 +59,5 @@ test-suite encoins-relay-test
     plutus-tx                              -any,
     plutus-tx-extra                        -any,
     random                                 -any,
+    servant-client                         -any,
     time                                   -any,

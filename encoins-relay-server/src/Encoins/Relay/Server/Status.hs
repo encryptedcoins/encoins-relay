@@ -53,7 +53,7 @@ data EncoinsStatusResult
 
 data EncoinsStatusError
     = EmptyLedger
-    deriving (Show, Exception)
+    deriving (Show, Eq, Exception)
 
 instance IsCardanoServerError EncoinsStatusError where
     errStatus _ = toEnum 422

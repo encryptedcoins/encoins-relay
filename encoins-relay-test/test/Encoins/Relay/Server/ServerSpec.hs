@@ -44,7 +44,7 @@ import           Test.Hspec                     (Expectation, Spec, context, des
 import           Test.Hspec.Core.Spec           (sequential)
 
 spec :: HasServantClientEnv => Spec
-spec = describe "encoins server" $ do
+spec = describe "serverTx endpoint" $ do
 
     context "wallet mode" $ let ?mode = WalletMode in sequential $ do
 
