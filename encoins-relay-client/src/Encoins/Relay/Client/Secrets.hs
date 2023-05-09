@@ -22,13 +22,13 @@ import           Data.Time                     (UTCTime, getCurrentTime)
 import qualified Data.Time                     as Time
 import           ENCOINS.BaseTypes             (FieldElement, MintingPolarity (..))
 import           ENCOINS.Bulletproofs          (Secret (..), fromSecret)
-import           ENCOINS.Core.OnChain          (encoinsSymbol)
 import           ENCOINS.Core.V1.OffChain      (EncoinsMode (..))
 import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Server   (EncoinsApi, getEncoinsProtocolParams, getLedgerAddress)
+import           Encoins.Relay.Server.Internal (getLedgerAddress, getEncoinsSymbol)
+import           Encoins.Relay.Server.Server   (EncoinsApi)
 import           Encoins.Relay.Verifier.Server (bulletproofSetup)
 import           GHC.Generics                  (Generic)
-import           Ledger                        (CurrencySymbol, TokenName)
+import           Ledger                        (TokenName)
 import           Ledger.Ada                    (lovelaceOf)
 import           Ledger.Value                  (TokenName (..), getValue)
 import           PlutusAppsExtra.IO.ChainIndex (getValueAt)
@@ -119,6 +119,3 @@ genTerms = do
 
 randomMintTerm :: MonadIO m => m EncoinsRequestTerm
 randomMintTerm = randomRIO (1, 100) <&> RPMint . lovelaceOf
-
-getEncoinsSymbol :: ServerM EncoinsApi CurrencySymbol
-getEncoinsSymbol = encoinsSymbol <$> getEncoinsProtocolParams

@@ -28,9 +28,9 @@ import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
                                                  txClient)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))
-import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, getEncoinsSymbol, getEncoinsTokensFromMode, mkSecretFile,
+import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, getEncoinsTokensFromMode, mkSecretFile,
                                                  randomMintTerm)
-import           Encoins.Relay.Server.Server    (EncoinsApi, getLedgerAddress, mkServerHandle)
+import           Encoins.Relay.Server.Server    (EncoinsApi, mkServerHandle)
 import           Internal                       (runEncoinsServerM)
 import           Ledger                         (Ada, Address, TokenName)
 import           Ledger.Value                   (TokenName (..), getValue)

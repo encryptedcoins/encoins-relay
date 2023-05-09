@@ -16,7 +16,7 @@ module Encoins.Relay.Client.Client where
 
 import           CSL                            (TransactionUnspentOutputs)
 import           CSL.Class                      (ToCSL (..))
-import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWith, manualWith)
+import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWithRandom, manualWithRead)
 import           Cardano.Server.Client.Internal (ClientEndpoint (..), ServerEndpoint (NewTxE, ServerTxE))
 import           Cardano.Server.Internal        (InputOf, ServerM, getNetworkId)
 import           Cardano.Server.Utils.Logger    (logMsg)
@@ -39,7 +39,8 @@ import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElemen
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readTerms)
 import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, clientSecretToSecret, confirmTokens, genTerms, mkSecretFile,
                                                  readSecretFile)
-import           Encoins.Relay.Server.Server    (EncoinsApi, getLedgerAddress)
+import           Encoins.Relay.Server.Internal  (getLedgerAddress)
+import           Encoins.Relay.Server.Server    (EncoinsApi)
 import           Encoins.Relay.Verifier.Server  (bulletproofSetup)
 import           Ledger.Ada                     (Ada (getLovelace))
 import           Ledger.Value                   (TokenName (..))
@@ -55,10 +56,10 @@ mkClientHandle :: EncoinsMode -> ClientHandle EncoinsApi
 mkClientHandle mode = let ?mode = mode in def
     { autoNewTx      = \i -> forever $ genTerms >>= txClient @'NewTxE >> waitI i
     , autoServerTx   = \i -> forever $ join (genTerms >>= txClient @'ServerTxE) >> waitI i
-    , autoStatus     = autoWith (pure ())
+    , autoStatus     = autoWithRandom
     , manualNewTx    = \txt -> Proxy <$ manualTxClient @'NewTxE txt
     , manualServerTx = \txt -> Proxy <$ join (manualTxClient @'ServerTxE txt)
-    , manualStatus   = manualWith (const $ pure ())
+    , manualStatus   = manualWithRead
     }
     where waitI i = randomRIO (1, i * 2) >>= waitTime
 

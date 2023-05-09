@@ -32,9 +32,11 @@ library
     import: lang
     exposed-modules:
       Encoins.Relay.Server.Config
+      Encoins.Relay.Server.Internal
       Encoins.Relay.Server.Main
       Encoins.Relay.Server.Opts
       Encoins.Relay.Server.Server
+      Encoins.Relay.Server.Status
     other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
@@ -51,12 +53,14 @@ library
       encoins-relay-verifier                 -any,
       exceptions                             -any,
       hex-text                               -any,
+      lens                                   -any,
       mtl                                    -any,
       optparse-applicative                   -any,
       plutus-apps-extra                      -any,
       plutus-tx                              -any,
       plutus-tx-extra                        -any,
       plutus-ledger                          -any,
+      random                                 -any,
       servant-client                         -any,
       text                                   -any,
 
