@@ -3,14 +3,17 @@
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE TypeFamilies       #-}
 
 module Encoins.Relay.Server.Status where
 
-import           Cardano.Server.Error             (Envelope, toEnvelope, ConnectionError)
+import           Cardano.Server.Error             (ConnectionError, Envelope, IsCardanoServerError (..), toEnvelope)
 import           Cardano.Server.Internal          (AuxillaryEnvOf, ServerM)
 import           Control.Lens                     ((^.))
 import           Control.Lens.Tuple               (Field1 (_1))
+import           Control.Monad                    (when)
+import           Control.Monad.Catch              (Exception, MonadThrow (..))
 import           Data.Aeson                       (FromJSON (..), ToJSON (..))
 import qualified Data.Map                         as Map
 import           ENCOINS.Core.OnChain             (minAdaTxOutInLedger)
@@ -48,22 +51,37 @@ data EncoinsStatusResult
     | LedgerUtxoResult MapUTXO
     deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
-type EncoinsStatusErrors = '[ConnectionError]
+data EncoinsStatusError
+    = EmptyLedger
+    deriving (Show, Exception)
+
+instance IsCardanoServerError EncoinsStatusError where
+    errStatus _ = toEnum 422
+    errMsg EmptyLedger = "Ledger doesn't have any utxos."
+
+type EncoinsStatusErrors = '[ConnectionError, EncoinsStatusError]
 
 encoinsStatusHandler :: AuxillaryEnvOf api ~ EncoinsRelayEnv =>
     EncoinsStatusReqBody -> ServerM api (Envelope EncoinsStatusErrors EncoinsStatusResult)
 encoinsStatusHandler = \case
+    MaxAdaWithdrawRequest    -> toEnvelope getMaxAdaWithdraw
+    LedgerUtxoRequestEncoins -> toEnvelope getLedgerEncoins
+    LedgerUtxoRequestTokens  -> toEnvelope getLedgerTokens
 
-    MaxAdaWithdrawRequest -> toEnvelope $ do
-        ada <- maximum . map (Ada.fromValue . _decoratedTxOutValue) . Map.elems <$> getLedgerUtxos
-        pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger . (* 1_000_000) $ toInteger ada
+getMaxAdaWithdraw :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
+getMaxAdaWithdraw = do
+    utxos <- getLedgerUtxos
+    when (null utxos) $ throwM EmptyLedger
+    let ada = maximum . map (Ada.fromValue . _decoratedTxOutValue) $ Map.elems utxos
+    pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger . (* 1_000_000) $ toInteger ada
 
-    LedgerUtxoRequestEncoins -> do
-        ecs <- getEncoinsSymbol
-        ledgerUtxosHandler $ any ((== ecs) . (^. _1)) . flattenValue . _decoratedTxOutValue
+getLedgerEncoins :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
+getLedgerEncoins = do
+    ecs <- getEncoinsSymbol
+    filterLedgerUtxos $ any ((== ecs) . (^. _1)) . flattenValue . _decoratedTxOutValue
 
-    LedgerUtxoRequestTokens -> 
-        ledgerUtxosHandler $ (<= 6) . length . flattenValue . _decoratedTxOutValue
+getLedgerTokens :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
+getLedgerTokens = filterLedgerUtxos $ (<= 6) . length . flattenValue . _decoratedTxOutValue
 
-    where
-        ledgerUtxosHandler f = toEnvelope $ LedgerUtxoResult . Map.filter f <$> getLedgerUtxos
+filterLedgerUtxos :: AuxillaryEnvOf api ~ EncoinsRelayEnv => (DecoratedTxOut -> Bool) -> ServerM api EncoinsStatusResult
+filterLedgerUtxos f = LedgerUtxoResult . Map.filter f <$> getLedgerUtxos
