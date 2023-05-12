@@ -33,7 +33,7 @@ import Control.Exception (throw)
 data EncoinsStatusReqBody
     -- | Get the maximum amount of ada that can be taken from a single utxo bound to a ledger address.
     = MaxAdaWithdraw
-    -- | Get all ledger utxos containing 6 or less encoins tokens and ada.
+    -- | Get all ledger utxos containing 6 or fewer tokens (including ada) and at least one encoins token.
     | LedgerEncoins
     deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
