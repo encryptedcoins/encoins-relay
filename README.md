@@ -59,12 +59,7 @@ $ cabal run encoins-relay-client -- --manual "addr_test1vrnptddmxuwzqqnx8f40ljfg
 $ cabal run encoins-relay-client -- status --manual ada
 ```
 
-2. Get all ledger utxos containing encoins tokens:
+2. Get all ledger utxos containing 6 or fewer tokens (including ada) and at least one encoins token:
 ```console
 $ cabal run encoins-relay-client -- status --manual encoins
-```
-
-3. Get all ledger utxos containing 6 or less tokens (including ada):
-```console
-$ cabal run encoins-relay-client -- status --manual tokens
 ```
