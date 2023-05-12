@@ -31,6 +31,7 @@ common lang
 library
     import: lang
     exposed-modules:
+      Encoins.Relay.Server.Api
       Encoins.Relay.Server.Config
       Encoins.Relay.Server.Internal
       Encoins.Relay.Server.Main
