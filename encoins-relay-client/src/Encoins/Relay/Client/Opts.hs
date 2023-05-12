@@ -5,9 +5,11 @@
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE ViewPatterns       #-}
 
 module Encoins.Relay.Client.Opts where
 
+import qualified CSL
 import           Cardano.Server.Client.Internal (Mode, ServerEndpoint)
 import           Cardano.Server.Client.Opts     (CommonOptions (..), autoModeParser, manualModeParser, serverEndpointParser)
 import           Control.Applicative            (liftA3, (<|>))
@@ -18,9 +20,11 @@ import qualified Data.Text                      as T
 import           ENCOINS.Bulletproofs.Types     (Secret (..))
 import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           GHC.Generics                   (Generic)
+import           Ledger                         (Address)
 import           Ledger.Ada                     (Ada (..))
 import           Options.Applicative            (Parser, argument, auto, execParser, fullDesc, helper, info, metavar, value,
                                                  (<**>))
+import           PlutusAppsExtra.Utils.Address  (bech32ToAddress)
 import           System.Random                  (Random (..))
 import           Text.Read                      (readMaybe)
 
@@ -67,10 +71,14 @@ instance Random [EncoinsRequestTerm] where
         in (reqTerms, gNew)
     randomR _ = random
 
-readTerms :: Text -> Maybe [EncoinsRequestTerm]
-readTerms = mapM (readTerm . T.unpack) . T.splitOn ","
+readRequestTerms :: Text -> Maybe [EncoinsRequestTerm]
+readRequestTerms = mapM (readTerm . T.unpack) . T.splitOn ","
     where
         readTerm = \case
             'b':t   -> Just $ RPBurn $ Right $ "secrets/" <> t <> ".json"
             'm':ada -> fmap (RPMint . fromInteger) . readMaybe $ ada
             _       -> Nothing
+
+readAddressValue :: Text -> Maybe (Address, CSL.Value)
+readAddressValue (T.splitOn "," -> addr:rest) = (,) <$> bech32ToAddress addr <*> readMaybe (T.unpack $ T.intercalate "," rest)
+readAddressValue _ = Nothing

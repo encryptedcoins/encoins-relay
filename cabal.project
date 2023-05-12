@@ -42,12 +42,12 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 884f974d46e898314aee0f21ed2f1e29a2d2dc0c
+  tag: 1676b0c127af766129fdaabe02b0054394e3c29f
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/csl-types.git
-  tag: 381cdcedc049cd6b7536f914f438b90eba734d15
+  tag: 64d302b34932178d691a3895ea140a4f8abd07ce
 
 source-repository-package
   type: git

@@ -31,7 +31,7 @@ spec = describe "encoins-verifier" $ do
     let ?mode = WalletMode
         ?servantClientEnv = cEnv
 
-    ((red,_), _) <- runIO $ runEncoinsServerM $ do
+    (red, _) <- runIO $ runEncoinsServerM $ do
         l        <- randomRIO (1,4)
         terms    <- replicateM l randomMintTerm
         secrets  <- termsToSecrets terms

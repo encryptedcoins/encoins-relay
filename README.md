@@ -40,9 +40,16 @@ $ cabal run encoins-relay-client -- serverTx --manual m30,m4,b0x05e229b5959b43c4
 ```
 Note that the maximum number of tokens in one request is 5.
 
-`ServerTx` and `NewTx` endpoints can also work in ledger mode as follows:
+## ServerTx and NewTx endpoints:
+
+1. `ServerTx` and `NewTx` endpoints can also work in ledger mode as follows:
 ```console
 $ cabal run encoins-relay-client -- serverTx LedgerMode --manual m1,b0xad5b57acbaf171803b94696847c8fa0114bd5df16bcd71fcbcb15b4d3bad761d
+```
+
+2.  These endpoints can also be used to make transactions that produce utxos:
+```console
+$ cabal run encoins-relay-client -- --manual "addr_test1vrnptddmxuwzqqnx8f40ljfggdsfc3hmzmzvnsjtt9wzhdclkhhn5,Value {coin = \"2000000\", multiasset = Just (MultiAsset (fromList [(\"05338963283a4c49b8007aa37b7c2f36ab882f108eb524846fda7949\",fromList [(\"\",\"1\")])]))}"
 ```
 
 ## Status endpoint:

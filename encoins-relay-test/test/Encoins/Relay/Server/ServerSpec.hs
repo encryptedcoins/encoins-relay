@@ -26,7 +26,7 @@ import qualified Data.Time                      as Time
 import           ENCOINS.BaseTypes              (MintingPolarity (Mint))
 import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
-                                                 txClient)
+                                                 txClientRedeemer)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))
 import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, getEncoinsTokensFromMode, mkSecretFile,
                                                  randomMintTerm)
@@ -58,7 +58,7 @@ spec = describe "serverTx endpoint" $ do
 
         it "burn tokens" propBurn
 
-propMint :: TxClientCosntraints ServerTxE => Expectation
+propMint :: (TxClientCosntraints ServerTxE, HasEncoinsMode) => Expectation
 propMint = join $ runEncoinsServerM $ do
     l        <- randomRIO (1,4)
     terms    <- replicateM l randomMintTerm
@@ -67,19 +67,19 @@ propMint = join $ runEncoinsServerM $ do
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
             mapM_ (uncurry mkSecretFile) secrets
-            (((_,(v, inputs),_,_),_),_) <- secretsToReqBody secrets
+            ((_,(v, inputs),_,_),_) <- secretsToReqBody secrets
             currentTime  <- liftIO Time.getCurrentTime
             tokensMinted <- confirmTokens currentTime $ map (first TokenName) inputs
             pure $ tokensMinted `shouldBe` True
 
-propBurn :: TxClientCosntraints ServerTxE => Expectation
+propBurn :: (TxClientCosntraints ServerTxE, HasEncoinsMode) => Expectation
 propBurn = join $ runEncoinsServerM $ do
     terms    <- map (RPBurn . Right . ("secrets/" <>)) <$> liftIO (listDirectory "secrets")
     secrets  <- termsToSecrets terms
     sendTxClientRequest @ServerTxE secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
-            (((_,(v, inputs),_,_),_),_) <- secretsToReqBody secrets
+            ((_,(v, inputs),_,_),_) <- secretsToReqBody secrets
             currentTime  <- liftIO Time.getCurrentTime
             tokensBurned <- confirmTokens currentTime $ map (first TokenName) inputs
             pure $ tokensBurned `shouldBe` True
