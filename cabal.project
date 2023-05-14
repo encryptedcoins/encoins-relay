@@ -57,7 +57,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 0809e0dd66e17d2bafa746e96d77cd9189c7145d
+  tag: 0e66410eaa7ce4c949d101349a3144f4bc6b077e
 
 source-repository-package
   type: git
