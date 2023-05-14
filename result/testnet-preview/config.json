@@ -1,19 +1,21 @@
-{ "server_address"      : "localhost:3000"
-, "min_utxos_number"    : 1
-, "max_utxos_number"    : 10
-, "node_file_path"      : "../../../encoins-tools/testnet-preview/apps/cardano-node/node.sock"
-, "protocol_parameters" : "protocol-parameters.json"
-, "wallet_file"         : "wallets/Relay.json"
-, "auxiliary_env_file"  : "txOutRef.json"
-, "network_id"          : {"tag" : "Testnet", "contents" : 2}
-, "collateral"          : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
-, "chain_index"         : "Kupo"
-, "inactive_endpoints"  :
+{ "host"                     : "localhost"
+, "port"                     : 3000
+, "min_utxos_number"         : 5
+, "max_utxos_number"         : 15
+, "node_file_path"           : "../cardano-node/node.sock"
+, "protocol_parameters_file" : "../cardano-node/protocol-parameters.json"
+, "wallet_file"              : "../../wallets/Relay.json"
+, "auxiliary_env_file"       : "relayConfig.json"
+, "network_id"               : {"tag" : "Testnet", "contents" : 1}
+, "bf_token"                 : null
+, "collateral"               : null
+, "chain_index"              : "Kupo"
+, "inactive_endpoints"       :
     { "ping"          : false
     , "funds"         : true
-    , "add_signature" : true
     , "submit_tx"     : false
     , "new_tx"        : false
-    , "server_tx"     : true
+    , "server_tx"     : false
+    , "status"        : false
     }
 }
