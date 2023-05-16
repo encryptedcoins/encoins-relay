@@ -64,13 +64,13 @@ mkServerHandle = do
         encoinsStatusHandler
 
 type EncoinsApi = ServerApi
-    (Either (Address, CSL.Value) (EncoinsRedeemer, EncoinsMode), TransactionInputs)
+    (Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode), TransactionInputs)
     EncoinsTxApiError
     EncoinsStatusReqBody
     EncoinsStatusErrors
     EncoinsStatusResult
 
-type instance InputOf        EncoinsApi = Either (Address, CSL.Value) (EncoinsRedeemer, EncoinsMode)
+type instance InputOf        EncoinsApi = Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode)
 type instance AuxillaryEnvOf EncoinsApi = EncoinsRelayEnv
 
 data EncoinsTxApiError
@@ -106,8 +106,8 @@ serverSetup = void $ do
 
 processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest req = sequence $ case req of
-    r@(Right (((_, addr), _, _, _), _), _) -> mkContext addr <$> r
-    l@(Left (addr, _), _)                  -> mkContext addr <$> l
+    r@(Right (((_, changeAddr), _, _, _), _), _) -> mkContext changeAddr <$> r
+    l@(Left (_, _, changeAddr), _)                  -> mkContext changeAddr <$> l
     where
         mkContext addr inputsCSL = do
             utxos <- getMapUtxoFromRefs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
@@ -119,7 +119,7 @@ txBuilders (Right (red, mode)) = do
     relayWalletAddress <- getWalletAddr
     red' <- verifyRedeemer red
     pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) encoinsProtocolParams red' mode]
-txBuilders (Left (addr, valCSL)) = do
+txBuilders (Left (addr, valCSL, _)) = do
     let val = fromMaybe (throw CorruptedValue) $ fromCSL valCSL
     ledgerAddress <- getLedgerAddress
     if addr == ledgerAddress

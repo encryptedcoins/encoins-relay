@@ -80,9 +80,10 @@ manualTxClient = \case
 
 txClientAddressValue :: forall e. TxClientCosntraints e => (Address, CSL.Value) -> ServerM EncoinsApi ()
 txClientAddressValue (addr, val) = do
-    txInputs <- fromMaybe [] . toCSL <$> getRefsAt addr
+    changeAddr <- getWalletAddr
+    txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
     logMsg $ "Sending request with:" .< ((addr, val), txInputs)
-    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (Left (addr, val), txInputs))
+    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (Left (addr, val, changeAddr), txInputs))
     logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
 
 ----------------------------------------------------------------------------- TxClient with redeemer -----------------------------------------------------------------------------

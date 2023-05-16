@@ -28,7 +28,7 @@ type Api
       :> Get '[JSON] Funds
 
     :<|> "newTx"    
-      :> ReqBody '[JSON] (Either (Address, CSL.Value) (EncoinsRedeemer, EncoinsMode), CSL.TransactionInputs) 
+      :> ReqBody '[JSON] (Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode), CSL.TransactionInputs) 
       :> Post '[JSON] (Text, Text)
 
     :<|> "submitTx" 
@@ -36,7 +36,7 @@ type Api
       :> Post '[JSON] NoContent
 
     :<|> "serverTx" 
-      :> ReqBody '[JSON] (Either (Address, CSL.Value) (EncoinsRedeemer, EncoinsMode), CSL.TransactionInputs) 
+      :> ReqBody '[JSON] (Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode), CSL.TransactionInputs) 
       :> Post '[JSON] NoContent
 
     :<|> "status"   
