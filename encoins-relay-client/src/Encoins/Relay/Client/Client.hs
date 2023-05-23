@@ -33,8 +33,8 @@ import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
 import           ENCOINS.Bulletproofs           (Secret (..), bulletproof, fromSecret, parseBulletproofParams)
+import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee)
 import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
-import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
 import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAddressValue, readRequestTerms)
 import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, clientSecretToSecret, confirmTokens, genTerms, mkSecretFile,
@@ -124,10 +124,11 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
     txInputs    <- fromMaybe [] . toCSL <$> case ?mode of
         WalletMode -> getRefsAt walletAddr
         LedgerMode -> liftA2 (<>) (getRefsAt walletAddr) (getLedgerAddress >>= getRefsAt)
-    let par = (ledgerAddr, walletAddr) :: TxParams
-        bp   = parseBulletproofParams $ sha2_256 $ toBytes par
-        inputs = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
-        (v, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
+    let v              = sum $ map (fst . fromSecret bulletproofSetup) secrets
+        par           = (ledgerAddr, walletAddr, 2*protocolFee ?mode v) :: TxParams
+        bp            = parseBulletproofParams $ sha2_256 $ toBytes par
+        inputs        = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
+        (_, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
         signature  = ""
     pure ((par, (v, inputs), proof, signature), txInputs)
 

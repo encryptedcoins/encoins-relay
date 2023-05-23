@@ -30,10 +30,9 @@ import           Control.Monad.IO.Class               (MonadIO (..))
 import           Data.Default                         (def)
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (fromMaybe)
-import           ENCOINS.Core.OffChain                (beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
-                                                       stakeOwnerTx)
+import           ENCOINS.Core.OffChain                (EncoinsMode (..), beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
+                                                       stakeOwnerTx, ledgerModifyTx, ledgerProduceTx)
 import           ENCOINS.Core.OnChain                 (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           ENCOINS.Core.V1.OffChain             (EncoinsMode (..), ledgerModifyTx, ledgerProduceTx)
 import           Encoins.Relay.Server.Config          (EncoinsRelayConfig (..), referenceScriptSalt, treasuryWalletAddress,
                                                        verifierPKH)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv),
@@ -106,12 +105,15 @@ serverSetup = void $ do
 
 processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest req = sequence $ case req of
-    r@(Right (((_, changeAddr), _, _, _), _), _) -> mkContext changeAddr <$> r
-    l@(Left (_, _, changeAddr), _)                  -> mkContext changeAddr <$> l
+    r@(Right (((_, changeAddr, _), _, _, _), mode), _) -> mkContext mode changeAddr <$> r
+    l@(Left (_, _, changeAddr), _)                     -> mkContext WalletMode changeAddr <$> l
     where
-        mkContext addr inputsCSL = do
+        mkContext WalletMode addr inputsCSL  = do
             utxos <- getMapUtxoFromRefs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
             pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
+        mkContext LedgerMode _ _  = do
+            utxos <- getWalletUtxos
+            InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
 txBuilders (Right (red, mode)) = do

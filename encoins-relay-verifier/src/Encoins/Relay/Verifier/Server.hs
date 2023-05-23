@@ -30,11 +30,11 @@ import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           ENCOINS.BaseTypes            (toGroupElement)
 import           ENCOINS.Bulletproofs         (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
-import           ENCOINS.Core.OnChain         (EncoinsRedeemer, hashRedeemer, EncoinsRedeemerOnChain)
+import           ENCOINS.Core.OffChain        (mkEncoinsRedeemerOnChain)
+import           ENCOINS.Core.OnChain         (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           GHC.Generics                 (Generic)
 import           GHC.Stack                    (HasCallStack)
 import qualified Network.Wai.Handler.Warp     as Warp
-import           PlutusAppsExtra.Utils.Crypto (sign)
 import           PlutusTx.Extra.ByteString    (toBytes)
 import           PlutusTx.Prelude             (BuiltinByteString, sha2_256)
 import           Servant                      (Handler (Handler), JSON, Proxy (Proxy), ReqBody, StdMethod (GET), UVerb, Union,
@@ -70,13 +70,12 @@ type VerifierApi = "API" :> ReqBody '[JSON] EncoinsRedeemer :> UVerb 'GET '[JSON
 type VerifierApiResult = '[WithStatus 200 EncoinsRedeemerOnChain, WithStatus 422 Text]
 
 verifierHandler :: EncoinsRedeemer -> VerifierM (Union VerifierApiResult)
-verifierHandler (par, input, proof, _) = handle errHandler $ do
+verifierHandler red@(par, input, proof, _) = handle errHandler $ do
     let bp   = parseBulletproofParams $ sha2_256 $ toBytes par
         v    = fst input
         ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
     unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
-    let redOnChain = (par, input, sha2_256 $ toBytes proof, "")
-    respond $ WithStatus @200 (par, input, sha2_256 $ toBytes proof, sign verifierPrvKey $ hashRedeemer redOnChain)
+    respond $ WithStatus @200 $ mkEncoinsRedeemerOnChain verifierPrvKey red
     where
         errHandler :: VerifierApiError -> VerifierM (Union VerifierApiResult)
         errHandler = respond . WithStatus @422 . errMsg
