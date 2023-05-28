@@ -30,24 +30,21 @@ import           Control.Monad.IO.Class               (MonadIO (..))
 import           Data.Default                         (def)
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (fromMaybe)
-import           ENCOINS.Core.OffChain                (EncoinsMode (..), beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
-                                                       stakeOwnerTx, ledgerModifyTx, ledgerProduceTx)
+import           ENCOINS.Core.OffChain                (EncoinsMode(..), beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
+                                                        stakeOwnerTx, encoinsSendTx )
 import           ENCOINS.Core.OnChain                 (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           Encoins.Relay.Server.Config          (EncoinsRelayConfig (..), referenceScriptSalt, treasuryWalletAddress,
                                                        verifierPKH)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv),
-                                                       getEncoinsProtocolParams, getLedgerAddress, getTrackedAddresses)
+                                                       getEncoinsProtocolParams, getTrackedAddresses)
 import           Encoins.Relay.Server.Status          (EncoinsStatusErrors, EncoinsStatusReqBody, EncoinsStatusResult,
                                                        encoinsStatusHandler)
 import           Encoins.Relay.Verifier.Client        (mkVerifierClientEnv, verifierClient)
 import           Encoins.Relay.Verifier.Server        (VerifierApiError (..))
-import           Ledger                               (Address, TxId (TxId), TxOutRef (..), maxMinAdaTxOut)
-import           Ledger.Ada                           (toValue)
-import           PlutusAppsExtra.Constraints.OffChain (utxoProducedTx)
+import           Ledger                               (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex        (ChainIndex (..), getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet            (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Types.Tx             (TransactionBuilder)
-import           PlutusAppsExtra.Utils.Datum          (inlinedUnit)
 
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do
@@ -100,8 +97,6 @@ serverSetup = void $ do
     mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
     -- Post the staking validator policy
     mkTx [] def [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
-    -- Add initial funds to the ENCOINS Ledger
-    mkTx [] def [ledgerModifyTx encoinsProtocolParams (toValue maxMinAdaTxOut)]
 
 processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest req = sequence $ case req of
@@ -122,13 +117,8 @@ txBuilders (Right (red, mode)) = do
     red' <- verifyRedeemer red
     pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) encoinsProtocolParams red' mode]
 txBuilders (Left (addr, valCSL, _)) = do
-    let val = fromMaybe (throw CorruptedValue) $ fromCSL valCSL
-    ledgerAddress <- getLedgerAddress
-    if addr == ledgerAddress
-    then do
-        encoinsProtocolParams <- getEncoinsProtocolParams
-        pure [void $ ledgerProduceTx encoinsProtocolParams val]
-    else pure [utxoProducedTx addr val (Just inlinedUnit)]
+    encoinsProtocolParams <- getEncoinsProtocolParams
+    pure [encoinsSendTx encoinsProtocolParams addr $ fromMaybe (throw CorruptedValue) $ fromCSL valCSL]
 
 verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
 verifyRedeemer red = do
