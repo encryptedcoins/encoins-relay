@@ -30,25 +30,21 @@ import           Control.Monad.IO.Class               (MonadIO (..))
 import           Data.Default                         (def)
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (fromMaybe)
-import           ENCOINS.Core.OffChain                (beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
-                                                       stakeOwnerTx)
+import           ENCOINS.Core.OffChain                (EncoinsMode(..), beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
+                                                        stakeOwnerTx, encoinsSendTx )
 import           ENCOINS.Core.OnChain                 (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           ENCOINS.Core.V1.OffChain             (EncoinsMode (..), ledgerModifyTx, ledgerProduceTx)
 import           Encoins.Relay.Server.Config          (EncoinsRelayConfig (..), referenceScriptSalt, treasuryWalletAddress,
                                                        verifierPKH, loadEncoinsRelayConfig)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv),
-                                                       getEncoinsProtocolParams, getLedgerAddress, getTrackedAddresses)
+                                                       getEncoinsProtocolParams, getTrackedAddresses)
 import           Encoins.Relay.Server.Status          (EncoinsStatusErrors, EncoinsStatusReqBody, EncoinsStatusResult,
                                                        encoinsStatusHandler)
 import           Encoins.Relay.Verifier.Client        (mkVerifierClientEnv, verifierClient)
 import           Encoins.Relay.Verifier.Server        (VerifierApiError (..))
-import           Ledger                               (Address, TxId (TxId), TxOutRef (..), maxMinAdaTxOut)
-import           Ledger.Ada                           (toValue)
-import           PlutusAppsExtra.Constraints.OffChain (utxoProducedTx)
+import           Ledger                               (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex        (ChainIndex (..), getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet            (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Types.Tx             (TransactionBuilder)
-import           PlutusAppsExtra.Utils.Datum          (inlinedUnit)
 
 mkServerHandle :: IO (ServerHandle EncoinsApi)
 mkServerHandle = do
@@ -64,13 +60,13 @@ mkServerHandle = do
         encoinsStatusHandler
 
 type EncoinsApi = ServerApi
-    (Either (Address, CSL.Value) (EncoinsRedeemer, EncoinsMode), TransactionInputs)
+    (Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode), TransactionInputs)
     EncoinsTxApiError
     EncoinsStatusReqBody
     EncoinsStatusErrors
     EncoinsStatusResult
 
-type instance InputOf        EncoinsApi = Either (Address, CSL.Value) (EncoinsRedeemer, EncoinsMode)
+type instance InputOf        EncoinsApi = Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode)
 type instance AuxillaryEnvOf EncoinsApi = EncoinsRelayEnv
 
 data EncoinsTxApiError
@@ -101,17 +97,18 @@ serverSetup = void $ do
     mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
     -- Post the staking validator policy
     mkTx [] def [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
-    -- Add initial funds to the ENCOINS Ledger
-    mkTx [] def [ledgerModifyTx encoinsProtocolParams (toValue maxMinAdaTxOut)]
 
 processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest req = sequence $ case req of
-    r@(Right (((_, addr), _, _, _), _), _) -> mkContext addr <$> r
-    l@(Left (addr, _), _)                  -> mkContext addr <$> l
+    r@(Right (((_, changeAddr, _), _, _, _), mode), _) -> mkContext mode changeAddr <$> r
+    l@(Left (_, _, changeAddr), _)                     -> mkContext WalletMode changeAddr <$> l
     where
-        mkContext addr inputsCSL = do
+        mkContext WalletMode addr inputsCSL  = do
             utxos <- getMapUtxoFromRefs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
             pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
+        mkContext LedgerMode _ _  = do
+            utxos <- getWalletUtxos
+            InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
 txBuilders (Right (red, mode)) = do
@@ -119,14 +116,9 @@ txBuilders (Right (red, mode)) = do
     relayWalletAddress <- getWalletAddr
     red' <- verifyRedeemer red
     pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) encoinsProtocolParams red' mode]
-txBuilders (Left (addr, valCSL)) = do
-    let val = fromMaybe (throw CorruptedValue) $ fromCSL valCSL
-    ledgerAddress <- getLedgerAddress
-    if addr == ledgerAddress
-    then do
-        encoinsProtocolParams <- getEncoinsProtocolParams
-        pure [void $ ledgerProduceTx encoinsProtocolParams val]
-    else pure [utxoProducedTx addr val (Just inlinedUnit)]
+txBuilders (Left (addr, valCSL, _)) = do
+    encoinsProtocolParams <- getEncoinsProtocolParams
+    pure [encoinsSendTx encoinsProtocolParams addr $ fromMaybe (throw CorruptedValue) $ fromCSL valCSL]
 
 verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
 verifyRedeemer red = do

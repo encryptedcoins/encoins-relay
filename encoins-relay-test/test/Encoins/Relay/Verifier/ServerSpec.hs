@@ -11,7 +11,7 @@ import           ENCOINS.BaseTypes             (FieldElementBytes (..), GroupEle
                                                 toGroupElement)
 import           ENCOINS.Bulletproofs          (Proof (..))
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, hashRedeemer)
-import           ENCOINS.Core.V1.OffChain      (EncoinsMode (..))
+import           ENCOINS.Core.OffChain         (EncoinsMode (..), mkEncoinsRedeemerOnChain)
 import           Encoins.Relay.Client.Client   (secretsToReqBody, termsToSecrets)
 import           Encoins.Relay.Client.Secrets  (randomMintTerm)
 import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVerifierClientEnv, verifierClient)
@@ -44,20 +44,19 @@ spec = describe "encoins-verifier" $ do
     it "handles incorrect proof" $ propIncorrectProof red
 
 propOk :: HasServantClientEnv => EncoinsRedeemer -> Expectation
-propOk red@(par, input, proof, _) = do
+propOk red = do
     res <- verifierClient red
-    let redOnChain = (par, input, sha2_256 $ toBytes proof, "")
-    res `shouldBe` Right (par, input, sha2_256 $ toBytes proof, sign verifierPrvKey $ hashRedeemer redOnChain)
+    res `shouldBe` Right (mkEncoinsRedeemerOnChain verifierPrvKey red)
 
 propIncorrectInput :: HasServantClientEnv => EncoinsRedeemer -> Expectation
-propIncorrectInput red@(par, _, proof, sig) = do
+propIncorrectInput (par, input, proof, sig) = do
     res <- verifierClient (par, badInput, proof, sig)
     res `shouldBe` Left (VerifierApiError IncorrectInput)
     where
-        badInput = (-42, [("bad1afsafs", Mint), ("bad2iandas", Burn)])
+        badInput = (fst input - 1, snd input)
 
 propIncorrectProof :: HasServantClientEnv => EncoinsRedeemer -> Expectation
-propIncorrectProof red@(par, input, _, sig) = do
+propIncorrectProof (par, input, _, sig) = do
     res <- verifierClient (par, input, badProof, sig)
     res `shouldBe` Left (VerifierApiError IncorrectProof)
     where

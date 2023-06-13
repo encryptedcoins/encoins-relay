@@ -24,7 +24,7 @@ import           Data.List.Extra                (dropSuffix, partition)
 import           Data.String                    (IsString (..))
 import qualified Data.Time                      as Time
 import           ENCOINS.BaseTypes              (MintingPolarity (Mint))
-import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
+import           ENCOINS.Core.OffChain          (EncoinsMode (..))
 import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
                                                  txClientRedeemer)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))

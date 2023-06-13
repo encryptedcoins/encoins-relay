@@ -18,7 +18,7 @@ import           Data.Bool                      (bool)
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import           ENCOINS.Bulletproofs.Types     (Secret (..))
-import           ENCOINS.Core.V1.OffChain       (EncoinsMode (..))
+import           ENCOINS.Core.OffChain          (EncoinsMode (..))
 import           GHC.Generics                   (Generic)
 import           Ledger                         (Address)
 import           Ledger.Ada                     (Ada (..))

@@ -22,7 +22,7 @@ import           Data.Time                     (UTCTime, getCurrentTime)
 import qualified Data.Time                     as Time
 import           ENCOINS.BaseTypes             (FieldElement, MintingPolarity (..))
 import           ENCOINS.Bulletproofs          (Secret (..), fromSecret)
-import           ENCOINS.Core.V1.OffChain      (EncoinsMode (..))
+import           ENCOINS.Core.OffChain         (EncoinsMode (..))
 import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
 import           Encoins.Relay.Server.Internal (getLedgerAddress, getEncoinsSymbol)
 import           Encoins.Relay.Server.Server   (EncoinsApi)

@@ -29,7 +29,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: 5743719ca0d2bd482f285ba8e60b60a31dc415f6
+  tag: 371aeadb9747f482e66d1d88a26aa8dedf169a0e
   subdir:
     cardano-server
     cardano-server-client
@@ -50,7 +50,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/csl-types.git
-  tag: 64d302b34932178d691a3895ea140a4f8abd07ce
+  tag: 006438e59c506ed5fb934a909e154e6108d1e7de
 
 source-repository-package
   type: git
@@ -60,7 +60,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 01c375593239c680a3632622c389d7ef78582b69
+  tag: 5df604b2c25dbe5d15c3072743c507bf0866edef
 
 source-repository-package
   type: git
