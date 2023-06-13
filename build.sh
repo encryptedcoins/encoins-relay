@@ -6,3 +6,5 @@ cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-server-0.1.0.0/x/en
 cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-client-0.1.0.0/x/encoins-relay-client/build/encoins-relay-client/encoins-relay-client ~/.local/bin/encoins-client
 
 cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-verifier-0.1.0.0/x/encoins-relay-verifier/build/encoins-relay-verifier/encoins-relay-verifier ~/.local/bin/encoins-verifier
+
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-poll-0.1.0.0/x/encoins-relay-poll/build/encoins-relay-poll/encoins-relay-poll ~/.local/bin/encoins-poll
