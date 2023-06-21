@@ -19,6 +19,9 @@ cradle:
     - path: "encoins-relay-poll/src"
       component: "encoins-relay-poll:lib:encoins-relay-poll"
 
+    - path: "encoins-relay-poll/app"
+      component: "encoins-relay-poll:exe:encoins-relay-poll"
+
     #Verifier
     - path: "encoins-relay-verifier/src"
       component: "encoins-relay-verifier:lib:encoins-relay-verifier"
