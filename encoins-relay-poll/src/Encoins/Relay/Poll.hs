@@ -9,6 +9,9 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant <&>           #-}
+
 module Encoins.Relay.Poll where
 
 import           Cardano.Api                          (EraInMode (..), FromJSON, ToJSON, writeFileJSON)
@@ -17,6 +20,7 @@ import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Control.Exception                    (SomeException, handle, try)
 import           Control.Monad                        (forM, guard, join, void, when)
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
+import           Data.Char                            (isNumber)
 import           Data.Default                         (def)
 import           Data.Foldable.Extra                  (notNull)
 import           Data.Function                        (on)
@@ -37,6 +41,12 @@ import           PlutusAppsExtra.IO.ChainIndex.Plutus (getTxFromId)
 import           PlutusAppsExtra.Utils.Kupo           (KupoResponse (..), SlotWithHeaderHash (..))
 import           PlutusTx.Builtins                    (decodeUtf8, fromBuiltin)
 import           System.Directory.Extra               (createDirectoryIfMissing, doesFileExist)
+import           System.Environment                   (getArgs)
+
+doPoll :: IO ()
+doPoll = getArgs <&> map (filter isNumber) >>= \case
+    ["1"] -> poll1
+    _     -> error "unknown poll"
 
 poll1 :: IO ()
 poll1 = do
@@ -106,15 +116,15 @@ getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
         dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
         (pkhBbs, vote) <- hoistMaybeT $ poll1Rules dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
-        MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
+        -- MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
         pureMaybeT (pkh, swhhSlot krCreatedAt, krTransactionId,  vote)
     where
         hoistMaybeT = MaybeT . pure
         pureMaybeT = hoistMaybeT . pure
-        signedBySameKey :: TxId -> BuiltinByteString -> IO Bool
-        signedBySameKey txId pkh = getTxFromId txId <&> \case
-                Just (SomeTx tx BabbageEraInCardanoMode) -> PaymentPubKeyHash (PubKeyHash pkh) `elem` getRequiredSigners tx
-                _ -> False
+        -- signedBySameKey :: TxId -> BuiltinByteString -> IO Bool
+        -- signedBySameKey txId pkh = getTxFromId txId <&> \case
+        --         Just (SomeTx tx BabbageEraInCardanoMode) -> PaymentPubKeyHash (PubKeyHash pkh) `elem` getRequiredSigners tx
+        --         _ -> False
         getStakeKey :: Address -> Maybe PubKeyHash
         getStakeKey = \case
             (Address _ (Just (StakingHash (PubKeyCredential pkh)))) -> Just pkh
