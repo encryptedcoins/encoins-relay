@@ -1,6 +1,0 @@
-{ "pcCurrencySymbol" : {"unCurrencySymbol" : "9abf0afd2f236a19f2842d502d0450cbcd9c79f123a9708f96fd9b96"}
-, "pcTokenName" : {"unTokenName" : "ENCS"}
-, "pcStart" : {"getSlot" : 87116089}
-, "pcFinish" : {"getSlot" : 95079369}
-, "pcNetworkId" : {"tag" : "Mainnet"}
-}
