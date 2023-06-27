@@ -83,7 +83,7 @@ getSmthPartially folderName getSmth slotFrom slotTo slotDelta = concat <$> do
     where
         getPortion i f t len = reloadHandler $ do
             putStrLn $ show i <> "/" <> show len
-            let fName = folderName <> "/votes" <> "_" <> show (getSlot slotFrom) <> "_"  <> show (getSlot slotTo) <> ".json"
+            let fName = folderName <> "/votes" <> "_" <> show (getSlot f) <> "_"  <> show (getSlot t) <> ".json"
             !smth <- doesFileExist fName >>= \ex -> if ex
                     then try @SomeException (decodeOrErrorFromFile fName) >>= either (const $ (getSmth `on` Just) f t) pure
                     else (getSmth `on` Just) f t
@@ -111,7 +111,7 @@ getVoteFromKupoResponse rules KupoResponse{..} = runMaybeT $ do
         dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
         (pkhBbs, vote) <- hoistMaybeT $ rules dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
-        MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
+        -- MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
         pureMaybeT (pkh, swhhSlot krCreatedAt, krTransactionId,  vote)
     where
         hoistMaybeT = MaybeT . pure
