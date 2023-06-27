@@ -16,8 +16,9 @@ module Encoins.Relay.Poll where
 
 import           Cardano.Api                          (EraInMode (..), FromJSON, ToJSON, writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
-import           Control.Exception                    (SomeException, handle, try)
+import           Control.Exception                    (SomeException, handle, try, AsyncException (UserInterrupt), Exception (fromException))
 import           Control.Monad                        (forM, guard, join, void, when)
+import           Control.Monad.Catch                  (MonadThrow(..))
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
 import           Data.Aeson                           (eitherDecodeFileStrict)
 import           Data.Char                            (isNumber)
@@ -125,4 +126,6 @@ getVoteFromKupoResponse rules KupoResponse{..} = runMaybeT $ do
             _ -> Nothing
 
 reloadHandler :: IO a -> IO a
-reloadHandler ma = handle (\(e :: SomeException) -> putStrLn (show e <> "\t(Handled)") >> reloadHandler ma) ma
+reloadHandler ma = (`handle` ma) $ \e -> case fromException e of
+    Just UserInterrupt -> throwM UserInterrupt
+    _ -> putStrLn (show e <> "\t(Handled)") >> reloadHandler ma
