@@ -32,9 +32,11 @@ library
     import: lang
     exposed-modules:
       Encoins.Relay.Poll
+      Encoins.Relay.Poll.Config
     other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
+      aeson                                  -any,
       bytestring                             -any,
       cardano-api                            -any,
       cardano-ledger-babbage                 -any,

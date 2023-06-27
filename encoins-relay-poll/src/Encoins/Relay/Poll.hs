@@ -15,24 +15,21 @@
 module Encoins.Relay.Poll where
 
 import           Cardano.Api                          (EraInMode (..), FromJSON, ToJSON, writeFileJSON)
-import           Cardano.Node.Emulator.TimeSlot       (posixTimeToEnclosingSlot, utcTimeToPOSIXTime)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Control.Exception                    (SomeException, handle, try)
 import           Control.Monad                        (forM, guard, join, void, when)
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
+import           Data.Aeson                           (eitherDecodeFileStrict)
 import           Data.Char                            (isNumber)
-import           Data.Default                         (def)
 import           Data.Foldable.Extra                  (notNull)
 import           Data.Function                        (on)
 import           Data.Functor                         ((<&>))
 import           Data.List                            (groupBy, partition, sortBy)
 import           Data.Maybe                           (catMaybes, listToMaybe, mapMaybe)
-import           Data.Time                            (UTCTime, defaultTimeLocale, parseTimeM)
-import           Ledger                               (Address (..), AssetClass, CurrencySymbol, Datum (..),
-                                                       PaymentPubKeyHash (..), PubKeyHash (..), Slot (..), SomeCardanoApiTx (..),
-                                                       TokenName, TxId (..))
+import           Encoins.Relay.Poll.Config            (PollConfig (..))
+import           Ledger                               (Address (..), Datum (..), PaymentPubKeyHash (..),
+                                                       PubKeyHash (..), Slot (..), SomeCardanoApiTx (..), TxId (..))
 import           Ledger.Tx.CardanoAPI                 (getRequiredSigners)
-import           Ledger.Value                         (AssetClass (..))
 import           Plutus.V1.Ledger.Api                 (BuiltinByteString, Credential (PubKeyCredential), FromData (..),
                                                        StakingCredential (..))
 import           PlutusAppsExtra.IO.ChainIndex.Kupo   (getDatumByHashSafe, getTokenBalanceToSlotByPkh)
@@ -45,29 +42,28 @@ import           System.Environment                   (getArgs)
 
 doPoll :: IO ()
 doPoll = getArgs <&> map (filter isNumber) >>= \case
-    ["1"] -> poll1
+    ["1"] -> poll 1 poll1Rules
     _     -> error "unknown poll"
 
-poll1 :: IO ()
-poll1 = do
-    createDirectoryIfMissing True "pollFiles"
+poll :: Int -> PollRules -> IO ()
+poll pollNo rules = do
+    PollConfig{..} <-  fmap (either error id) . eitherDecodeFileStrict $ "pollConfig" <> show pollNo <> ".json"
+    let folderName = "pollFiles" <> show pollNo
+    createDirectoryIfMissing True folderName
 
-    voteStart <- utcToSlot <$> parseTimeM True defaultTimeLocale "%Y-%m-%d"    "2023-06-07"
-    voteEnd   <- utcToSlot <$> parseTimeM True defaultTimeLocale "%Y-%m-%d-%H" "2023-06-13-22"
-    
     putStrLn "Getting votes..."
-    !votesWithDuplicates <- getSmthPartially 
-        (\f t -> Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM getVoteFromKupoResponse)) voteStart voteEnd 3600
-    let votes = mapMaybe (listToMaybe . reverse) 
-            $ groupBy ((==) `on` (\(pkh,_,_, _) -> pkh)) 
+    let getVotes f t = Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM (getVoteFromKupoResponse rules))
+    !votesWithDuplicates <- getSmthPartially folderName getVotes pcStart pcFinish 3600
+    let votes = mapMaybe (listToMaybe . reverse)
+            $ groupBy ((==) `on` (\(pkh,_,_, _) -> pkh))
             $ sortBy (compare `on` (\(pkh,_,_, _) -> pkh)) votesWithDuplicates
-    writeFileJSON "pollFiles/votes" votes
-    
+    writeFileJSON (folderName <> "/votes") votes
+
     !votesWithWeight <- forM votes $ \(pkh, _, txId, vote) -> do
-        let getWeight = getTokenBalanceToSlotByPkh encoinsCS encoinsTokenName voteEnd pkh
+        let getWeight = getTokenBalanceToSlotByPkh pcCS pcTokenName pcFinish pkh
         weight <- reloadHandler getWeight
         pure (pkh, weight, txId, fromBuiltin $ decodeUtf8 vote)
-    let getVotesNum = sum . map (\(_,v,_, _) -> v)
+    let getVotesNum = sum . map (\(_, v, _, _) -> v)
         (y, n) = partition (\(_, _, _, v) -> v == "Yes") votesWithWeight
         totalV = getVotesNum votesWithWeight
         yV = getVotesNum y
@@ -75,19 +71,18 @@ poll1 = do
         getPercents x = show @Double ((* 100) (((/) `on` fromIntegral) x totalV)) <> "%"
         msg =  "Yes: " <> getPercents yV <> "\n" <> "No: "  <> getPercents nV
     putStrLn msg
-    writeFileJSON "pollFiles/result" msg
-    void $ writeFileJSON "pollFiles/resultFull.json" votesWithWeight
+    writeFileJSON (folderName <> "/result") msg
+    void $ writeFileJSON (folderName <> "/resultFull.json") votesWithWeight
 
-getSmthPartially :: forall smth. (Show smth, MkFileName smth)
-    => (Maybe Slot -> Maybe Slot -> IO [smth]) -> Slot -> Slot -> Slot -> IO [smth]
-getSmthPartially getSmth slotFrom slotTo slotDelta = concat <$> do
-        let xs = [slotFrom, slotFrom + slotDelta .. slotTo]
-            intervals = zip (init xs) (tail xs)
+getSmthPartially :: forall smth. (Show smth, FromJSON smth, ToJSON smth)
+    => String -> (Maybe Slot -> Maybe Slot -> IO [smth]) -> Slot -> Slot -> Slot -> IO [smth]
+getSmthPartially folderName getSmth slotFrom slotTo slotDelta = concat <$> do
+        let intervals = divideTimeIntoIntervals slotFrom slotTo slotDelta
         forM (zip [1 :: Int ..] intervals) $ \(i, (f, t)) -> getPortion i f t (length intervals)
     where
         getPortion i f t len = reloadHandler $ do
             putStrLn $ show i <> "/" <> show len
-            let fName = mkFilePath @smth f t
+            let fName = folderName <> "/votes" <> "_" <> show (getSlot slotFrom) <> "_"  <> show (getSlot slotTo) <> ".json"
             !smth <- doesFileExist fName >>= \ex -> if ex
                     then try @SomeException (decodeOrErrorFromFile fName) >>= either (const $ (getSmth `on` Just) f t) pure
                     else (getSmth `on` Just) f t
@@ -95,15 +90,14 @@ getSmthPartially getSmth slotFrom slotTo slotDelta = concat <$> do
             when (notNull smth) $ print smth
             pure smth
 
-class (ToJSON a, FromJSON a) => MkFileName a where
-    fileName :: FilePath
+divideTimeIntoIntervals :: Slot -> Slot -> Slot -> [(Slot, Slot)]
+divideTimeIntoIntervals from to delta = do
+    let xs = [from, from + delta .. to]
+    zip (init xs) (subtract 1 <$> tail xs) <> [(last $ tail xs, to)]
 
-instance MkFileName (PubKeyHash, Slot, TxId, BuiltinByteString) where fileName = "votes"
+type PollRules = Datum -> Maybe (BuiltinByteString, BuiltinByteString)
 
-mkFilePath :: forall a. MkFileName a =>  Slot ->  Slot -> FilePath
-mkFilePath from to = "pollFiles/" <> fileName @a <> "_" <> show (getSlot from) <> "_"  <> show (getSlot to) <> ".json"
-
-poll1Rules :: Datum -> Maybe (BuiltinByteString, BuiltinByteString)
+poll1Rules :: PollRules
 poll1Rules (Datum dat) =  case fromBuiltinData dat of
     Just ["ENCOINS", "Poll #1", bs2, bs3]
         -> if bs3 == "Yes" || bs3 == "No"
@@ -111,20 +105,20 @@ poll1Rules (Datum dat) =  case fromBuiltinData dat of
            else Nothing
     _ -> Nothing
 
-getVoteFromKupoResponse :: KupoResponse -> IO (Maybe (PubKeyHash, Slot, TxId, BuiltinByteString))
-getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
+getVoteFromKupoResponse :: PollRules -> KupoResponse -> IO (Maybe (PubKeyHash, Slot, TxId, BuiltinByteString))
+getVoteFromKupoResponse rules KupoResponse{..} = runMaybeT $ do
         dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
-        (pkhBbs, vote) <- hoistMaybeT $ poll1Rules dat
+        (pkhBbs, vote) <- hoistMaybeT $ rules dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
-        -- MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
+        MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
         pureMaybeT (pkh, swhhSlot krCreatedAt, krTransactionId,  vote)
     where
         hoistMaybeT = MaybeT . pure
         pureMaybeT = hoistMaybeT . pure
-        -- signedBySameKey :: TxId -> BuiltinByteString -> IO Bool
-        -- signedBySameKey txId pkh = getTxFromId txId <&> \case
-        --         Just (SomeTx tx BabbageEraInCardanoMode) -> PaymentPubKeyHash (PubKeyHash pkh) `elem` getRequiredSigners tx
-        --         _ -> False
+        signedBySameKey :: TxId -> BuiltinByteString -> IO Bool
+        signedBySameKey txId pkh = getTxFromId txId <&> \case
+                Just (SomeTx tx BabbageEraInCardanoMode) -> PaymentPubKeyHash (PubKeyHash pkh) `elem` getRequiredSigners tx
+                _ -> False
         getStakeKey :: Address -> Maybe PubKeyHash
         getStakeKey = \case
             (Address _ (Just (StakingHash (PubKeyCredential pkh)))) -> Just pkh
@@ -132,15 +126,3 @@ getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
 
 reloadHandler :: IO a -> IO a
 reloadHandler ma = handle (\(e :: SomeException) -> putStrLn (show e <> "\t(Handled)") >> reloadHandler ma) ma
-
-encoinsTokenName :: TokenName
-encoinsTokenName = "ENCS"
-
-encoinsCS :: CurrencySymbol
-encoinsCS = "9abf0afd2f236a19f2842d502d0450cbcd9c79f123a9708f96fd9b96"
-
-encoinsAssetClass :: AssetClass
-encoinsAssetClass = AssetClass (encoinsCS, encoinsTokenName)
-
-utcToSlot :: UTCTime -> Slot
-utcToSlot = (+ 4492827) . posixTimeToEnclosingSlot def . utcTimeToPOSIXTime
