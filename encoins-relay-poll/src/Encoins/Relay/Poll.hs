@@ -17,12 +17,11 @@ module Encoins.Relay.Poll where
 import           Cardano.Api                          (EraInMode (..), FromJSON, ToJSON, writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Control.Exception                    (SomeException, handle, try, AsyncException (UserInterrupt), Exception (fromException))
-import           Control.Monad                        (forM, guard, join, void, when)
+import           Control.Monad                        (forM, join, void)
 import           Control.Monad.Catch                  (MonadThrow(..))
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
 import           Data.Aeson                           (eitherDecodeFileStrict)
 import           Data.Char                            (isNumber)
-import           Data.Foldable.Extra                  (notNull)
 import           Data.Function                        (on)
 import           Data.Functor                         ((<&>))
 import           Data.List                            (groupBy, partition, sortBy)
@@ -88,13 +87,13 @@ getSmthPartially folderName getSmth slotFrom slotTo slotDelta = concat <$> do
                     then try @SomeException (decodeOrErrorFromFile fName) >>= either (const $ (getSmth `on` Just) f t) pure
                     else (getSmth `on` Just) f t
             writeFileJSON fName smth
-            when (notNull smth) $ print smth
+            mapM_ print smth
             pure smth
 
 divideTimeIntoIntervals :: Slot -> Slot -> Slot -> [(Slot, Slot)]
 divideTimeIntoIntervals from to delta = do
     let xs = [from, from + delta .. to]
-    zip (init xs) (subtract 1 <$> tail xs) <> [(last $ tail xs, to)]
+    zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
 
 type PollRules = Datum -> Maybe (BuiltinByteString, BuiltinByteString)
 
