@@ -17,6 +17,8 @@ module Encoins.Relay.Poll where
 import           Cardano.Api                          (EraInMode (..), FromJSON, ToJSON, writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Control.Exception                    (SomeException, handle, try, AsyncException (UserInterrupt), Exception (fromException))
+import           Control.Lens                         ((^.))
+import           Control.Lens.Tuple                   ( Field1(_1), Field2(_2), Field4(_4) )
 import           Control.Monad                        (forM, join, void)
 import           Control.Monad.Catch                  (MonadThrow(..))
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
@@ -55,16 +57,16 @@ poll pollNo rules = do
     let getVotes f t = Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM (getVoteFromKupoResponse rules))
     !votesWithDuplicates <- getSmthPartially folderName getVotes pcStart pcFinish 3600
     let votes = mapMaybe (listToMaybe . reverse)
-            $ groupBy ((==) `on` (\(pkh,_,_, _) -> pkh))
-            $ sortBy (compare `on` (\(pkh,_,_, _) -> pkh)) votesWithDuplicates
+            $ groupBy ((==) `on` (^. _1))
+            $ sortBy (compare `on` (^. _1)) votesWithDuplicates
     writeFileJSON (folderName <> "/votes") votes
 
     !votesWithWeight <- forM votes $ \(pkh, _, txId, vote) -> do
         let getWeight = getTokenBalanceToSlotByPkh pcCS pcTokenName pcFinish pkh
         weight <- reloadHandler getWeight
         pure (pkh, weight, txId, fromBuiltin $ decodeUtf8 vote)
-    let getVotesNum = sum . map (\(_, v, _, _) -> v)
-        (y, n) = partition (\(_, _, _, v) -> v == "Yes") votesWithWeight
+    let getVotesNum = sum . map (^. _2)
+        (y, n) = partition ((== "Yes") . (^. _4)) votesWithWeight
         totalV = getVotesNum votesWithWeight
         yV = getVotesNum y
         nV = getVotesNum n

@@ -47,6 +47,7 @@ library
       encoins-core                           -any,
       exceptions                             -any,
       extra                                  -any,
+      lens                                   -any,
       plutus-apps-extra                      -any,
       plutus-chain-index-core                -any,
       plutus-ledger                          -any,
