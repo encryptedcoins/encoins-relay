@@ -49,7 +49,7 @@ doPoll = getArgs <&> map (filter isNumber) >>= \case
 
 poll :: Int -> PollRules -> IO ()
 poll pollNo rules = do
-    PollConfig{..} <-  fmap (either error id) . eitherDecodeFileStrict $ "pollConfig" <> show pollNo <> ".json"
+    PollConfig{..} <-  fmap (either error id) . eitherDecodeFileStrict $ "poll" <> show pollNo <> "config.json"
     let folderName = "pollFiles" <> show pollNo
     createDirectoryIfMissing True folderName
 
