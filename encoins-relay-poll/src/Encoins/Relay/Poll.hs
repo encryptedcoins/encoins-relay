@@ -18,7 +18,7 @@ import           Cardano.Api                          (EraInMode (..), FromJSON,
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Control.Exception                    (SomeException, handle, try, AsyncException (UserInterrupt), Exception (fromException))
 import           Control.Lens                         ((^.))
-import           Control.Lens.Tuple                   ( Field1(_1), Field2(_2), Field4(_4) )
+import           Control.Lens.Tuple                   (Field1(_1), Field2(_2), Field4(_4))
 import           Control.Monad                        (forM, join, void)
 import           Control.Monad.Catch                  (MonadThrow(..))
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
@@ -44,17 +44,17 @@ import           System.Environment                   (getArgs)
 
 doPoll :: IO ()
 doPoll = getArgs <&> map (filter isNumber) >>= \case
-    ["1"] -> poll 1 poll1Rules
+    ["1"] -> poll 1
     _     -> error "unknown poll"
 
-poll :: Int -> PollRules -> IO ()
-poll pollNo rules = do
+poll :: Int -> IO ()
+poll pollNo = do
     PollConfig{..} <-  fmap (either error id) . eitherDecodeFileStrict $ "poll" <> show pollNo <> "config.json"
     let folderName = "poll" <> show pollNo <> "files"
     createDirectoryIfMissing True folderName
 
     putStrLn "Getting votes..."
-    let getVotes f t = Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM (getVoteFromKupoResponse rules))
+    let getVotes f t = Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM getVoteFromKupoResponse)
     !votesWithDuplicates <- getSmthPartially folderName getVotes pcStart pcFinish 3600
     let votes = mapMaybe (listToMaybe . reverse)
             $ groupBy ((==) `on` (^. _1))
@@ -74,7 +74,7 @@ poll pollNo rules = do
         msg =  "Yes: " <> getPercents yV <> "\n" <> "No: "  <> getPercents nV
     putStrLn msg
     writeFileJSON (folderName <> "/result") msg
-    void $ writeFileJSON (folderName <> "/resultFull.json") votesWithWeight
+    void $ writeFileJSON (folderName <> "/resultFull.json") $ map (\(pkh, w, tx, v) -> (pkh, tx, v, w)) votesWithWeight
 
 getSmthPartially :: forall smth. (Show smth, FromJSON smth, ToJSON smth)
     => String -> (Maybe Slot -> Maybe Slot -> IO [smth]) -> Slot -> Slot -> Slot -> IO [smth]
@@ -97,20 +97,10 @@ divideTimeIntoIntervals from to delta = do
     let xs = [from, from + delta .. to]
     zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
 
-type PollRules = Datum -> Maybe (BuiltinByteString, BuiltinByteString)
-
-poll1Rules :: PollRules
-poll1Rules (Datum dat) =  case fromBuiltinData dat of
-    Just ["ENCOINS", "Poll #1", bs2, bs3]
-        -> if bs3 == "Yes" || bs3 == "No"
-           then Just (bs2, bs3)
-           else Nothing
-    _ -> Nothing
-
-getVoteFromKupoResponse :: PollRules -> KupoResponse -> IO (Maybe (PubKeyHash, Slot, TxId, BuiltinByteString))
-getVoteFromKupoResponse rules KupoResponse{..} = runMaybeT $ do
+getVoteFromKupoResponse :: KupoResponse -> IO (Maybe (PubKeyHash, Slot, TxId, BuiltinByteString))
+getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
         dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
-        (pkhBbs, vote) <- hoistMaybeT $ rules dat
+        (pkhBbs, vote) <- hoistMaybeT $ extractVoteFromDatum dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
         -- MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
         pureMaybeT (pkh, swhhSlot krCreatedAt, krTransactionId,  vote)
@@ -124,6 +114,9 @@ getVoteFromKupoResponse rules KupoResponse{..} = runMaybeT $ do
         getStakeKey :: Address -> Maybe PubKeyHash
         getStakeKey = \case
             (Address _ (Just (StakingHash (PubKeyCredential pkh)))) -> Just pkh
+            _ -> Nothing
+        extractVoteFromDatum (Datum dat) = case fromBuiltinData dat of
+            Just ["ENCOINS", "Poll #1", bs2, bs3] -> if bs3 == "Yes" || bs3 == "No" then Just (bs2, bs3) else Nothing
             _ -> Nothing
 
 reloadHandler :: IO a -> IO a
