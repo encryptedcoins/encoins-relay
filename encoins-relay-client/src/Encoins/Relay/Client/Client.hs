@@ -40,7 +40,7 @@ import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAd
 import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, clientSecretToSecret, confirmTokens, genTerms, mkSecretFile,
                                                  readSecretFile)
 import           Encoins.Relay.Server.Internal  (getLedgerAddress)
-import           Encoins.Relay.Server.Server    (EncoinsApi)
+import           Encoins.Relay.Server.Server    (EncoinsApi, InputOfEncoinsApi (..))
 import           Encoins.Relay.Verifier.Server  (bulletproofSetup)
 import           Ledger                         (Address)
 import           Ledger.Ada                     (Ada (getLovelace))
@@ -83,7 +83,7 @@ txClientAddressValue (addr, val) = do
     changeAddr <- getWalletAddr
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
     logMsg $ "Sending request with:" .< ((addr, val), txInputs)
-    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (Left (addr, val, changeAddr), txInputs))
+    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputSending addr val changeAddr, txInputs))
     logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
 
 ----------------------------------------------------------------------------- TxClient with redeemer -----------------------------------------------------------------------------
@@ -103,7 +103,7 @@ sendTxClientRequest secrets = do
             <> foldl prettyInput "" (zip (map fst secrets) inputs)
             <> "\n= "
             <> T.pack (show v)
-    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (Right (red, ?mode), txInputs))
+    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputRedeemer red ?mode, txInputs))
     logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
     pure res
     where
