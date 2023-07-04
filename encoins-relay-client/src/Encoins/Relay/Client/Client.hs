@@ -32,7 +32,7 @@ import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
-import           ENCOINS.Bulletproofs           (Secret (..), bulletproof, fromSecret, parseBulletproofParams)
+import           ENCOINS.Bulletproofs           (Secret (..), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
 import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee)
 import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
 import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
@@ -46,7 +46,7 @@ import           Ledger                         (Address)
 import           Ledger.Ada                     (Ada (getLovelace))
 import           Ledger.Value                   (TokenName (..))
 import           PlutusAppsExtra.IO.ChainIndex  (getRefsAt)
-import           PlutusAppsExtra.IO.Wallet      (getWalletAddr)
+import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletRefs)
 import           PlutusTx.Builtins              (sha2_256)
 import           PlutusTx.Extra.ByteString      (ToBuiltinByteString (..))
 import           Servant.Client                 (runClientM)
@@ -122,12 +122,14 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
     walletAddr <- getWalletAddr
     ledgerAddr <- getLedgerAddress
     txInputs    <- fromMaybe [] . toCSL <$> case ?mode of
-        WalletMode -> getRefsAt walletAddr
-        LedgerMode -> liftA2 (<>) (getRefsAt walletAddr) (getLedgerAddress >>= getRefsAt)
-    let v              = sum $ map (fst . fromSecret bulletproofSetup) secrets
+        WalletMode -> getWalletRefs
+        LedgerMode -> liftA2 (<>) getWalletRefs (getLedgerAddress >>= getRefsAt)
+    liftIO $ print txInputs
+    let (tokenValsAbs, tokenNames) = unzip $ map (fromSecret bulletproofSetup) secrets
+        v              = sum $ zipWith (*) (map polarityToInteger ps) tokenValsAbs
         par           = (ledgerAddr, walletAddr, 2*protocolFee ?mode v) :: TxParams
         bp            = parseBulletproofParams $ sha2_256 $ toBytes par
-        inputs        = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
+        inputs        = zip tokenNames ps
         (_, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
         signature  = ""
     pure ((par, (v, inputs), proof, signature), txInputs)
