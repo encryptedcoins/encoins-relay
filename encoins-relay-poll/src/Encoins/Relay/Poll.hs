@@ -41,11 +41,12 @@ import           PlutusAppsExtra.Utils.Kupo           (KupoResponse (..), SlotWi
 import           PlutusTx.Builtins                    (decodeUtf8, fromBuiltin)
 import           System.Directory.Extra               (createDirectoryIfMissing, doesFileExist)
 import           System.Environment                   (getArgs)
+import           Text.Read                            (readEither)
 
 doPoll :: IO ()
-doPoll = getArgs <&> map (filter isNumber) >>= \case
-    ["1"] -> poll 1
-    _     -> error "unknown poll"
+doPoll = getArgs >>= \case
+    pollNo:_ -> either (error "Incorrect poll number.") poll $ readEither pollNo
+    _        -> error "No poll number is given."
 
 poll :: Int -> IO ()
 poll pollNo = do
