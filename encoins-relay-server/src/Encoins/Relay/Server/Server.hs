@@ -34,7 +34,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe)
 import           Data.Text                     (Text)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), beaconTx, encoinsSendTx, encoinsTx, postEncoinsPolicyTx,
-                                                postLedgerValidatorTx, stakeOwnerTx)
+                                                postLedgerValidatorTx, stakeOwnerTx, delegateTx)
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           Encoins.Relay.Server.Config   (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
                                                 treasuryWalletAddress, verifierPKH)
@@ -112,7 +112,7 @@ processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi 
 processRequest req = sequence $ case req of
     r@(InputRedeemer ((_, changeAddr, _), _, _, _) mode, _) -> mkContext mode changeAddr <$> r
     s@(InputSending _  _ changeAddr, _)                     -> mkContext WalletMode changeAddr <$> s
-    (InputDelegation _ _, _)                                -> error "add context to delegation input"
+    (d@(InputDelegation _ _), _)                            -> (d, pure def)
     where
         mkContext WalletMode addr inputsCSL  = do
             utxos <- getMapUtxoFromRefs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
@@ -132,7 +132,7 @@ txBuilders (InputSending addr valCSL _) = do
     encoinsProtocolParams <- getEncoinsProtocolParams
     pure [encoinsSendTx encoinsProtocolParams addr $ fromMaybe (throw CorruptedValue) $ fromCSL valCSL]
 
-txBuilders (InputDelegation _ _) = error "process delegation input"
+txBuilders (InputDelegation addr ipAddr) = pure [delegateTx addr ipAddr]
 
 verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
 verifyRedeemer red = do
