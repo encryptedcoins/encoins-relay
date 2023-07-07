@@ -19,7 +19,7 @@ import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Control.Exception                    (SomeException, handle, try, AsyncException (UserInterrupt), Exception (fromException))
 import           Control.Lens                         ((^.))
 import           Control.Lens.Tuple                   (Field1(_1), Field2(_2), Field4(_4))
-import           Control.Monad                        (forM, join, void)
+import           Control.Monad                        (forM, join, void, guard)
 import           Control.Monad.Catch                  (MonadThrow(..))
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
 import           Data.Aeson                           (eitherDecodeFileStrict)
@@ -38,14 +38,16 @@ import           PlutusAppsExtra.IO.ChainIndex.Kupo   (getDatumByHashSafe, getTo
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo   as Kupo
 import           PlutusAppsExtra.IO.ChainIndex.Plutus (getTxFromId)
 import           PlutusAppsExtra.Utils.Kupo           (KupoResponse (..), SlotWithHeaderHash (..))
+import           PlutusAppsExtra.Utils.Tx             (txIsSignedByKey)
 import           PlutusTx.Builtins                    (decodeUtf8, fromBuiltin)
 import           System.Directory.Extra               (createDirectoryIfMissing, doesFileExist)
 import           System.Environment                   (getArgs)
+import           Text.Read                            (readEither)
 
 doPoll :: IO ()
-doPoll = getArgs <&> map (filter isNumber) >>= \case
-    ["1"] -> poll 1
-    _     -> error "unknown poll"
+doPoll = getArgs >>= \case
+    pollNo:_ -> either (error "Incorrect poll number.") poll $ readEither pollNo
+    _        -> error "No poll number is given."
 
 poll :: Int -> IO ()
 poll pollNo = do
@@ -102,15 +104,11 @@ getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
         dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
         (pkhBbs, vote) <- hoistMaybeT $ extractVoteFromDatum dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
-        -- MaybeT (Just <$> signedBySameKey krTransactionId pkhBbs) >>= guard
+        -- MaybeT (Just <$> txIsSignedByKey krTransactionId pkhBbs) >>= guard
         pureMaybeT (pkh, swhhSlot krCreatedAt, krTransactionId,  vote)
     where
         hoistMaybeT = MaybeT . pure
         pureMaybeT = hoistMaybeT . pure
-        signedBySameKey :: TxId -> BuiltinByteString -> IO Bool
-        signedBySameKey txId pkh = getTxFromId txId <&> \case
-                Just (SomeTx tx BabbageEraInCardanoMode) -> PaymentPubKeyHash (PubKeyHash pkh) `elem` getRequiredSigners tx
-                _ -> False
         getStakeKey :: Address -> Maybe PubKeyHash
         getStakeKey = \case
             (Address _ (Just (StakingHash (PubKeyCredential pkh)))) -> Just pkh
