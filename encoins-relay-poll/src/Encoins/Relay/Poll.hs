@@ -14,7 +14,7 @@
 
 module Encoins.Relay.Poll where
 
-import           Cardano.Api                          (EraInMode (..), FromJSON, ToJSON, writeFileJSON)
+import           Cardano.Api                          (FromJSON, ToJSON, writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Control.Exception                    (SomeException, handle, try, AsyncException (UserInterrupt), Exception (fromException))
 import           Control.Lens                         ((^.))
@@ -23,20 +23,16 @@ import           Control.Monad                        (forM, join, void, guard)
 import           Control.Monad.Catch                  (MonadThrow(..))
 import           Control.Monad.Trans.Maybe            (MaybeT (..))
 import           Data.Aeson                           (eitherDecodeFileStrict)
-import           Data.Char                            (isNumber)
 import           Data.Function                        (on)
-import           Data.Functor                         ((<&>))
 import           Data.List                            (groupBy, partition, sortBy)
 import           Data.Maybe                           (catMaybes, listToMaybe, mapMaybe)
 import           Encoins.Relay.Poll.Config            (PollConfig (..))
-import           Ledger                               (Address (..), Datum (..), PaymentPubKeyHash (..),
-                                                       PubKeyHash (..), Slot (..), SomeCardanoApiTx (..), TxId (..))
-import           Ledger.Tx.CardanoAPI                 (getRequiredSigners)
-import           Plutus.V1.Ledger.Api                 (BuiltinByteString, Credential (PubKeyCredential), FromData (..),
-                                                       StakingCredential (..))
+import           Ledger                               (Datum (..),
+                                                       PubKeyHash (..), Slot (..), TxId (..))
+import           Plutus.V1.Ledger.Api                 (BuiltinByteString, FromData (..))
 import           PlutusAppsExtra.IO.ChainIndex.Kupo   (getDatumByHashSafe, getTokenBalanceToSlotByPkh)
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo   as Kupo
-import           PlutusAppsExtra.IO.ChainIndex.Plutus (getTxFromId)
+import           PlutusAppsExtra.Utils.Address        (getStakeKey)
 import           PlutusAppsExtra.Utils.Kupo           (KupoResponse (..), SlotWithHeaderHash (..))
 import           PlutusAppsExtra.Utils.Tx             (txIsSignedByKey)
 import           PlutusTx.Builtins                    (decodeUtf8, fromBuiltin)
@@ -109,10 +105,6 @@ getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
     where
         hoistMaybeT = MaybeT . pure
         pureMaybeT = hoistMaybeT . pure
-        getStakeKey :: Address -> Maybe PubKeyHash
-        getStakeKey = \case
-            (Address _ (Just (StakingHash (PubKeyCredential pkh)))) -> Just pkh
-            _ -> Nothing
         extractVoteFromDatum (Datum dat) = case fromBuiltinData dat of
             Just ["ENCOINS", "Poll #1", bs2, bs3] -> if bs3 == "Yes" || bs3 == "No" then Just (bs2, bs3) else Nothing
             _ -> Nothing
