@@ -14,45 +14,46 @@
 
 module Encoins.Relay.Poll where
 
-import           Cardano.Api                          (FromJSON, ToJSON, writeFileJSON)
-import           Cardano.Server.Config                (decodeOrErrorFromFile)
-import           Control.Exception                    (SomeException, handle, try, AsyncException (UserInterrupt), Exception (fromException))
-import           Control.Lens                         ((^.))
-import           Control.Lens.Tuple                   (Field1(_1), Field2(_2), Field4(_4))
-import           Control.Monad                        (forM, join, void, guard)
-import           Control.Monad.Catch                  (MonadThrow(..))
-import           Control.Monad.Trans.Maybe            (MaybeT (..))
-import           Data.Aeson                           (eitherDecodeFileStrict)
-import           Data.Function                        (on)
-import           Data.List                            (groupBy, partition, sortBy)
-import           Data.Maybe                           (catMaybes, listToMaybe, mapMaybe)
-import           Encoins.Relay.Poll.Config            (PollConfig (..))
-import           Ledger                               (Datum (..),
-                                                       PubKeyHash (..), Slot (..), TxId (..))
-import           Plutus.V1.Ledger.Api                 (BuiltinByteString, FromData (..))
-import           PlutusAppsExtra.IO.ChainIndex.Kupo   (getDatumByHashSafe, getTokenBalanceToSlotByPkh)
-import qualified PlutusAppsExtra.IO.ChainIndex.Kupo   as Kupo
-import           PlutusAppsExtra.Utils.Address        (getStakeKey)
-import           PlutusAppsExtra.Utils.Kupo           (KupoResponse (..), SlotWithHeaderHash (..))
-import           PlutusAppsExtra.Utils.Tx             (txIsSignedByKey)
-import           PlutusTx.Builtins                    (decodeUtf8, fromBuiltin)
-import           System.Directory.Extra               (createDirectoryIfMissing, doesFileExist)
-import           System.Environment                   (getArgs)
-import           Text.Read                            (readEither)
+import           Cardano.Api                        (FromJSON, ToJSON, writeFileJSON)
+import           Cardano.Server.Config              (decodeOrErrorFromFile)
+import           Control.Exception                  (AsyncException (UserInterrupt), Exception (fromException), SomeException,
+                                                     handle, try)
+import           Control.Lens                       ((^.))
+import           Control.Lens.Tuple                 (Field1 (_1), Field2 (_2), Field4 (_4))
+import           Control.Monad                      (forM, guard, join, void)
+import           Control.Monad.Catch                (MonadThrow (..))
+import           Control.Monad.Trans.Maybe          (MaybeT (..))
+import           Data.Aeson                         (eitherDecodeFileStrict)
+import           Data.Function                      (on)
+import           Data.List                          (groupBy, partition, sortBy)
+import           Data.Maybe                         (catMaybes, listToMaybe, mapMaybe)
+import           Encoins.Relay.Poll.Config          (PollConfig (..))
+import           Ledger                             (Datum (..), PubKeyHash (..), Slot (..), TxId (..))
+import           Plutus.V1.Ledger.Api               (BuiltinByteString, FromData (..))
+import           PlutusAppsExtra.IO.ChainIndex.Kupo (getDatumByHashSafe, getTokenBalanceToSlotByPkh)
+import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
+import           PlutusAppsExtra.Utils.Address      (getStakeKey)
+import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (..))
+import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
+import           PlutusTx.Builtins                  (decodeUtf8, fromBuiltin)
+import           PlutusTx.Builtins.Class            (stringToBuiltinByteString)
+import           System.Directory.Extra             (createDirectoryIfMissing, doesFileExist)
+import           System.Environment                 (getArgs)
+import           Text.Read                          (readEither)
 
 doPoll :: IO ()
 doPoll = getArgs >>= \case
     pollNo:_ -> either (error "Incorrect poll number.") poll $ readEither pollNo
     _        -> error "No poll number is given."
 
-poll :: Int -> IO ()
+poll :: Integer -> IO ()
 poll pollNo = do
     PollConfig{..} <-  fmap (either error id) . eitherDecodeFileStrict $ "poll" <> show pollNo <> "config.json"
     let folderName = "poll" <> show pollNo <> "files"
     createDirectoryIfMissing True folderName
 
     putStrLn "Getting votes..."
-    let getVotes f t = Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM getVoteFromKupoResponse)
+    let getVotes f t = Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM (getVoteFromKupoResponse pollNo))
     !votesWithDuplicates <- getSmthPartially folderName getVotes pcStart pcFinish 3600
     let votes = mapMaybe (listToMaybe . reverse)
             $ groupBy ((==) `on` (^. _1))
@@ -95,8 +96,8 @@ divideTimeIntoIntervals from to delta = do
     let xs = [from, from + delta .. to]
     zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
 
-getVoteFromKupoResponse :: KupoResponse -> IO (Maybe (PubKeyHash, Slot, TxId, BuiltinByteString))
-getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
+getVoteFromKupoResponse :: Integer -> KupoResponse -> IO (Maybe (PubKeyHash, Slot, TxId, BuiltinByteString))
+getVoteFromKupoResponse pollNo KupoResponse{..} = runMaybeT $ do
         dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
         (pkhBbs, vote) <- hoistMaybeT $ extractVoteFromDatum dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
@@ -106,7 +107,10 @@ getVoteFromKupoResponse KupoResponse{..} = runMaybeT $ do
         hoistMaybeT = MaybeT . pure
         pureMaybeT = hoistMaybeT . pure
         extractVoteFromDatum (Datum dat) = case fromBuiltinData dat of
-            Just ["ENCOINS", "Poll #1", bs2, bs3] -> if bs3 == "Yes" || bs3 == "No" then Just (bs2, bs3) else Nothing
+            Just ["ENCOINS", bs1, bs2, bs3] -> 
+                if bs3 == "Yes" || bs3 == "No" && bs1 == "Poll #" <> stringToBuiltinByteString (show pollNo)
+                then Just (bs2, bs3) 
+                else Nothing
             _ -> Nothing
 
 reloadHandler :: IO a -> IO a
