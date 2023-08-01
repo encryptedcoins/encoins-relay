@@ -5,3 +5,6 @@ result/testnet-preview/logs/*
 config/*
 */poll*files/*
 */blockfrost.token
+.history
+secrets/*
+logs/*
