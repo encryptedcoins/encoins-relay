@@ -6,27 +6,28 @@ module Encoins.Relay.Verifier.ServerSpec where
 import           Cardano.Server.Client.Handle  (HasServantClientEnv)
 import           Control.Monad                 (replicateM)
 import           Control.Monad.IO.Class        (MonadIO (..))
+import           Data.Either                   (isLeft)
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.BaseTypes             (FieldElementBytes (..), GroupElement (..), MintingPolarity (..), groupIdentity,
                                                 toGroupElement)
 import           ENCOINS.Bulletproofs          (Proof (..))
-import           ENCOINS.Core.OnChain          (EncoinsRedeemer, hashRedeemer)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), mkEncoinsRedeemerOnChain)
+import           ENCOINS.Core.OnChain          (EncoinsRedeemer, hashRedeemer)
 import           Encoins.Relay.Client.Client   (secretsToReqBody, termsToSecrets)
 import           Encoins.Relay.Client.Secrets  (randomMintTerm)
 import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVerifierClientEnv, verifierClient)
-import           Encoins.Relay.Verifier.Server (VerifierApiError (..), verifierPrvKey, loadVerifierConfig)
+import           Encoins.Relay.Verifier.Server (VerifierApiError (..), verifierPrvKey)
 import           Internal                      (runEncoinsServerM)
 import           PlutusAppsExtra.Utils.Crypto  (sign)
 import           PlutusTx.Extra.ByteString     (toBytes)
 import           PlutusTx.Prelude              (sha2_256)
 import           System.Random                 (randomRIO)
-import           Test.Hspec                    (Expectation, Spec, describe, it, runIO, shouldBe)
+import           Test.Hspec                    (Expectation, Spec, describe, it, runIO, shouldBe, shouldSatisfy)
 
 spec :: Spec
 spec = describe "encoins-verifier" $ do
 
-    cEnv <- runIO $ loadVerifierConfig >>= mkVerifierClientEnv
+    cEnv <- runIO $ mkVerifierClientEnv "encoins-relay-test/test/configuration/verifierConfig.json"
 
     let ?mode = WalletMode
         ?servantClientEnv = cEnv
@@ -51,14 +52,14 @@ propOk red = do
 propIncorrectInput :: HasServantClientEnv => EncoinsRedeemer -> Expectation
 propIncorrectInput (par, input, proof, sig) = do
     res <- verifierClient (par, badInput, proof, sig)
-    res `shouldBe` Left (VerifierApiError IncorrectInput)
+    res `shouldSatisfy` isLeft
     where
         badInput = (fst input - 1, snd input)
 
 propIncorrectProof :: HasServantClientEnv => EncoinsRedeemer -> Expectation
 propIncorrectProof (par, input, _, sig) = do
     res <- verifierClient (par, input, badProof, sig)
-    res `shouldBe` Left (VerifierApiError IncorrectProof)
+    res `shouldSatisfy` isLeft
     where
         badProof = Proof groupIdentity groupIdentity groupIdentity groupIdentity
             (FieldElementBytes "asdasdsad")

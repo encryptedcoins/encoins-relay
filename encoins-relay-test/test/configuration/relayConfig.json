@@ -1,0 +1,4 @@
+{ "ref_stake_owner"  : {"txOutRefId"  : {"getTxId" : "ed2b1412eaab74a647919423f03e11db734df662687721bfe6505b1a2b1cea77"}, "txOutRefIdx" : 3}
+, "ref_beacon"      : {"txOutRefId"  : {"getTxId" : "ed2b1412eaab74a647919423f03e11db734df662687721bfe6505b1a2b1cea77"}, "txOutRefIdx" : 1}
+, "verifier_config" : "encoins-relay-test/test/configuration/verifierConfig.json"
+}

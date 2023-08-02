@@ -1,0 +1,20 @@
+{ "host"                     : "localhost"
+, "port"                     : 3000
+, "auxiliary_env_file"       : "encoins-relay-test/test/configuration/relayConfig.json"
+, "wallet_file"              : "encoins-relay-test/test/configuration/wallet.json"
+, "min_utxos_number"         : 1
+, "max_utxos_number"         : 15
+, "network_id"               : {"tag" : "Testnet", "contents" : 2}
+, "collateral"               : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
+, "protocol_parameters_file" : "encoins-relay-test/test/configuration/protocol-parameters.json"
+, "node_file_path"           : ""
+, "chain_index"              : "Kupo"
+, "inactive_endpoints"       :
+    { "ping"          : false
+    , "funds"         : false
+    , "submit_tx"     : false
+    , "new_tx"        : false
+    , "server_tx"     : false
+    , "status"        : false
+    }
+}

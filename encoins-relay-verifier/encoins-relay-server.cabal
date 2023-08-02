@@ -45,6 +45,7 @@ library
         encoins-core                           -any,
         exceptions                             -any,
         file-embed                             -any,
+        http-client                            -any,
         mtl                                    -any,
         plutus-apps-extra                      -any,
         plutus-tx                              -any,

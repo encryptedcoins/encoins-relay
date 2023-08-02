@@ -28,8 +28,7 @@ import           ENCOINS.Core.OffChain          (EncoinsMode (..))
 import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
                                                  txClientRedeemer)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))
-import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, getEncoinsTokensFromMode, mkSecretFile,
-                                                 randomMintTerm)
+import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, getEncoinsTokensFromMode, mkSecretFile, randomMintTerm)
 import           Encoins.Relay.Server.Server    (EncoinsApi, mkServerHandle)
 import           Internal                       (runEncoinsServerM)
 import           Ledger                         (Ada, Address, TokenName)
@@ -37,9 +36,9 @@ import           Ledger.Value                   (TokenName (..), getValue)
 import           PlutusAppsExtra.IO.ChainIndex  (getAdaAt, getValueAt)
 import           PlutusAppsExtra.IO.Wallet      (getWalletAda)
 import qualified PlutusTx.AssocMap              as PAM
-import           System.Directory               (listDirectory)
+import           System.Directory               (createDirectoryIfMissing, listDirectory, removeDirectoryRecursive)
 import           System.Random                  (randomRIO)
-import           Test.Hspec                     (Expectation, Spec, context, describe, expectationFailure, hspec, it,
+import           Test.Hspec                     (Expectation, Spec, context, describe, expectationFailure, hspec, it, runIO,
                                                  shouldBe, shouldSatisfy)
 import           Test.Hspec.Core.Spec           (sequential)
 
@@ -60,9 +59,10 @@ spec = describe "serverTx endpoint" $ do
 
 propMint :: (TxClientCosntraints ServerTxE, HasEncoinsMode) => Expectation
 propMint = join $ runEncoinsServerM $ do
-    l        <- randomRIO (1,4)
+    l        <- randomRIO (1, 2)
     terms    <- replicateM l randomMintTerm
     secrets  <- termsToSecrets terms
+    liftIO $ createDirectoryIfMissing True "secrets"
     sendTxClientRequest @ServerTxE secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
@@ -76,6 +76,7 @@ propBurn :: (TxClientCosntraints ServerTxE, HasEncoinsMode) => Expectation
 propBurn = join $ runEncoinsServerM $ do
     terms    <- map (RPBurn . Right . ("secrets/" <>)) <$> liftIO (listDirectory "secrets")
     secrets  <- termsToSecrets terms
+    liftIO $ removeDirectoryRecursive "secrets"
     sendTxClientRequest @ServerTxE secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do

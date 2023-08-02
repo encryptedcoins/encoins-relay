@@ -26,7 +26,7 @@ import           Test.Hspec                     (Expectation, Spec, context, des
 
 spec :: Spec
 spec = describe "status endpoint" $ do
-    cEnv <- runIO createServantClientEnv
+    cEnv <- runIO $ createServantClientEnv "encoins-relay-test/test/configuration/config.json"
     let ?servantClientEnv = cEnv
     it "max ada withdraw"      $ withStatusSpec MaxAdaWithdraw getMaxAdaWithdraw
     it "ledger encoins utxos"  $ withStatusSpec LedgerEncoins  getLedgerEncoins

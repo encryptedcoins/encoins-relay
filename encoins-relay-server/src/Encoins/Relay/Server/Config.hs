@@ -3,7 +3,7 @@
 
 module Encoins.Relay.Server.Config where
 
-import           Cardano.Server.Config         (loadConfig, decodeOrErrorFromFile, Config (..))
+import           Cardano.Server.Config         (decodeOrErrorFromFile, Config (..))
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Maybe                    (fromJust)
@@ -13,8 +13,8 @@ import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusTx.Prelude              (BuiltinByteString, toBuiltin)
 import           Text.Hex                      (decodeHex)
 
-loadEncoinsRelayConfig :: IO EncoinsRelayConfig
-loadEncoinsRelayConfig = loadConfig >>= decodeOrErrorFromFile . cAuxiliaryEnvFile
+loadEncoinsRelayConfig :: Config -> IO EncoinsRelayConfig
+loadEncoinsRelayConfig c = decodeOrErrorFromFile $ cAuxiliaryEnvFile c
 
 verifierPKH :: BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"

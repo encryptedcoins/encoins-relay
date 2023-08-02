@@ -124,7 +124,6 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
     txInputs    <- fromMaybe [] . toCSL <$> case ?mode of
         WalletMode -> getWalletRefs
         LedgerMode -> liftA2 (<>) getWalletRefs (getLedgerAddress >>= getRefsAt)
-    liftIO $ print txInputs
     let (tokenValsAbs, tokenNames) = unzip $ map (fromSecret bulletproofSetup) secrets
         v              = sum $ zipWith (*) (map polarityToInteger ps) tokenValsAbs
         par           = (ledgerAddr, walletAddr, 2*protocolFee ?mode v) :: TxParams

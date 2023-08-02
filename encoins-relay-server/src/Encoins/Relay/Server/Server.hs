@@ -16,7 +16,7 @@ module Encoins.Relay.Server.Server where
 import           CSL                                  (TransactionInputs)
 import qualified CSL
 import           CSL.Class                            (FromCSL (..))
-import           Cardano.Server.Config                (decodeOrErrorFromFile)
+import           Cardano.Server.Config                (Config (..))
 import           Cardano.Server.Error                 (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input                 (InputContext (..))
 import           Cardano.Server.Internal              (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
@@ -46,10 +46,10 @@ import           PlutusAppsExtra.IO.ChainIndex        (ChainIndex (..), getMapUt
 import           PlutusAppsExtra.IO.Wallet            (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Types.Tx             (TransactionBuilder)
 
-mkServerHandle :: IO (ServerHandle EncoinsApi)
-mkServerHandle = do
-    EncoinsRelayConfig{..} <- loadEncoinsRelayConfig
-    verifierClientEnv <- decodeOrErrorFromFile cVerifierConfig >>= mkVerifierClientEnv
+mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
+mkServerHandle c = do
+    EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
+    verifierClientEnv <- mkVerifierClientEnv cVerifierConfig
     pure $ ServerHandle
         Kupo
         (EncoinsRelayEnv cRefStakeOwner cRefBeacon verifierPKH verifierClientEnv)

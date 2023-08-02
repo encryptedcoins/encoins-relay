@@ -33,16 +33,15 @@ import           ENCOINS.Bulletproofs         (BulletproofSetup, Input (Input), 
 import           ENCOINS.Core.OffChain        (mkEncoinsRedeemerOnChain)
 import           ENCOINS.Core.OnChain         (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           GHC.Generics                 (Generic)
-import           GHC.Stack                    (HasCallStack)
 import qualified Network.Wai.Handler.Warp     as Warp
 import           PlutusTx.Extra.ByteString    (toBytes)
 import           PlutusTx.Prelude             (BuiltinByteString, sha2_256)
 import           Servant                      (Handler (Handler), JSON, Proxy (Proxy), ReqBody, StdMethod (GET), UVerb, Union,
                                                WithStatus (..), hoistServer, respond, serve, type (:>))
 
-runVerifierServer :: IO ()
-runVerifierServer = do
-        c <- loadVerifierConfig
+runVerifierServer :: FilePath -> IO ()
+runVerifierServer verifierConfigFp = do
+        c <- decodeOrErrorFromFile verifierConfigFp
         unVerifierM $ logMsg "Starting verifier server..."
         Warp.runSettings (mkSettings c) 
             $ serve (Proxy @VerifierApi) 
@@ -98,9 +97,6 @@ data VerifierConfig = VerifierConfig
 
 instance FromJSON VerifierConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-loadVerifierConfig :: HasCallStack => IO VerifierConfig
-loadVerifierConfig = decodeOrErrorFromFile "verifierConfig.json"
 
 bulletproofSetup :: BulletproofSetup
 bulletproofSetup = either error id $ eitherDecode $ fromStrict $(makeRelativeToProject "../config/bulletproof_setup.json" >>= embedFile)
