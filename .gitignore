@@ -7,4 +7,5 @@ config/*
 */blockfrost.token
 .history
 secrets/*
-logs/*
+*/logs/*
+encoins-relay-test/test/configuration/wallet.json
