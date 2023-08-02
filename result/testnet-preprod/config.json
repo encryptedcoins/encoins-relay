@@ -3,9 +3,9 @@
 , "min_utxos_number"         : 5
 , "max_utxos_number"         : 15
 , "node_file_path"           : "../cardano-node/node.sock"
-, "protocol_parameters_file" : "result/testnet-preview/protocol-parameters.json"
-, "wallet_file"              : "result/testnet-preview/wallets/wallet.json"
-, "auxiliary_env_file"       : "result/testnet-preview/relayConfig.json"
+, "protocol_parameters_file" : "result/testnet-preprod/protocol-parameters.json"
+, "wallet_file"              : "result/testnet-preprod/wallets/wallet.json"
+, "auxiliary_env_file"       : "result/testnet-preprod/relayConfig.json"
 , "network_id"               : {"tag" : "Testnet", "contents" : 1}
 , "bf_token"                 : null
 , "collateral"               : null

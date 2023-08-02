@@ -1,7 +1,7 @@
 dist-newstyle
-result/testnet-preview/wallets/*
-result/testnet-preview/secrets/*
-result/testnet-preview/logs/*
+result/testnet-preprod/wallets/*
+result/testnet-preprod/secrets/*
+result/testnet-preprod/logs/*
 config/*
 */poll*files/*
 */blockfrost.token
