@@ -1,7 +1,7 @@
 { "host"                     : "localhost"
 , "port"                     : 3000
 , "auxiliary_env_file"       : "encoins-relay-test/test/configuration/relayConfig.json"
-, "wallet_file"              : "encoins-relay-test/test/configuration/wallet.json"
+, "wallet_file"              : "encoins-relay-test/test/configuration/wallets/wallet.json"
 , "min_utxos_number"         : 1
 , "max_utxos_number"         : 15
 , "network_id"               : {"tag" : "Testnet", "contents" : 2}
