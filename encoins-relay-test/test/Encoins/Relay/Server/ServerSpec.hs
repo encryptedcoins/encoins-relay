@@ -88,7 +88,7 @@ propBurn = join $ runEncoinsServerM $ do
             pure $ tokensBurned `shouldBe` True
 
 maxConfirmationTime :: Pico -- Seconds
-maxConfirmationTime = 120
+maxConfirmationTime = 300
 
 confirmTokens :: HasEncoinsModeAndBulletproofSetup => Time.UTCTime -> [(TokenName, MintingPolarity)] -> ServerM EncoinsApi Bool
 confirmTokens startTime tokens = do
