@@ -9,3 +9,4 @@ config/*
 secrets/*
 logs/*
 encoins-relay-test/test/configuration/wallet.json
+encoins-relay/result/testnet-preprod/wallet.json

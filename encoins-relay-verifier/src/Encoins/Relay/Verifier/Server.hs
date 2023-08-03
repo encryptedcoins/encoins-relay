@@ -6,7 +6,6 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeOperators              #-}
 
@@ -20,11 +19,9 @@ import           Control.Monad                (unless)
 import           Control.Monad.Catch          (MonadCatch, MonadThrow (..), handle)
 import           Control.Monad.Except         (ExceptT (..))
 import           Control.Monad.IO.Class       (MonadIO)
-import           Data.Aeson                   (FromJSON (..), decode, eitherDecode, genericParseJSON)
+import           Data.Aeson                   (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing            (aesonPrefix, snakeCase)
-import           Data.ByteString.Lazy         (fromStrict)
-import           Data.FileEmbed               (embedFile, makeRelativeToProject)
-import           Data.Maybe                   (fromJust, fromMaybe)
+import           Data.Maybe                   (fromMaybe)
 import           Data.String                  (IsString (..))
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
@@ -41,11 +38,16 @@ import           Servant                      (Handler (Handler), JSON, Proxy (P
 
 runVerifierServer :: FilePath -> IO ()
 runVerifierServer verifierConfigFp = do
-        c <- decodeOrErrorFromFile verifierConfigFp
+        VerifierConfig{..} <- decodeOrErrorFromFile verifierConfigFp
+        bulletproofSetup   <- decodeOrErrorFromFile cBulletproofSetupFilePath
+        verifierPrvKey     <- decodeOrErrorFromFile cVerifierPrvKeyFilePath
+
         unVerifierM $ logMsg "Starting verifier server..."
-        Warp.runSettings (mkSettings c) 
+        Warp.runSettings (mkSettings  VerifierConfig{..}) 
             $ serve (Proxy @VerifierApi) 
-            $ hoistServer (Proxy @VerifierApi) (Servant.Handler . ExceptT . fmap Right . unVerifierM) verifierHandler
+            $ hoistServer (Proxy @VerifierApi) 
+                (Servant.Handler . ExceptT . fmap Right . unVerifierM) 
+                (verifierHandler bulletproofSetup verifierPrvKey)
     where
         mkSettings VerifierConfig{..} 
             = Warp.setLogger logReceivedRequest
@@ -68,8 +70,8 @@ type VerifierApi = "API" :> ReqBody '[JSON] EncoinsRedeemer :> UVerb 'GET '[JSON
 
 type VerifierApiResult = '[WithStatus 200 EncoinsRedeemerOnChain, WithStatus 422 Text]
 
-verifierHandler :: EncoinsRedeemer -> VerifierM (Union VerifierApiResult)
-verifierHandler red@(par, input, proof, _) = handle errHandler $ do
+verifierHandler :: BulletproofSetup -> BuiltinByteString -> EncoinsRedeemer -> VerifierM (Union VerifierApiResult)
+verifierHandler bulletproofSetup verifierPrvKey red@(par, input, proof, _) = handle errHandler $ do
     let bp   = parseBulletproofParams $ sha2_256 $ toBytes par
         v    = fst input
         ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
@@ -91,15 +93,12 @@ instance IsCardanoServerError VerifierApiError where
         IncorrectProof -> "The request contained incorrect proof."
 
 data VerifierConfig = VerifierConfig
-    { cHost :: Text
-    , cPort :: Int
+    { cHost                     :: Text
+    , cPort                     :: Int
+    , cVerifierPkh              :: BuiltinByteString
+    , cVerifierPrvKeyFilePath   :: FilePath
+    , cBulletproofSetupFilePath :: FilePath
     } deriving (Generic)
 
 instance FromJSON VerifierConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-bulletproofSetup :: BulletproofSetup
-bulletproofSetup = either error id $ eitherDecode $ fromStrict $(makeRelativeToProject "../config/bulletproof_setup.json" >>= embedFile)
-
-verifierPrvKey :: BuiltinByteString
-verifierPrvKey = fromJust $ decode $ fromStrict $(makeRelativeToProject "../config/prvKey.json" >>= embedFile)

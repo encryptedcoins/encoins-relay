@@ -10,14 +10,9 @@ import           Data.Maybe                    (fromJust)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (Address, TxOutRef (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
-import           PlutusTx.Prelude              (BuiltinByteString, toBuiltin)
-import           Text.Hex                      (decodeHex)
 
 loadEncoinsRelayConfig :: Config -> IO EncoinsRelayConfig
 loadEncoinsRelayConfig c = decodeOrErrorFromFile $ cAuxiliaryEnvFile c
-
-verifierPKH :: BuiltinByteString
-verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
 
 treasuryWalletAddress :: Address
 treasuryWalletAddress = fromJust $ bech32ToAddress

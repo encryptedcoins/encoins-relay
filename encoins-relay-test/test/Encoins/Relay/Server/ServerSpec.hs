@@ -8,6 +8,7 @@
 
 module Encoins.Relay.Server.ServerSpec where
 
+import           Cardano.Server.Config          (decodeOrErrorFromFile)
 import           Cardano.Server.Client.Handle   (HasServantClientEnv)
 import           Cardano.Server.Client.Internal (ServerEndpoint (ServerTxE))
 import           Cardano.Server.Internal        (Env (envLogger), ServerM, loadEnv, runServerM)
@@ -28,7 +29,7 @@ import           ENCOINS.Core.OffChain          (EncoinsMode (..))
 import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
                                                  txClientRedeemer)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))
-import           Encoins.Relay.Client.Secrets   (HasEncoinsMode, getEncoinsTokensFromMode, mkSecretFile, randomMintTerm)
+import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, getEncoinsTokensFromMode, mkSecretFile, randomMintTerm)
 import           Encoins.Relay.Server.Server    (EncoinsApi, mkServerHandle)
 import           Internal                       (runEncoinsServerM)
 import           Ledger                         (Ada, Address, TokenName)
@@ -44,6 +45,8 @@ import           Test.Hspec.Core.Spec           (sequential)
 
 spec :: HasServantClientEnv => Spec
 spec = describe "serverTx endpoint" $ do
+    bulletproofSetup <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/bulletproof_setup.json"
+    let ?bulletproofSetup = bulletproofSetup
 
     context "wallet mode" $ let ?mode = WalletMode in sequential $ do
 
@@ -57,7 +60,7 @@ spec = describe "serverTx endpoint" $ do
 
         it "burn tokens" propBurn
 
-propMint :: (TxClientCosntraints ServerTxE, HasEncoinsMode) => Expectation
+propMint :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
 propMint = join $ runEncoinsServerM $ do
     l        <- randomRIO (1, 2)
     terms    <- replicateM l randomMintTerm
@@ -72,7 +75,7 @@ propMint = join $ runEncoinsServerM $ do
             tokensMinted <- confirmTokens currentTime $ map (first TokenName) inputs
             pure $ tokensMinted `shouldBe` True
 
-propBurn :: (TxClientCosntraints ServerTxE, HasEncoinsMode) => Expectation
+propBurn :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
 propBurn = join $ runEncoinsServerM $ do
     terms    <- map (RPBurn . Right . ("secrets/" <>)) <$> liftIO (listDirectory "secrets")
     secrets  <- termsToSecrets terms
@@ -88,7 +91,7 @@ propBurn = join $ runEncoinsServerM $ do
 maxConfirmationTime :: Pico -- Seconds
 maxConfirmationTime = 120
 
-confirmTokens :: HasEncoinsMode => Time.UTCTime -> [(TokenName, MintingPolarity)] -> ServerM EncoinsApi Bool
+confirmTokens :: HasEncoinsModeAndBulletproofSetup => Time.UTCTime -> [(TokenName, MintingPolarity)] -> ServerM EncoinsApi Bool
 confirmTokens startTime tokens = do
     currentTime <- liftIO Time.getCurrentTime
     let (mustBeMinted, mustBeBurnt) = bimap (map fst) (map fst) $ partition ((== Mint) . snd) tokens

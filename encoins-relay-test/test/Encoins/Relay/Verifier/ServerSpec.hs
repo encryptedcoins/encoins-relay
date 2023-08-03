@@ -3,6 +3,7 @@
 
 module Encoins.Relay.Verifier.ServerSpec where
 
+import           Cardano.Server.Config         (decodeOrErrorFromFile)
 import           Cardano.Server.Client.Handle  (HasServantClientEnv)
 import           Control.Monad                 (replicateM)
 import           Control.Monad.IO.Class        (MonadIO (..))
@@ -16,7 +17,7 @@ import           ENCOINS.Core.OnChain          (EncoinsRedeemer, hashRedeemer)
 import           Encoins.Relay.Client.Client   (secretsToReqBody, termsToSecrets)
 import           Encoins.Relay.Client.Secrets  (randomMintTerm)
 import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVerifierClientEnv, verifierClient)
-import           Encoins.Relay.Verifier.Server (VerifierApiError (..), verifierPrvKey)
+import           Encoins.Relay.Verifier.Server (VerifierApiError (..))
 import           Internal                      (runEncoinsServerM)
 import           PlutusAppsExtra.Utils.Crypto  (sign)
 import           PlutusTx.Extra.ByteString     (toBytes)
@@ -27,9 +28,11 @@ import           Test.Hspec                    (Expectation, Spec, describe, it,
 spec :: Spec
 spec = describe "encoins-verifier" $ do
 
-    cEnv <- runIO $ mkVerifierClientEnv "encoins-relay-test/test/configuration/verifierConfig.json"
+    cEnv             <- runIO $ mkVerifierClientEnv   "encoins-relay-test/test/configuration/verifierConfig.json"
+    bulletproofSetup <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/bulletproof_setup.json"
 
     let ?mode = WalletMode
+        ?bulletproofSetup = bulletproofSetup
         ?servantClientEnv = cEnv
 
     (red, _) <- runIO $ runEncoinsServerM $ do
@@ -47,6 +50,7 @@ spec = describe "encoins-verifier" $ do
 propOk :: HasServantClientEnv => EncoinsRedeemer -> Expectation
 propOk red = do
     res <- verifierClient red
+    verifierPrvKey <- decodeOrErrorFromFile "encoins-relay-test/test/configuration/verifierPrvKey.json"
     res `shouldBe` Right (mkEncoinsRedeemerOnChain verifierPrvKey red)
 
 propIncorrectInput :: HasServantClientEnv => EncoinsRedeemer -> Expectation

@@ -21,12 +21,11 @@ import           Data.Maybe                    (catMaybes)
 import           Data.Time                     (UTCTime, getCurrentTime)
 import qualified Data.Time                     as Time
 import           ENCOINS.BaseTypes             (FieldElement, MintingPolarity (..))
-import           ENCOINS.Bulletproofs          (Secret (..), fromSecret)
+import           ENCOINS.Bulletproofs          (BulletproofSetup, Secret (..), fromSecret)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..))
 import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
 import           Encoins.Relay.Server.Internal (getLedgerAddress, getEncoinsSymbol)
 import           Encoins.Relay.Server.Server   (EncoinsApi)
-import           Encoins.Relay.Verifier.Server (bulletproofSetup)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (TokenName)
 import           Ledger.Ada                    (lovelaceOf)
@@ -37,7 +36,7 @@ import qualified PlutusTx.AssocMap             as PAM
 import           System.Directory              (listDirectory, removeFile)
 import           System.Random                 (randomIO, randomRIO)
 
-type HasEncoinsMode = ?mode :: EncoinsMode
+type HasEncoinsModeAndBulletproofSetup = (?mode :: EncoinsMode, ?bulletproofSetup :: BulletproofSetup)
 
 data ClientSecret = ClientSecret
     { csGamma     :: FieldElement
@@ -52,7 +51,7 @@ data ClientSecret = ClientSecret
 readSecretFile :: FilePath -> IO (Maybe ClientSecret)
 readSecretFile = fmap (eitherToMaybe . eitherDecode) . LBS.readFile
 
-readSecretFiles :: (MonadIO m, HasEncoinsMode) => m [ClientSecret]
+readSecretFiles :: (MonadIO m, HasEncoinsModeAndBulletproofSetup) => m [ClientSecret]
 readSecretFiles = liftIO $ listDirectory "secrets"
     >>= mapM (readSecretFile . ("secrets/" <>)) <&> filter ((== ?mode) . csMode) . catMaybes
 
@@ -62,20 +61,20 @@ clientSecretToFilePath = tokenNameToFilePath . csName
 tokenNameToFilePath :: TokenName -> FilePath
 tokenNameToFilePath = ("secrets/" <>) . (<> ".json") . show
 
-secretToTokenName :: Secret -> TokenName
-secretToTokenName = TokenName . snd . fromSecret bulletproofSetup
+secretToTokenName :: HasEncoinsModeAndBulletproofSetup => Secret -> TokenName
+secretToTokenName = TokenName . snd . fromSecret ?bulletproofSetup
 
 clientSecretToSecret :: ClientSecret -> Secret
 clientSecretToSecret ClientSecret{..} = Secret csGamma csValue
 
-mkSecretFile :: (MonadIO m, HasEncoinsMode) => Secret -> MintingPolarity -> m ()
+mkSecretFile :: (MonadIO m, HasEncoinsModeAndBulletproofSetup) => Secret -> MintingPolarity -> m ()
 mkSecretFile Secret{..} pol = do
     ct <- liftIO getCurrentTime
     let name = secretToTokenName Secret{..}
         cs   = ClientSecret secretGamma secretV pol name False ct ?mode
     liftIO $ LBS.writeFile (clientSecretToFilePath cs) $ encode cs
 
-confirmTokens :: HasEncoinsMode => ServerM EncoinsApi ()
+confirmTokens :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi ()
 confirmTokens = do
     tokens <- getEncoinsTokensFromMode
     (confirmMint, confirmBurn) <- partition ((== Mint) . csPolarity) . filter ((== False) . csConfirmed)
@@ -94,7 +93,7 @@ confirmFile fp = liftIO $ readSecretFile fp >>= \case
     Just sf -> LBS.writeFile fp $ encode sf{csConfirmed = True}
     Nothing -> removeFile fp
 
-getEncoinsTokensFromMode :: HasEncoinsMode => ServerM EncoinsApi [TokenName]
+getEncoinsTokensFromMode :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi [TokenName]
 getEncoinsTokensFromMode = do
     encoinsSymb <- getEncoinsSymbol
     let filterCS cs tokenName = if cs == encoinsSymb then Just tokenName else Nothing
@@ -104,7 +103,7 @@ getEncoinsTokensFromMode = do
 
 -- It is possible to send 5 tokens, but in this case, the size of the tx will 
 -- most likely not fit into the utxo size restrictions.
-genTerms :: HasEncoinsMode => ServerM EncoinsApi [EncoinsRequestTerm]
+genTerms :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi [EncoinsRequestTerm]
 genTerms = do
     secrets <- map csName . filter (\ClientSecret{..} -> csPolarity == Mint && csConfirmed) <$> readSecretFiles
     l <- randomRIO (1, 4)
