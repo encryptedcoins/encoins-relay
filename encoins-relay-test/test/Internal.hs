@@ -9,5 +9,5 @@ runEncoinsServerM :: ServerM EncoinsApi a -> IO a
 runEncoinsServerM ma = do
     let cardanoServerConfigFp = "encoins-relay-test/test/configuration/config.json"
     c <- decodeOrErrorFromFile cardanoServerConfigFp
-    env <- mkServerHandle c >>= loadEnv cardanoServerConfigFp
+    env <- mkServerHandle c >>= loadEnv c
     runServerM env {envLogger = mutedLogger} ma

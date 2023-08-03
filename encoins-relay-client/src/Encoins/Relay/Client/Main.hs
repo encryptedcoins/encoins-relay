@@ -18,4 +18,4 @@ runEncoinsClient cardanoServerConfigFp = do
     bulletproofSetup <- decodeOrErrorFromFile $ cBulletproofSetupFilePath vc
     opts             <- runWithOpts
     sh               <- mkServerHandle c
-    runClientWithOpts cardanoServerConfigFp sh (mkClientHandle bulletproofSetup (optsEncoinsMode opts)) $ extractCommonOptions opts
+    runClientWithOpts c sh (mkClientHandle bulletproofSetup (optsEncoinsMode opts)) $ extractCommonOptions opts

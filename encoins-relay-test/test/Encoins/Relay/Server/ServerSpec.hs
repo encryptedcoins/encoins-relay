@@ -8,9 +8,8 @@
 
 module Encoins.Relay.Server.ServerSpec where
 
-import           Cardano.Server.Config          (decodeOrErrorFromFile)
+import           Cardano.Server.Config          (decodeOrErrorFromFile, ServerEndpoint (ServerTxE))
 import           Cardano.Server.Client.Handle   (HasServantClientEnv)
-import           Cardano.Server.Client.Internal (ServerEndpoint (ServerTxE))
 import           Cardano.Server.Internal        (Env (envLogger), ServerM, loadEnv, runServerM)
 import           Cardano.Server.Utils.Logger    (logSmth, mutedLogger, (.<))
 import           Cardano.Server.Utils.Wait      (waitTime)

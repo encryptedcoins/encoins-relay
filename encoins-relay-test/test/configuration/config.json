@@ -4,17 +4,11 @@
 , "wallet_file"              : "encoins-relay-test/test/configuration/wallets/wallet.json"
 , "min_utxos_number"         : 1
 , "max_utxos_number"         : 15
-, "network_id"               : {"tag" : "Testnet", "contents" : 2}
+, "network_id"               : {"tag" : "Testnet", "contents" : 1}
 , "collateral"               : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
-, "protocol_parameters_file" : "encoins-relay-test/test/configuration/protocol-parameters.json"
 , "node_file_path"           : ""
+, "protocol_parameters_file" : "encoins-relay-test/test/configuration/protocol-parameters.json"
 , "chain_index"              : "Kupo"
-, "inactive_endpoints"       :
-    { "ping"          : false
-    , "funds"         : false
-    , "submit_tx"     : false
-    , "new_tx"        : false
-    , "server_tx"     : false
-    , "status"        : false
-    }
+, "chain_index_config_file"  : "encoins-relay-test/test/configuration/plutus-chain-index-config.json"
+, "active_endpoints"         : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status"]
 }
