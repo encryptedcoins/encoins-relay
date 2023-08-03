@@ -73,4 +73,9 @@ executable encoins-relay-client
   main-is: Main.hs
   build-depends: 
     base                          >= 4.9 && < 5,
-    encoins-relay-client                       ,
+    directory                              -any,
+    cardano-server                         -any,
+    cardano-server-client                  -any,
+    encoins-relay-client                   -any,
+    encoins-relay-server                   -any,
+    encoins-relay-verifier                 -any,
