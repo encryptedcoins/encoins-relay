@@ -28,7 +28,7 @@ import           ENCOINS.Core.OffChain          (EncoinsMode (..))
 import           Encoins.Relay.Client.Client    (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
                                                  txClientRedeemer)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (RPBurn))
-import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, getEncoinsTokensFromMode, mkSecretFile, randomMintTerm)
+import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, getEncoinsTokensFromMode, mkSecretFile, randomMintTermWithUB)
 import           Encoins.Relay.Server.Server    (EncoinsApi, mkServerHandle)
 import           Internal                       (runEncoinsServerM)
 import           Ledger                         (Ada, Address, TokenName)
@@ -62,7 +62,7 @@ spec = describe "serverTx endpoint" $ do
 propMint :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
 propMint = join $ runEncoinsServerM $ do
     l        <- randomRIO (1, 2)
-    terms    <- replicateM l randomMintTerm
+    terms    <- replicateM l $ randomMintTermWithUB 5
     secrets  <- termsToSecrets terms
     liftIO $ createDirectoryIfMissing True "secrets"
     sendTxClientRequest @ServerTxE secrets >>= \case

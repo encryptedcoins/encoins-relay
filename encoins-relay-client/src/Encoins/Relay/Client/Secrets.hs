@@ -117,4 +117,7 @@ genTerms = do
             pure $ RPBurn $ Right $ tokenNameToFilePath secret
 
 randomMintTerm :: MonadIO m => m EncoinsRequestTerm
-randomMintTerm = randomRIO (1, 100) <&> RPMint . lovelaceOf
+randomMintTerm = randomMintTermWithUB 100
+
+randomMintTermWithUB :: MonadIO m => Integer -> m EncoinsRequestTerm
+randomMintTermWithUB upperBound = randomRIO (1, upperBound) <&> RPMint . lovelaceOf
