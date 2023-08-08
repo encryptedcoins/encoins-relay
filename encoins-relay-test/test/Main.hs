@@ -24,7 +24,7 @@ main = do
     bracket
         (C.forkIO $ runVerifierServer "encoins-relay-test/test/configuration/verifierConfig.json")
         C.killThread
-        $ const $ withCardanoServer configFp sHandle $ do
+        $ const $ withCardanoServer configFp sHandle 20 $ do
             runIO $ C.threadDelay 50000
             Status.spec
             Verifier.spec

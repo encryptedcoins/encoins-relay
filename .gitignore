@@ -1,11 +1,4 @@
-dist-newstyle
-result/testnet-preprod/wallets/*
-result/testnet-preprod/secrets/*
-result/testnet-preprod/logs/*
-config/*
-*/poll*files/*
-*/blockfrost.token
 .history
+dist-newstyle
 secrets/*
 logs/*
-encoins-relay-test/test/configuration/wallets/*
