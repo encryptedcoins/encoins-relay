@@ -2,3 +2,4 @@
 dist-newstyle
 secrets/*
 logs/*
+encoins-relay-test/test/configuration/wallets/*
