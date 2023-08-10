@@ -12,6 +12,7 @@ module Encoins.Relay.Server.StatusSpec where
 import           Cardano.Server.Client.Client   (createServantClientEnv)
 import           Cardano.Server.Client.Handle   (HasServantClientEnv)
 import           Cardano.Server.Client.Internal (statusC)
+import           Cardano.Server.Config          (decodeOrErrorFromFile)
 import           Cardano.Server.Internal        (ServerM)
 import           Control.Monad                  (join)
 import           Control.Monad.Catch            (try)
@@ -26,7 +27,8 @@ import           Test.Hspec                     (Expectation, Spec, context, des
 
 spec :: Spec
 spec = describe "status endpoint" $ do
-    cEnv <- runIO createServantClientEnv
+    c    <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/config.json"
+    cEnv <- runIO $ createServantClientEnv c
     let ?servantClientEnv = cEnv
     it "max ada withdraw"      $ withStatusSpec MaxAdaWithdraw getMaxAdaWithdraw
     it "ledger encoins utxos"  $ withStatusSpec LedgerEncoins  getLedgerEncoins

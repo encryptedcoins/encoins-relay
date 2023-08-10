@@ -6,7 +6,6 @@
 module Encoins.Relay.Server.Api where
 
 import qualified CSL
-import           Cardano.Server.Endpoints.Funds     (Funds, FundsReqBody)
 import           Cardano.Server.Endpoints.Tx.Submit (SubmitTxReqBody)
 import           Cardano.Server.Error               (Throws)
 import           Cardano.Server.Error.Servant       (Throwing)
@@ -23,9 +22,9 @@ type Api
     =    "ping"     
       :> Get '[JSON] NoContent
 
-    :<|> "funds"    
-      :> ReqBody '[JSON] FundsReqBody 
-      :> Get '[JSON] Funds
+    :<|> "utxos"    
+      :> ReqBody '[JSON] Text 
+      :> Get '[JSON] CSL.TransactionUnspentOutputs
 
     :<|> "newTx"    
       :> ReqBody '[JSON] (Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode), CSL.TransactionInputs) 
@@ -41,7 +40,7 @@ type Api
 
     :<|> "status"   
       :> ReqBody '[JSON] EncoinsStatusReqBody 
-      :> Post '[JSON] EncoinsStatusResult
+      :> Get '[JSON] EncoinsStatusResult
 
 thisApiIsActual :: Api :~: EraseErrors EncoinsApi
 thisApiIsActual = Refl
