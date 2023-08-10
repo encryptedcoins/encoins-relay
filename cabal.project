@@ -22,6 +22,7 @@ index-state:
 packages:
     encoins-relay-server
     encoins-relay-client
+    encoins-relay-poll
     encoins-relay-verifier
     encoins-relay-test
 
