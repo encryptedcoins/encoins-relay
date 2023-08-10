@@ -101,7 +101,7 @@ getVoteFromKupoResponse pollNo KupoResponse{..} = runMaybeT $ do
         dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
         (pkhBbs, vote) <- hoistMaybeT $ extractVoteFromDatum dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
-        -- MaybeT (Just <$> txIsSignedByKey krTransactionId pkhBbs) >>= guard
+        MaybeT (Just <$> txIsSignedByKey krTransactionId pkhBbs) >>= guard
         pureMaybeT (pkh, swhhSlot krCreatedAt, krTransactionId,  vote)
     where
         hoistMaybeT = MaybeT . pure
