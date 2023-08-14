@@ -48,11 +48,13 @@ library
       exceptions                             -any,
       extra                                  -any,
       lens                                   -any,
+      mtl                                    -any,
       plutus-apps-extra                      -any,
       plutus-chain-index-core                -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       plutus-tx                              -any,
+      text                                   -any,
       time                                   -any,
       transformers                           -any,
 

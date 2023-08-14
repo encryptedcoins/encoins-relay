@@ -12,16 +12,16 @@ import Data.Aeson ( FromJSON(..), withObject, (.:) )
 import Cardano.Api (NetworkId(Mainnet))
 
 data PollConfig = PollConfig
-    { pcCS :: CurrencySymbol
+    { pcCs :: CurrencySymbol
     , pcTokenName :: TokenName
-    , pcStart :: Slot
-    , pcFinish :: Slot
+    , pcStart     :: Slot
+    , pcFinish    :: Slot
     , pcNetworkId :: NetworkId
     } deriving (Show)
 
 instance FromJSON PollConfig where
     parseJSON = withObject "PollConfig" $ \o -> do
-        pcCS        <- o .: "currencySymbol" <|> pure encoinsCS
+        pcCs        <- o .: "currencySymbol" <|> pure encoinsCS
         pcTokenName <- o .: "tokenName" <|> pure encoinsTokenName
         pcStart     <- o .: "start" >>= parseTime
         pcFinish    <- o .: "finish" >>= parseTime
