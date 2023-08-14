@@ -6,22 +6,17 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Redundant <&>           #-}
-
 module Encoins.Relay.Poll where
 
 import           Cardano.Api                        (writeFileJSON)
-import           Control.Monad                      (forM, guard, void)
+import           Control.Monad                      (forM, guard, void, when)
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
 import           Data.Aeson                         (FromJSON, ToJSON, eitherDecodeFileStrict)
@@ -59,7 +54,7 @@ poll pollNo = do
     void $ writeFileJSON (folderName <> "/resultFull.json") result
 
 renderResult :: [(Vote, Integer)] -> String
-renderResult votes = mconcat $ ["Yes: ", renderPercents yes,"\nNo: ", renderPercents no]
+renderResult votes = mconcat ["Yes: ", renderPercents yes,"\nNo: ", renderPercents no]
     where
         getVotesNum = sum . map snd
         (yesVotes, noVotes) = partition ((== "Yes") . voteText . fst) votes
@@ -72,22 +67,22 @@ getResult :: FilePath -> Integer -> PollConfig -> IO [(Vote, Integer)]
 getResult folderName pollNo PollConfig{..} = do
         putStrLn "Getting reponses..."
         !responses <- getResponses
-        
+
         putStrLn "Getting votes..."
         !votes <- fmap catMaybes $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
-            withResultSaving (mconcat [folderName, "/vote_", show krTxId, "@", show krOutputIndex, ".json"]) $ 
+            withResultSaving (mconcat [folderName, "/vote_", show krTxId, "@", show krOutputIndex, ".json"]) $
                 getVoteFromResponse KupoResponse{..}
 
         putStrLn "Calculating each vote weight..."
         let l = show (length votes)
         forM (zip [1 :: Int ..] $ removeDuplicates votes) $ \(i, Vote{..}) -> fmap (Vote{..},) $ do
             liftIO $ putStrLn (show i <> "/" <> l)
-            withResultSaving (mconcat [folderName, "/weight_", show voteTxId, "@", show voteTxIdx, ".json"]) $ 
+            withResultSaving (mconcat [folderName, "/weight_", show voteTxId, "@", show voteTxIdx, ".json"]) $
                 getTokenBalanceToSlot pcCs pcTokenName (Just pcFinish) (StakingHash $ PubKeyCredential votePkh)
 
     where
         getResponses :: IO [KupoResponse]
-        getResponses = 
+        getResponses =
             let req = def @(KupoRequest 'SUSpent 'CSCreated 'CSCreated)
             in partiallyGet pcNetworkId T.putStrLn pcStart pcFinish 3600 req (folderName <> "/responses_")
 
@@ -98,10 +93,10 @@ getResult folderName pollNo PollConfig{..} = do
             (pkhBbs, vote) <- MaybeT . pure $ extractVoteFromDatum dat
             pkh <- MaybeT . pure $ getStakeKey krAddress
             -- Check that tx signed by key specified in datum
-            guard =<< (MaybeT (Just <$> txIsSignedByKey krTxId pkhBbs))
+            when pcCheckDatumPkh $ guard =<< MaybeT (Just <$> txIsSignedByKey krTxId pkhBbs)
             let res = Vote pkh (swhhSlot krCreatedAt) krTxId krOutputIndex (fromBuiltin $ decodeUtf8 vote)
             liftIO $ print res
-            pure $ res
+            pure res
 
         getDatum :: DatumHash -> MaybeT IO Datum
         getDatum dh = MaybeT $ Kupo.getDatumByHash dh
@@ -110,9 +105,9 @@ getResult folderName pollNo PollConfig{..} = do
         removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . voteSlot)) . NonEmpty.groupBy ((==) `on` votePkh) . sortBy (compare `on` votePkh)
 
         extractVoteFromDatum (Datum dat) = case fromBuiltinData dat of
-            Just ["ENCOINS", bs1, bs2, bs3] -> 
+            Just ["ENCOINS", bs1, bs2, bs3] ->
                 if bs3 == "Yes" || bs3 == "No" && bs1 == "Poll #" <> stringToBuiltinByteString (show pollNo)
-                then Just (bs2, bs3) 
+                then Just (bs2, bs3)
                 else Nothing
             _ -> Nothing
 

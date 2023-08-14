@@ -1,31 +1,34 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+
 module Encoins.Relay.Poll.Config where
 
-import Ledger (Slot, CurrencySymbol, TokenName, NetworkId)
-import Data.Foldable (asum)
-import Data.Time (parseTimeM, defaultTimeLocale, UTCTime)
-import Cardano.Node.Emulator (posixTimeToEnclosingSlot, utcTimeToPOSIXTime)
-import Data.Default (Default(..))
-import Control.Applicative ((<|>), Alternative)
-import Data.Aeson ( FromJSON(..), withObject, (.:) )
-import Cardano.Api (NetworkId(Mainnet))
+import           Cardano.Api           (NetworkId (Mainnet))
+import           Cardano.Node.Emulator (posixTimeToEnclosingSlot, utcTimeToPOSIXTime)
+import           Control.Applicative   (Alternative, (<|>))
+import           Data.Aeson            (FromJSON (..), withObject, (.:))
+import           Data.Default          (Default (..))
+import           Data.Foldable         (asum)
+import           Data.Time             (UTCTime, defaultTimeLocale, parseTimeM)
+import           Ledger                (CurrencySymbol, Slot, TokenName)
 
 data PollConfig = PollConfig
-    { pcCs :: CurrencySymbol
-    , pcTokenName :: TokenName
-    , pcStart     :: Slot
-    , pcFinish    :: Slot
-    , pcNetworkId :: NetworkId
+    { pcCs            :: CurrencySymbol
+    , pcTokenName     :: TokenName
+    , pcStart         :: Slot
+    , pcFinish        :: Slot
+    , pcNetworkId     :: NetworkId
+    , pcCheckDatumPkh :: Bool
     } deriving (Show)
 
 instance FromJSON PollConfig where
     parseJSON = withObject "PollConfig" $ \o -> do
-        pcCs        <- o .: "currencySymbol" <|> pure encoinsCS
-        pcTokenName <- o .: "tokenName" <|> pure encoinsTokenName
-        pcStart     <- o .: "start" >>= parseTime
-        pcFinish    <- o .: "finish" >>= parseTime
-        pcNetworkId <- o .: "networkId" <|> pure Mainnet
+        pcCs            <- o .: "currencySymbol" <|> pure encoinsCS
+        pcTokenName     <- o .: "tokenName" <|> pure encoinsTokenName
+        pcStart         <- o .: "start" >>= parseTime
+        pcFinish        <- o .: "finish" >>= parseTime
+        pcNetworkId     <- o .: "networkId" <|> pure Mainnet
+        pcCheckDatumPkh <- o .: "checkDatumPkh" <|> pure True
         pure $ PollConfig{..}
 
 parseTime :: (Alternative m, MonadFail m) => String -> m Slot
