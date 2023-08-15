@@ -10,7 +10,8 @@
 module Encoins.Relay.Client.Opts where
 
 import qualified CSL
-import           Cardano.Server.Client.Internal (Mode, ServerEndpoint)
+import           Cardano.Server.Client.Internal (Mode)
+import           Cardano.Server.Config          (ServerEndpoint)
 import           Cardano.Server.Client.Opts     (CommonOptions (..), autoModeParser, manualModeParser, serverEndpointParser)
 import           Control.Applicative            (liftA3, (<|>))
 import           Data.Aeson                     (ToJSON)

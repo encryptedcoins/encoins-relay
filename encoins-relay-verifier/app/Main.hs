@@ -1,6 +1,6 @@
 module Main where
 
-import Encoins.Relay.Verifier.Server (runVerifierServer)
+import Encoins.Relay.Verifier.Server
 
 main :: IO ()
-main = runVerifierServer
+main = runVerifierServer "encoins-relay-test/test/configuration/verifierConfig.json"

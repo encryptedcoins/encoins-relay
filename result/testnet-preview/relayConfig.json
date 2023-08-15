@@ -1,4 +1,0 @@
-{ "ref_stake_owner"  : {"txOutRefId"  : {"getTxId" : "d58632be7770afd971564ea6793b8451f3ecfacb7597f6f2f125de01c9e5ae66"}, "txOutRefIdx" : 0}
-, "ref_beacon"      : {"txOutRefId"  : {"getTxId" : "e4d0238694cbd5138ef39c36e89ae6262a0326f02a621b6cf0942ebc330db011"}, "txOutRefIdx" : 0}
-, "verifier_config" : "../verifier/verifierConfig.json"
-}

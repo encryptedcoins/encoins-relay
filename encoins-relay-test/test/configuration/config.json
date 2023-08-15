@@ -1,0 +1,16 @@
+{ "host"                     : "localhost"
+, "port"                     : 3000
+, "auxiliary_env_file"       : "encoins-relay-test/test/configuration/relayConfig.json"
+, "wallet_file"              : "encoins-relay-test/test/configuration/wallets/test-wallet.json"
+, "node_file_path"           : "../../../../encoins-tools/testnet-preprod/apps/cardano-node/node.sock"
+, "node_db_file_path"        : "../../../../encoins-tools/testnet-preprod/data/chain"
+, "kupo_db_file_path"        : "../../../../encoins-tools/testnet-preprod/data"
+, "min_utxos_number"         : 1
+, "max_utxos_number"         : 15
+, "network_id"               : {"tag" : "Testnet", "contents" : 1}
+, "collateral"               : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
+, "protocol_parameters_file" : "encoins-relay-test/test/configuration/protocol-parameters.json"
+, "chain_index"              : "Kupo"
+, "slot_config_file"         : "encoins-relay-test/test/configuration/plutus-chain-index-config.json"
+, "active_endpoints"         : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status"]
+}
