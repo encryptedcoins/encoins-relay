@@ -16,7 +16,7 @@ import           ENCOINS.Core.OffChain              (EncoinsMode (..))
 import           Encoins.Relay.Server.Server        (EncoinsApi)
 import           Encoins.Relay.Server.Status        (EncoinsStatusReqBody, EncoinsStatusResult)
 import           Ledger                             (Address)
-import           Servant                            (Get, Post, JSON, NoContent, Post, ReqBody, type (:<|>), type (:>))
+import           Servant                            (Get, Post, JSON, NoContent, ReqBody, type (:<|>), type (:>))
 
 type Api
     =    "ping"     
@@ -40,7 +40,7 @@ type Api
 
     :<|> "status"   
       :> ReqBody '[JSON] EncoinsStatusReqBody 
-      :> Get '[JSON] EncoinsStatusResult
+      :> Post '[JSON] EncoinsStatusResult
 
 thisApiIsActual :: Api :~: EraseErrors EncoinsApi
 thisApiIsActual = Refl
