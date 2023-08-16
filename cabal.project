@@ -23,13 +23,14 @@ packages:
     encoins-relay-server
     encoins-relay-client
     encoins-relay-poll
+    encoins-relay-delegation
     encoins-relay-verifier
     encoins-relay-test
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: v1-rc1
+  tag: b86c2da08a21716b08142a3796e5267da9410d7d
   subdir:
     cardano-server
     cardano-server-client
@@ -43,7 +44,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 2e6721f768ee3a1b31aab925f7b134f4a7c60079
+  tag: e82ffb01272738369c289888e0686ca7e5b10f24
   subdir:
     plutus-apps-extra
 

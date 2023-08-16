@@ -22,6 +22,13 @@ cradle:
     - path: "encoins-relay-poll/app"
       component: "encoins-relay-poll:exe:encoins-relay-poll"
 
+    #Delegation
+    - path: "encoins-relay-delegation/src"
+      component: "encoins-relay-delegation:lib:encoins-relay-delegation"
+
+    # - path: "encoins-relay-delegation/app"
+    #   component: "encoins-relay-delegation:exe:encoins-relay-delegation"
+
     #Verifier
     - path: "encoins-relay-verifier/src"
       component: "encoins-relay-verifier:lib:encoins-relay-verifier"

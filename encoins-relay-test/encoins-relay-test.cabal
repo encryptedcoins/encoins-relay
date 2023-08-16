@@ -35,18 +35,21 @@ test-suite encoins-relay-test
   Ghc-Options:          -rtsopts
   Main-Is:              Main.hs
   Other-Modules:
+    Encoins.Relay.DelegationSpec
     Encoins.Relay.Server.ServerSpec
     Encoins.Relay.Server.StatusSpec
     Encoins.Relay.Verifier.ServerSpec
     Internal
   build-depends:
     base                          >= 4.9 && < 5,
+    bytestring                             -any,
     cardano-server                         -any,
     cardano-server-client                  -any,
     cardano-server-test                    -any,
     directory                              -any,
     encoins-bulletproofs                   -any,
     encoins-core                           -any,
+    encoins-relay-delegation               -any,
     encoins-relay-server                   -any,
     encoins-relay-client                   -any,
     encoins-relay-verifier                 -any,
@@ -54,10 +57,16 @@ test-suite encoins-relay-test
     extra                                  -any,
     hspec                                  -any,
     hspec-core                             -any,
+    lens                                   -any,
+    mtl                                    -any,
     plutus-apps-extra                      -any,
     plutus-ledger                          -any,
+    plutus-ledger-api                      -any,
+    plutus-pab                             -any,
     plutus-tx                              -any,
     plutus-tx-extra                        -any,
     random                                 -any,
     servant-client                         -any,
+    text                                   -any,
     time                                   -any,
+    QuickCheck                             -any,
