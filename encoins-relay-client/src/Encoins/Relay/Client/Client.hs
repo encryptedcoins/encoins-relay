@@ -37,7 +37,7 @@ import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..), 
 import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee)
 import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
 import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
-import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAddressValue, readRequestTerms)
+import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAddressValue, readRequestTerms, readAddressIpAddress)
 import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, clientSecretToSecret, confirmTokens, genTerms, mkSecretFile,
                                                  readSecretFile)
 import           Encoins.Relay.Server.Internal  (getLedgerAddress)
@@ -72,20 +72,32 @@ type TxClientCosntraints (e :: ServerEndpoint) =
 
 manualTxClient :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => Text -> ServerM EncoinsApi (ServerM EncoinsApi ())
 manualTxClient = \case
-    (readRequestTerms -> Just reqTerms) -> txClientRedeemer @e reqTerms
-    (readAddressValue -> Just addrVal)  -> pure <$> txClientAddressValue @e addrVal
+    (readRequestTerms     -> Just reqTerms)   -> txClientRedeemer @e reqTerms
+    (readAddressValue     -> Just addrVal)    -> pure () <$ txClientAddressValue @e addrVal
+    (readAddressIpAddress -> Just addrIpAddr) -> pure () <$ txClientDelegation @e addrIpAddr
     _ -> error "Unparsable input."
 
 ------------------------------------------------------------------------- TxClient with (Address, Value) -------------------------------------------------------------------------
 
-txClientAddressValue :: forall e. TxClientCosntraints e => (Address, CSL.Value) -> ServerM EncoinsApi ()
+txClientAddressValue :: forall e. TxClientCosntraints e => (Address, CSL.Value) -> ServerM EncoinsApi (Either Servant.ClientError (EndpointRes e EncoinsApi))
 txClientAddressValue (addr, val) = do
     changeAddr <- getWalletAddr
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
     logMsg $ "Sending request with:" .< ((addr, val), txInputs)
     res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputSending addr val changeAddr, txInputs))
     logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
+    pure res
 
+------------------------------------------------------------------------- TxClient with (Address, IpAddress) -------------------------------------------------------------------------
+
+txClientDelegation :: forall e. TxClientCosntraints e => (Address, Text) -> ServerM EncoinsApi (Either Servant.ClientError (EndpointRes e EncoinsApi))
+txClientDelegation (addr, ipAddr) = do
+    changeAddr <- getWalletAddr
+    txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
+    logMsg $ "Sending request with:" .< (addr, ipAddr)
+    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputDelegation addr ipAddr, txInputs))
+    logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
+    pure res
 ----------------------------------------------------------------------------- TxClient with redeemer -----------------------------------------------------------------------------
 
 txClientRedeemer :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => [EncoinsRequestTerm] -> ServerM EncoinsApi (ServerM EncoinsApi ())

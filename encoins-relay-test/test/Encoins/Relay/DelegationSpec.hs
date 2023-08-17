@@ -1,4 +1,6 @@
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE NumericUnderscores         #-}
@@ -6,41 +8,45 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
 {-# OPTIONS_GHC -Wno-missing-fields     #-}
 {-# OPTIONS_GHC -Wno-orphans            #-}
 
 module Encoins.Relay.DelegationSpec where
 
-import           Control.Lens                (Bifunctor (bimap), view)
-import           Control.Monad               (join, replicateM)
-import           Control.Monad.State         (State, StateT, evalState, evalStateT, runState)
-import qualified Data.ByteString             as BS
-import           Data.Function               (on)
-import           Data.Functor                ((<&>))
-import           Data.Functor.Identity       (Identity (runIdentity))
-import           Data.List                   (sort, sortBy)
-import           Data.Maybe                  (fromJust)
-import           Data.String                 (IsString)
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import           Encoins.Relay.Delegation    (DelegationConfig (DelegationConfig, dcMinTokenAmount), DelegationHandle (..),
-                                              findDelegators)
-import           Ledger                      (Address (..), Datum (Datum, getDatum), DatumHash, PubKeyHash (..), Slot (..),
-                                              TxId (..))
-import           Plutus.PAB.Arbitrary        ()
-import           Plutus.V1.Ledger.Credential (Credential (PubKeyCredential), StakingCredential (StakingHash))
-import           Plutus.V2.Ledger.Api        (Data (..), builtinDataToData, dataToBuiltinData, toBuiltin, toBuiltinData)
-import           PlutusAppsExtra.Utils.Datum (hashDatum)
-import           PlutusAppsExtra.Utils.Kupo  (KupoDatumType (..), KupoResponse (..), SlotWithHeaderHash (..))
-import           PlutusTx.Builtins           (encodeUtf8)
-import           System.Random               (randomRIO)
-import           Test.Hspec                  (Expectation, Spec, describe, it, shouldBe)
-import           Test.QuickCheck             (Arbitrary (..), Gen, Property, Testable (property), choose, generate, oneof,
-                                              shuffle, suchThat, withMaxSuccess)
+import           Cardano.Server.Client.Handle (HasServantClientEnv)
+import           Cardano.Server.Config        (ServerEndpoint (ServerTxE))
+import           Control.Lens                 (Bifunctor (bimap), view)
+import           Control.Monad                (join, replicateM)
+import           Control.Monad.State          (State, StateT, evalState, evalStateT, runState)
+import qualified Data.ByteString              as BS
+import           Data.Function                (on)
+import           Data.Functor                 ((<&>))
+import           Data.Functor.Identity        (Identity (runIdentity))
+import           Data.List                    (sort, sortBy)
+import           Data.Maybe                   (fromJust)
+import           Data.String                  (IsString)
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import           Encoins.Relay.Client.Client  (TxClientCosntraints, txClientDelegation)
+import           Encoins.Relay.Delegation     (DelegationConfig (DelegationConfig, dcMinTokenAmount), DelegationHandle (..),
+                                               findDelegators)
+import           Internal                     (runEncoinsServerM)
+import           Ledger                       (Address (..), Datum (Datum, getDatum), DatumHash, PubKeyHash (..), Slot (..),
+                                               TxId (..))
+import           Plutus.PAB.Arbitrary         ()
+import           Plutus.V1.Ledger.Credential  (Credential (PubKeyCredential), StakingCredential (StakingHash))
+import           Plutus.V2.Ledger.Api         (Data (..), builtinDataToData, dataToBuiltinData, toBuiltin, toBuiltinData)
+import           PlutusAppsExtra.Utils.Datum  (hashDatum)
+import           PlutusAppsExtra.Utils.Kupo   (KupoDatumType (..), KupoResponse (..), SlotWithHeaderHash (..))
+import           PlutusTx.Builtins            (encodeUtf8)
+import           System.Random                (randomRIO)
+import           Test.Hspec                   (Expectation, Spec, context, describe, it, shouldBe)
+import           Test.QuickCheck              (Arbitrary (..), Gen, Property, Testable (property), choose, generate, oneof,
+                                               shuffle, suchThat, withMaxSuccess)
 
-spec :: Spec
-spec = describe "encoins-delegation" $ do
-    it "find delegators ips" propDelegation
+spec :: HasServantClientEnv => Spec
+spec = describe "encoins-delegation" $ it "find delegators ips" propDelegation
 
 propDelegation :: Property
 propDelegation = property $ \(args :: [TestArg]) -> do
@@ -48,7 +54,7 @@ propDelegation = property $ \(args :: [TestArg]) -> do
     minTokenAmount <- generate (choose (minimum balances, maximum balances))
     handle <- generate $ mkTestDelegationHandle args
     let conf = DelegationConfig {dcMinTokenAmount = minTokenAmount}
-    let res = runIdentity $ findDelegators conf handle
+        res  = runIdentity $ findDelegators conf handle
     sort res `shouldBe` expectedResult minTokenAmount args
 
 expectedResult :: Integer -> [TestArg] -> [Text]

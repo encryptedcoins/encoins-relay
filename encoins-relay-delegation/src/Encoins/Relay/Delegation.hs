@@ -10,17 +10,19 @@
 
 module Encoins.Relay.Delegation where
 
-import           Cardano.Api                        (writeFileJSON)
+import           Cardano.Api                        (NetworkId (Mainnet), writeFileJSON)
 import           Cardano.Server.Config              (decodeOrErrorFromFile)
+import           Control.Applicative                ((<|>))
 import           Control.Arrow                      ((>>>))
-import           Control.Monad                      (forM, guard, join, void, (>=>))
+import           Control.Monad                      (forM, forever, guard, join, (>=>))
 import           Control.Monad.Trans.Class          (MonadTrans (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
-import           Data.Aeson                         (FromJSON, ToJSON, eitherDecodeFileStrict)
+import           Data.Aeson                         (FromJSON (..), ToJSON (..), eitherDecodeFileStrict, withObject, (.:))
 import           Data.Bifunctor                     (Bifunctor (..))
 import           Data.Default                       (Default (..))
 import           Data.Either.Extra                  (eitherToMaybe)
 import           Data.Function                      (on)
+import           Data.Functor                       ((<&>))
 import           Data.List                          (sort, sortBy, stripPrefix)
 import qualified Data.List.NonEmpty                 as NonEmpty
 import           Data.Maybe                         (catMaybes, fromMaybe, listToMaybe, mapMaybe)
@@ -29,11 +31,10 @@ import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T
 import qualified Data.Time                          as Time
-import           Encoins.Relay.Poll.Config          (encoinsTokenName, utcToSlot)
+import           Encoins.Relay.Poll.Config          (encoinsCS, encoinsTokenName, parseTime, slotToUtc, utcToSlot)
 import           GHC.Generics                       (Generic)
-import           Ledger                             (Address, CurrencySymbol, Datum (..), DatumHash, NetworkId,
-                                                     PubKeyHash (PubKeyHash), Slot, StakingCredential, TokenName, TxId,
-                                                     TxOutRef (..))
+import           Ledger                             (Address, CurrencySymbol, Datum (..), DatumHash, PubKeyHash (PubKeyHash),
+                                                     Slot, StakingCredential, TokenName, TxId, TxOutRef (..))
 import           Plutus.V1.Ledger.Credential        (Credential (PubKeyCredential), StakingCredential (StakingHash))
 import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest, SpentOrUnspent (..))
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
@@ -46,20 +47,20 @@ import           System.Directory                   (getCurrentDirectory, listDi
 import           Text.Read                          (readMaybe)
 
 main :: FilePath -> IO ()
-main configFp = void $ do
+main configFp = forever $ do
+        ct <- Time.getCurrentTime
         conf <- decodeOrErrorFromFile configFp
         (pastDelegators, time) <- getPastDelegators
-        let start = maybe (dcDelegationStart conf) utcToSlot time
+        let start = fromMaybe (dcDelegationStart conf) time
         delegators <- findDelegators (conf{dcDelegationStart = start}) (mkDelegationHandle conf)
         let res = filter (`notElem` delegators) (fromMaybe [] pastDelegators) <> delegators
         print res
-        ct <- Time.getCurrentTime
         writeFileJSON ("delegators_" <> show ct <> ".json") res
     where
         getPastDelegators = do
             files <- getCurrentDirectory >>= listDirectory
             let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readMaybe @Time.UTCTime) files
-                fp = (<> ".json") . ("delegators_" <>) . show <$> time
+                fp = (\t -> "delegators_" <> t <> ".json") . show <$> time
             delegators <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
             pure (delegators, time)
 
@@ -93,7 +94,7 @@ findDelegators DelegationConfig{..} DelegationHandle{..} = do
 
         getIpFromDelegation :: Delegation -> MaybeT m Text
         getIpFromDelegation Delegation{..} = do
-            balance <- lift $ getTokenBalance dcCurrencySymbol encoinsTokenName (StakingHash $ PubKeyCredential delegPkh)
+            balance <- lift $ getTokenBalance dcCs dcTokenName (StakingHash $ PubKeyCredential delegPkh)
             guard $ balance >= dcMinTokenAmount
             pure delegIp
 
@@ -111,9 +112,19 @@ data Delegation = Delegation
 data DelegationConfig = DelegationConfig
     { dcNetworkId       :: NetworkId
     , dcMinTokenAmount  :: Integer
-    , dcDelegationStart :: Slot
-    , dcCurrencySymbol  :: CurrencySymbol
-    } deriving (Show, Eq, Generic, FromJSON)
+    , dcDelegationStart :: Time.UTCTime
+    , dcCs              :: CurrencySymbol
+    , dcTokenName       :: TokenName
+    } deriving (Show, Eq, Generic)
+
+instance FromJSON DelegationConfig where
+    parseJSON = withObject "DelegationConfig" $ \o -> do
+        dcNetworkId       <- o .: "networkId" <|> pure Mainnet
+        dcMinTokenAmount  <- o .: "minTokenAmount" 
+        dcDelegationStart <- o .: "delegationStart" >>= parseTime <&> slotToUtc
+        dcCs              <- o .: "currencySymbol" <|> pure encoinsCS
+        dcTokenName       <- o .: "tokenName" <|> pure encoinsTokenName
+        pure $ DelegationConfig{..}
 
 data DelegationHandle m = DelegationHandle
     { getResponses     :: m [KupoResponse]
@@ -136,8 +147,9 @@ mkDelegationHandle d = DelegationHandle
 getResponsesIO :: DelegationConfig -> IO [KupoResponse]
 getResponsesIO DelegationConfig{..} = do
     slotTo <- utcToSlot <$> Time.getCurrentTime
-    let req = def @(KupoRequest 'SUSpent 'CSCreated 'CSCreated)
-    Kupo.partiallyGet dcNetworkId T.putStrLn dcDelegationStart slotTo 3600 req "delegation/responses_"
+    let slotFrom = utcToSlot dcDelegationStart
+        req = def @(KupoRequest 'SUSpent 'CSCreated 'CSCreated)
+    Kupo.partiallyGet dcNetworkId T.putStrLn slotFrom slotTo 3600 req "delegation/responses_"
 
 getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
 getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing

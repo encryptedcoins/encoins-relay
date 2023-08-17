@@ -4,7 +4,7 @@
 module Encoins.Relay.Poll.Config where
 
 import           Cardano.Api           (NetworkId (Mainnet))
-import           Cardano.Node.Emulator (posixTimeToEnclosingSlot, utcTimeToPOSIXTime)
+import           Cardano.Node.Emulator (posixTimeToEnclosingSlot, utcTimeToPOSIXTime, slotToEndPOSIXTime, posixTimeToUTCTime)
 import           Control.Applicative   (Alternative, (<|>))
 import           Data.Aeson            (FromJSON (..), withObject, (.:))
 import           Data.Default          (Default (..))
@@ -32,11 +32,14 @@ instance FromJSON PollConfig where
         pure $ PollConfig{..}
 
 parseTime :: (Alternative m, MonadFail m) => String -> m Slot
-parseTime s = fmap utcToSlot $ asum $ (\f -> parseTimeM True defaultTimeLocale f s) 
+parseTime s = fmap utcToSlot $ asum $ (\f -> parseTimeM True defaultTimeLocale f s)
     <$> ["%Y-%m-%d", "%Y-%m-%d-%H", "%Y-%m-%d-%H:%M"]
 
 utcToSlot :: UTCTime -> Slot
 utcToSlot = (+ 4492827) . posixTimeToEnclosingSlot def . utcTimeToPOSIXTime
+
+slotToUtc :: Slot -> UTCTime
+slotToUtc = posixTimeToUTCTime . slotToEndPOSIXTime def . subtract 4492827
 
 encoinsTokenName :: TokenName
 encoinsTokenName = "ENCS"
