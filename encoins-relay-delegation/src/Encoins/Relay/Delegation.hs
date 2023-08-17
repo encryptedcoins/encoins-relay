@@ -12,9 +12,10 @@ module Encoins.Relay.Delegation where
 
 import           Cardano.Api                        (NetworkId (Mainnet), writeFileJSON)
 import           Cardano.Server.Config              (decodeOrErrorFromFile)
+import           Cardano.Server.Utils.Logger        ((.<))
 import           Control.Applicative                ((<|>))
 import           Control.Arrow                      ((>>>))
-import           Control.Monad                      (forM, forever, guard, join, (>=>))
+import           Control.Monad                      (MonadPlus (mzero), forM, forever, guard, join, unless, (>=>))
 import           Control.Monad.Trans.Class          (MonadTrans (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
 import           Data.Aeson                         (FromJSON (..), ToJSON (..), eitherDecodeFileStrict, withObject, (.:))
@@ -35,6 +36,7 @@ import           Encoins.Relay.Poll.Config          (encoinsCS, encoinsTokenName
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Address, CurrencySymbol, Datum (..), DatumHash, PubKeyHash (PubKeyHash),
                                                      Slot, StakingCredential, TokenName, TxId, TxOutRef (..))
+import           Network.URI                        (isIPv4address, isURI)
 import           Plutus.V1.Ledger.Credential        (Credential (PubKeyCredential), StakingCredential (StakingHash))
 import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest, SpentOrUnspent (..))
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
@@ -96,11 +98,15 @@ findDelegators DelegationConfig{..} DelegationHandle{..} = do
         getIpFromDelegation Delegation{..} = do
             balance <- lift $ getTokenBalance dcCs dcTokenName (StakingHash $ PubKeyCredential delegPkh)
             guard $ balance >= dcMinTokenAmount
+            unless (isValidIp delegIp) $ lift (mkLog $ "Invalid ip: " .< delegIp) >> mzero
             pure delegIp
 
         removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
                          . NonEmpty.groupBy ((==) `on` delegPkh)
                          . sortBy (compare `on` delegPkh)
+
+isValidIp :: Text -> Bool
+isValidIp txt = or $ ($ T.unpack txt) <$> [isURI, isIPv4address]
 
 data Delegation = Delegation
     { delegPkh     :: PubKeyHash
@@ -120,7 +126,7 @@ data DelegationConfig = DelegationConfig
 instance FromJSON DelegationConfig where
     parseJSON = withObject "DelegationConfig" $ \o -> do
         dcNetworkId       <- o .: "networkId" <|> pure Mainnet
-        dcMinTokenAmount  <- o .: "minTokenAmount" 
+        dcMinTokenAmount  <- o .: "minTokenAmount"
         dcDelegationStart <- o .: "delegationStart" >>= parseTime <&> slotToUtc
         dcCs              <- o .: "currencySymbol" <|> pure encoinsCS
         dcTokenName       <- o .: "tokenName" <|> pure encoinsTokenName

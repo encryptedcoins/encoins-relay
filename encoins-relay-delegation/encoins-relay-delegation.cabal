@@ -42,6 +42,7 @@ library
       directory                              -any,
       encoins-relay-poll                     -any,
       extra                                  -any,
+      network-uri                            -any,
       plutus-apps-extra                      -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,

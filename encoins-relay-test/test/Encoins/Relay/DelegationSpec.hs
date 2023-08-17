@@ -30,7 +30,7 @@ import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           Encoins.Relay.Client.Client  (TxClientCosntraints, txClientDelegation)
 import           Encoins.Relay.Delegation     (DelegationConfig (DelegationConfig, dcMinTokenAmount), DelegationHandle (..),
-                                               findDelegators)
+                                               findDelegators, isValidIp)
 import           Internal                     (runEncoinsServerM)
 import           Ledger                       (Address (..), Datum (Datum, getDatum), DatumHash, PubKeyHash (..), Slot (..),
                                                TxId (..))
@@ -105,7 +105,7 @@ newtype DelegIp = DelegIp {unDelegIp :: Text}
     deriving newtype (Show, Eq, Ord, IsString)
 
 instance Arbitrary DelegIp where
-    arbitrary = DelegIp . T.intercalate "." . fmap (T.pack . show) <$> replicateM 4 (choose @Int (0, 255))
+    arbitrary = fmap DelegIp $ flip suchThat isValidIp $  T.intercalate "." . fmap (T.pack . show) <$> replicateM 4 (choose @Int (0, 255))
 
 instance Arbitrary KupoResponse where
     arbitrary = do
@@ -127,7 +127,7 @@ instance Arbitrary SlotWithHeaderHash where
 
 instance Arbitrary KupoDatumType where
     arbitrary = oneof $ pure <$> [KupoDatumHash, KupoDatumInline]
-    
+
 mkTestDelegationHandle :: [TestArg] -> Gen (DelegationHandle Identity)
 mkTestDelegationHandle args = do
     mockResponses <- arbitrary
