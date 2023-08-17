@@ -32,7 +32,7 @@ import qualified Data.Map                             as Map
 import           Data.Maybe                           (fromMaybe)
 import           ENCOINS.Core.OffChain                (EncoinsMode(..), beaconTx, encoinsTx, postEncoinsPolicyTx, postLedgerValidatorTx,
                                                         stakeOwnerTx, encoinsSendTx )
-import           ENCOINS.Core.OnChain                 (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           ENCOINS.Core.OnChain                 (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress, minMaxTxOutValueInLedger)
 import           Encoins.Relay.Server.Config          (EncoinsRelayConfig (..), referenceScriptSalt, treasuryWalletAddress,
                                                        loadEncoinsRelayConfig)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv),
@@ -98,6 +98,7 @@ serverSetup = void $ do
     mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
     -- Post the staking validator policy
     mkTx [] def [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
+    mkTx [] def [encoinsSendTx encoinsProtocolParams (ledgerValidatorAddress encoinsProtocolParams) minMaxTxOutValueInLedger]
 
 processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest req = sequence $ case req of
