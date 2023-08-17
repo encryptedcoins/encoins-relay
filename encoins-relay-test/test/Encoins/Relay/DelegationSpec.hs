@@ -15,9 +15,10 @@ import           Control.Lens                (Bifunctor (bimap), view)
 import           Control.Monad               (join, replicateM)
 import           Control.Monad.State         (State, StateT, evalState, evalStateT, runState)
 import qualified Data.ByteString             as BS
+import           Data.Function               (on)
 import           Data.Functor                ((<&>))
 import           Data.Functor.Identity       (Identity (runIdentity))
-import           Data.List                   (sort)
+import           Data.List                   (sort, sortBy)
 import           Data.Maybe                  (fromJust)
 import           Data.String                 (IsString)
 import           Data.Text                   (Text)
@@ -124,8 +125,9 @@ instance Arbitrary KupoDatumType where
 mkTestDelegationHandle :: [TestArg] -> Gen (DelegationHandle Identity)
 mkTestDelegationHandle args = do
     mockResponses <- arbitrary
+    balance <- arbitrary
     let delegResponses = argToKupoResponse <$> args
-    responses <- shuffle $ mockResponses <> delegResponses
+        responses = sortBy (compare `on` (swhhSlot . krCreatedAt)) (mockResponses <> delegResponses)
 
     let getResponses = pure responses
         getDatumByHash dh = pure $ case filter ((== dh) . taDatumHash) args of
@@ -134,7 +136,7 @@ mkTestDelegationHandle args = do
         getTokenBalance _ _ (StakingHash (PubKeyCredential pkh)) = pure $ case filter ((== pkh) . taAddressStakeKey) args of
             [ta] -> taTokenAmount ta
             _    -> 0
-        getTokenBalance _ _ _ = 0
+        getTokenBalance _ _ _ = balance
         checkTxSignature txId _ = pure $ case filter ((== txId) . taTxId) args of
             [ta] -> taTxSignatureIsRight ta
             _    -> False

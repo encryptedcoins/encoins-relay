@@ -26,8 +26,8 @@ cradle:
     - path: "encoins-relay-delegation/src"
       component: "encoins-relay-delegation:lib:encoins-relay-delegation"
 
-    # - path: "encoins-relay-delegation/app"
-    #   component: "encoins-relay-delegation:exe:encoins-relay-delegation"
+    - path: "encoins-relay-delegation/app"
+      component: "encoins-relay-delegation:exe:encoins-relay-delegation"
 
     #Verifier
     - path: "encoins-relay-verifier/src"

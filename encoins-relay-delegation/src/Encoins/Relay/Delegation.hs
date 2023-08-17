@@ -10,22 +10,26 @@
 
 module Encoins.Relay.Delegation where
 
-import           Control.Monad                      (forM, guard, join)
+import           Cardano.Api                        (writeFileJSON)
+import           Cardano.Server.Config              (decodeOrErrorFromFile)
+import           Control.Arrow                      ((>>>))
+import           Control.Monad                      (forM, guard, join, void, (>=>))
 import           Control.Monad.Trans.Class          (MonadTrans (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
-import           Data.Aeson                         (FromJSON, ToJSON)
+import           Data.Aeson                         (FromJSON, ToJSON, eitherDecodeFileStrict)
 import           Data.Bifunctor                     (Bifunctor (..))
 import           Data.Default                       (Default (..))
+import           Data.Either.Extra                  (eitherToMaybe)
 import           Data.Function                      (on)
-import           Data.List                          (sortBy)
+import           Data.List                          (sort, sortBy, stripPrefix)
 import qualified Data.List.NonEmpty                 as NonEmpty
-import           Data.Maybe                         (catMaybes)
+import           Data.Maybe                         (catMaybes, fromMaybe, listToMaybe, mapMaybe)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T
-import qualified Data.Time.Clock.POSIX              as Time
-import           Encoins.Relay.Poll.Config          (utcToSlot, encoinsTokenName)
+import qualified Data.Time                          as Time
+import           Encoins.Relay.Poll.Config          (encoinsTokenName, utcToSlot)
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Address, CurrencySymbol, Datum (..), DatumHash, NetworkId,
                                                      PubKeyHash (PubKeyHash), Slot, StakingCredential, TokenName, TxId,
@@ -38,6 +42,26 @@ import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWith
 import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
 import           PlutusTx                           (FromData (..))
 import           PlutusTx.Builtins                  (decodeUtf8, fromBuiltin)
+import           System.Directory                   (getCurrentDirectory, listDirectory)
+import           Text.Read                          (readMaybe)
+
+main :: FilePath -> IO ()
+main configFp = void $ do
+        conf <- decodeOrErrorFromFile configFp
+        (pastDelegators, time) <- getPastDelegators
+        let start = maybe (dcDelegationStart conf) utcToSlot time
+        delegators <- findDelegators (conf{dcDelegationStart = start}) (mkDelegationHandle conf)
+        let res = filter (`notElem` delegators) (fromMaybe [] pastDelegators) <> delegators
+        print res
+        ct <- Time.getCurrentTime
+        writeFileJSON ("delegators_" <> show ct <> ".json") res
+    where
+        getPastDelegators = do
+            files <- getCurrentDirectory >>= listDirectory
+            let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readMaybe @Time.UTCTime) files
+                fp = (<> ".json") . ("delegators_" <>) . show <$> time
+            delegators <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
+            pure (delegators, time)
 
 findDelegators :: forall m. Monad m => DelegationConfig -> DelegationHandle m -> m [Text]
 findDelegators DelegationConfig{..} DelegationHandle{..} = do
@@ -53,12 +77,9 @@ findDelegators DelegationConfig{..} DelegationHandle{..} = do
 
         mkLog "Getting delegators..."
         let l = length delegations
-        ips <- fmap catMaybes $ forM (zip [1 :: Int ..] delegations) $ \(i, d) -> runMaybeT $ do
+        fmap catMaybes $ forM (zip [1 :: Int ..] delegations) $ \(i, d) -> runMaybeT $ do
             lift $ mkLog $ T.pack $ show i <> "/" <> show l
             getIpFromDelegation d
-
-        mkLog $ T.pack $ show ips
-        pure ips
 
     where
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
@@ -104,10 +125,10 @@ data DelegationHandle m = DelegationHandle
     }
 
 mkDelegationHandle :: DelegationConfig -> DelegationHandle IO
-mkDelegationHandle d = DelegationHandle 
-    (getResponsesIO d) 
-    Kupo.getDatumByHash 
-    getTokenBalanceIO 
+mkDelegationHandle d = DelegationHandle
+    (getResponsesIO d)
+    Kupo.getDatumByHash
+    getTokenBalanceIO
     checkTxSignatureIO
     T.putStrLn
     Kupo.withResultSaving
