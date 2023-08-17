@@ -12,8 +12,8 @@ import           System.Directory              (createDirectoryIfMissing)
 main :: IO ()
 main =  do
     createDirectoryIfMissing True "secrets"
-    c                <- decodeOrErrorFromFile "encoins-relay-test/test/configuration/config.json"
-    bulletproofSetup <- decodeOrErrorFromFile "encoins-relay-test/test/configuration/bulletproof_setup.json"
+    c                <- decodeOrErrorFromFile "config.json"
+    bulletproofSetup <- decodeOrErrorFromFile "../verifier/bulletproof_setup.json"
     opts             <- runWithOpts
     sh               <- mkServerHandle c
     runClientWithOpts c sh (mkClientHandle bulletproofSetup (optsEncoinsMode opts)) $ extractCommonOptions opts
