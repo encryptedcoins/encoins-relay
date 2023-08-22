@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Encoins.Relay.Poll.Config where
+module Encoins.Relay.Apps.Poll.Config where
 
 import           Cardano.Api           (NetworkId (Mainnet))
 import           Cardano.Node.Emulator (posixTimeToEnclosingSlot, utcTimeToPOSIXTime, slotToEndPOSIXTime, posixTimeToUTCTime)

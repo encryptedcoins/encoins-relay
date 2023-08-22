@@ -2,9 +2,9 @@
 
 module Main where
 
-import Encoins.Relay.Poll
-import System.Environment (getArgs)
-import Text.Read          (readEither)
+import           Encoins.Relay.Apps.Poll.Main (poll)
+import           System.Environment           (getArgs)
+import           Text.Read                    (readEither)
 
 main :: IO ()
 main = getArgs >>= \case

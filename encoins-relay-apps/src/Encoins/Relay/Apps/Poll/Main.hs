@@ -13,7 +13,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
-module Encoins.Relay.Poll where
+module Encoins.Relay.Apps.Poll.Main where
 
 import           Cardano.Api                        (writeFileJSON)
 import           Control.Monad                      (forM, guard, void, when)
@@ -28,7 +28,7 @@ import           Data.Maybe                         (catMaybes)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
 import qualified Data.Text.IO                       as T
-import           Encoins.Relay.Poll.Config          (PollConfig (..))
+import           Encoins.Relay.Apps.Poll.Config          (PollConfig (..))
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Datum (..), DatumHash, PubKeyHash (..), Slot (..), TxId (..))
 import           Plutus.V1.Ledger.Api               (Credential (..), FromData (..), StakingCredential (StakingHash))

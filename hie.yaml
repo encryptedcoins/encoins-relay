@@ -15,19 +15,15 @@ cradle:
     - path: "encoins-relay-client/app"
       component: "encoins-relay-client:exe:encoins-relay-client"
 
-    #Poll
-    - path: "encoins-relay-poll/src"
-      component: "encoins-relay-poll:lib:encoins-relay-poll"
+    #Poll and delegation
+    - path: "encoins-relay-apps/src"
+      component: "encoins-relay-apps:lib:encoins-relay-apps"
 
-    - path: "encoins-relay-poll/app"
-      component: "encoins-relay-poll:exe:encoins-relay-poll"
+    - path: "encoins-relay-apps/app_poll"
+      component: "encoins-relay-apps:exe:encoins-relay-poll"
 
-    #Delegation
-    - path: "encoins-relay-delegation/src"
-      component: "encoins-relay-delegation:lib:encoins-relay-delegation"
-
-    - path: "encoins-relay-delegation/app"
-      component: "encoins-relay-delegation:exe:encoins-relay-delegation"
+    - path: "encoins-relay-apps/app_deleg"
+      component: "encoins-relay-apps:exe:encoins-relay-delegation"
 
     #Verifier
     - path: "encoins-relay-verifier/src"

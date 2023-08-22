@@ -20,10 +20,9 @@ index-state:
   , cardano-haskell-packages 2022-12-22T00:00:00Z
 
 packages:
+    encoins-relay-apps
     encoins-relay-server
     encoins-relay-client
-    encoins-relay-poll
-    encoins-relay-delegation
     encoins-relay-verifier
     encoins-relay-test
 

@@ -8,7 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Encoins.Relay.Delegation where
+module Encoins.Relay.Apps.Delegation.Main where
 
 import           Cardano.Api                        (NetworkId (Mainnet), writeFileJSON)
 import           Cardano.Server.Config              (decodeOrErrorFromFile)
@@ -32,7 +32,7 @@ import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T
 import qualified Data.Time                          as Time
-import           Encoins.Relay.Poll.Config          (encoinsCS, encoinsTokenName, parseTime, slotToUtc, utcToSlot)
+import           Encoins.Relay.Apps.Poll.Config     (encoinsCS, encoinsTokenName, parseTime, slotToUtc, utcToSlot)
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Address, CurrencySymbol, Datum (..), DatumHash, PubKeyHash (PubKeyHash),
                                                      Slot, StakingCredential, TokenName, TxId, TxOutRef (..))
