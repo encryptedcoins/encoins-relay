@@ -106,13 +106,13 @@ findDelegators DelegationConfig{..} DelegationHandle{..} = do
                          . sortBy (compare `on` delegPkh)
 
 isValidIp :: Text -> Bool
-isValidIp txt = or $ ($ T.unpack txt) <$> [isURI, isIPv4address]
+isValidIp txt = or $ [isURI, isIPv4address] <&> ($ T.unpack txt)
 
 data Delegation = Delegation
-    { delegPkh     :: PubKeyHash
-    , delegTxRef   :: TxOutRef
-    , delegCreated :: Slot
-    , delegIp      :: Text
+    { delegPkh      :: PubKeyHash
+    , delegTxOutRef :: TxOutRef
+    , delegCreated  :: Slot
+    , delegIp       :: Text
     } deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data DelegationConfig = DelegationConfig
@@ -138,7 +138,7 @@ data DelegationHandle m = DelegationHandle
     , getTokenBalance  :: CurrencySymbol -> TokenName -> StakingCredential -> m Integer
     , checkTxSignature :: TxId -> Address -> m Bool
     , mkLog            :: Text -> m ()
-    , withResultSaving :: forall a. (FromJSON a, ToJSON a) => FilePath -> MaybeT m a -> MaybeT m a
+    , withResultSaving :: FilePath -> MaybeT m Delegation -> MaybeT m Delegation
     }
 
 mkDelegationHandle :: DelegationConfig -> DelegationHandle IO
