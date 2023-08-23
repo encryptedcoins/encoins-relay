@@ -19,6 +19,7 @@ common lang
       -Wnoncanonical-monad-instances
       -Wredundant-constraints
       -Wno-unused-do-bind
+      -Wall
       
       -- See Plutus Tx readme
       -fno-ignore-interface-pragmas

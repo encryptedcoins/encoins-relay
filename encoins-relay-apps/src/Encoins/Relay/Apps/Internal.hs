@@ -45,13 +45,13 @@ partiallyGet newtworkId ((. T.pack) -> mkLog) slotFrom slotTo slotDelta req fp =
             Just UserInterrupt -> throwM UserInterrupt
             _ -> do
                 ct <- liftIO getCurrentTime
-                mkLog ( show ct <> "\n" <> show e <> "\n(Handled)")
+                mkLog (show ct <> "\n" <> show e <> "\n(Handled)")
                 liftIO (threadDelay 5_000_000)
                 reloadHandler ma
 
 withResultSaving :: (MonadIO m, FromJSON a, ToJSON a) => FilePath -> m a -> m a
-withResultSaving fp action = 
-    liftIO (try @_ @SomeException $ either error id <$> eitherDecodeFileStrict fp) 
+withResultSaving fp action =
+    liftIO (try @_ @SomeException $ either error id <$> eitherDecodeFileStrict fp)
         >>= either doAction pure
     where
         doAction _ = do
@@ -59,7 +59,14 @@ withResultSaving fp action =
             _   <- liftIO $ writeFileJSON fp res
             pure res
 
+-- Divide time into intervals such that each interval except the first is a multiple of delta.
 divideTimeIntoIntervals :: Slot -> Slot -> Slot -> [(Slot, Slot)]
-divideTimeIntoIntervals from to delta = do
-    let xs = [from, from + delta .. to]
-    zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
+divideTimeIntoIntervals from to delta
+    | from > to          = []
+    | to - from < delta  = [(from, to)]
+    | from /= from'      = (from, from' - 1) : divideTimeIntoIntervals from' to delta
+    | otherwise          = zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
+    where
+        -- First delta multiplier
+        from' = head $ [x | x <- [from ..], x `mod` delta == 0]
+        xs = [from, from + delta .. to]
