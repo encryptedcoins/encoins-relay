@@ -28,12 +28,13 @@ import           Data.Maybe                         (catMaybes)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
 import qualified Data.Text.IO                       as T
-import           Encoins.Relay.Apps.Poll.Config          (PollConfig (..))
+import           Encoins.Relay.Apps.Internal        (partiallyGet, withResultSaving)
+import           Encoins.Relay.Apps.Poll.Config     (PollConfig (..))
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Datum (..), DatumHash, PubKeyHash (..), Slot (..), TxId (..))
 import           Plutus.V1.Ledger.Api               (Credential (..), FromData (..), StakingCredential (StakingHash))
-import           PlutusAppsExtra.IO.ChainIndex.Kupo (KupoRequest (..), SpentOrUnspent (..), CreatedOrSpent (..),
-                                                     getTokenBalanceToSlot, partiallyGet, withResultSaving)
+import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..),
+                                                     getTokenBalanceToSlot)
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
 import           PlutusAppsExtra.Utils.Address      (getStakeKey)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (..))

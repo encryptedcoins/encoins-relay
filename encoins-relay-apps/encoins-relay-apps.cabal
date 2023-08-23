@@ -32,6 +32,7 @@ library
     import: lang
     exposed-modules:
       Encoins.Relay.Apps.Delegation.Main
+      Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Main
       Encoins.Relay.Apps.Poll.Config
     other-modules:

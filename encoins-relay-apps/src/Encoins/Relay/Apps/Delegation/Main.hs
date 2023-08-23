@@ -47,6 +47,7 @@ import           PlutusTx                           (FromData (..))
 import           PlutusTx.Builtins                  (decodeUtf8, fromBuiltin)
 import           System.Directory                   (getCurrentDirectory, listDirectory)
 import           Text.Read                          (readMaybe)
+import           Encoins.Relay.Apps.Internal        (withResultSaving, partiallyGet)
 
 main :: FilePath -> IO ()
 main configFp = forever $ do
@@ -70,35 +71,35 @@ findDelegators :: forall m. Monad m => DelegationConfig -> DelegationHandle m ->
 findDelegators DelegationConfig{..} DelegationHandle{..} = do
         let folderName = "delegation_files"
 
-        mkLog "Getting reponses..."
-        !responses <- getResponses
+        dhMkLog "Getting reponses..."
+        !responses <- dhGetResponses
 
-        mkLog "Getting delegation txs..."
+        dhMkLog "Getting delegation txs..."
         delegations <- fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
-            withResultSaving (mconcat [folderName, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
+            dhWithResultSaving (mconcat [folderName, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
                 getDelegationFromResponse KupoResponse{..}
 
-        mkLog "Getting delegators..."
+        dhMkLog "Getting delegators..."
         let l = length delegations
         fmap catMaybes $ forM (zip [1 :: Int ..] delegations) $ \(i, d) -> runMaybeT $ do
-            lift $ mkLog $ T.pack $ show i <> "/" <> show l
+            lift $ dhMkLog $ T.pack $ show i <> "/" <> show l
             getIpFromDelegation d
 
     where
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
         getDelegationFromResponse KupoResponse{..} = do
             dh                          <- MaybeT $ pure krDatumHash
-            (Datum dat)                 <- MaybeT $ getDatumByHash dh
+            (Datum dat)                 <- MaybeT $ dhGetDatumByHash dh
             ("ENCS Delegation", ipAddr) <- MaybeT $ pure $ join bimap (fromBuiltin . decodeUtf8) <$> fromBuiltinData dat
             stakeKey                    <- MaybeT $ pure $ getStakeKey krAddress
-            guard =<< lift (checkTxSignature krTxId krAddress)
+            guard =<< lift (dhCheckTxSignature krTxId krAddress)
             pure $ Delegation stakeKey (TxOutRef krTxId krOutputIndex) (swhhSlot krCreatedAt) ipAddr
 
         getIpFromDelegation :: Delegation -> MaybeT m Text
         getIpFromDelegation Delegation{..} = do
-            balance <- lift $ getTokenBalance dcCs dcTokenName (StakingHash $ PubKeyCredential delegPkh)
+            balance <- lift $ dhGetTokenBalance dcCs dcTokenName (StakingHash $ PubKeyCredential delegPkh)
             guard $ balance >= dcMinTokenAmount
-            unless (isValidIp delegIp) $ lift (mkLog $ "Invalid ip: " .< delegIp) >> mzero
+            unless (isValidIp delegIp) $ lift (dhMkLog $ "Invalid ip: " .< delegIp) >> mzero
             pure delegIp
 
         removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
@@ -133,12 +134,12 @@ instance FromJSON DelegationConfig where
         pure $ DelegationConfig{..}
 
 data DelegationHandle m = DelegationHandle
-    { getResponses     :: m [KupoResponse]
-    , getDatumByHash   :: DatumHash -> m (Maybe Datum)
-    , getTokenBalance  :: CurrencySymbol -> TokenName -> StakingCredential -> m Integer
-    , checkTxSignature :: TxId -> Address -> m Bool
-    , mkLog            :: Text -> m ()
-    , withResultSaving :: FilePath -> MaybeT m Delegation -> MaybeT m Delegation
+    { dhGetResponses     :: m [KupoResponse]
+    , dhGetDatumByHash   :: DatumHash -> m (Maybe Datum)
+    , dhGetTokenBalance  :: CurrencySymbol -> TokenName -> StakingCredential -> m Integer
+    , dhCheckTxSignature :: TxId -> Address -> m Bool
+    , dhMkLog            :: Text -> m ()
+    , dhWithResultSaving :: FilePath -> MaybeT m Delegation -> MaybeT m Delegation
     }
 
 mkDelegationHandle :: DelegationConfig -> DelegationHandle IO
@@ -148,14 +149,14 @@ mkDelegationHandle d = DelegationHandle
     getTokenBalanceIO
     checkTxSignatureIO
     T.putStrLn
-    Kupo.withResultSaving
+    withResultSaving
 
 getResponsesIO :: DelegationConfig -> IO [KupoResponse]
 getResponsesIO DelegationConfig{..} = do
     slotTo <- utcToSlot <$> Time.getCurrentTime
     let slotFrom = utcToSlot dcDelegationStart
         req = def @(KupoRequest 'SUSpent 'CSCreated 'CSCreated)
-    Kupo.partiallyGet dcNetworkId T.putStrLn slotFrom slotTo 3600 req "delegation/responses_"
+    partiallyGet dcNetworkId T.putStrLn slotFrom slotTo 3600 req "delegation/responses_"
 
 getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
 getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing
