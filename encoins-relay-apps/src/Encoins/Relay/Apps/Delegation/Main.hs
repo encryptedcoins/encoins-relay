@@ -10,52 +10,50 @@
 
 module Encoins.Relay.Apps.Delegation.Main where
 
-import           Cardano.Api                        (NetworkId (Mainnet), writeFileJSON)
-import           Cardano.Server.Config              (decodeOrErrorFromFile)
-import           Cardano.Server.Utils.Logger        ((.<))
-import           Control.Applicative                ((<|>))
-import           Control.Arrow                      ((>>>))
-import           Control.Monad                      (MonadPlus (mzero), forM, forever, guard, join, unless, (>=>))
-import           Control.Monad.Trans.Class          (MonadTrans (..))
-import           Control.Monad.Trans.Maybe          (MaybeT (..))
-import           Data.Aeson                         (FromJSON (..), ToJSON (..), eitherDecodeFileStrict, withObject, (.:))
-import           Data.Bifunctor                     (Bifunctor (..))
-import           Data.Default                       (Default (..))
-import           Data.Either.Extra                  (eitherToMaybe)
-import           Data.Function                      (on)
-import           Data.Functor                       ((<&>))
-import           Data.List                          (sort, sortBy, stripPrefix)
-import qualified Data.List.NonEmpty                 as NonEmpty
-import           Data.Maybe                         (catMaybes, fromMaybe, listToMaybe, mapMaybe)
-import           Data.Ord                           (Down (..))
-import           Data.Text                          (Text)
-import qualified Data.Text                          as T
-import qualified Data.Text.IO                       as T
-import qualified Data.Time                          as Time
-import           Encoins.Relay.Apps.Poll.Config     (encoinsCS, encoinsTokenName, parseTime, slotToUtc, utcToSlot)
-import           GHC.Generics                       (Generic)
-import           Ledger                             (Address, CurrencySymbol, Datum (..), DatumHash, PubKeyHash (PubKeyHash),
-                                                     Slot, StakingCredential, TokenName, TxId, TxOutRef (..))
-import           Network.URI                        (isIPv4address, isURI)
-import           Plutus.V1.Ledger.Credential        (Credential (PubKeyCredential), StakingCredential (StakingHash))
-import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest, SpentOrUnspent (..))
-import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
-import           PlutusAppsExtra.Utils.Address      (getStakeKey)
-import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (swhhSlot))
-import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
-import           PlutusTx                           (FromData (..))
-import           PlutusTx.Builtins                  (decodeUtf8, fromBuiltin)
-import           System.Directory                   (getCurrentDirectory, listDirectory)
-import           Text.Read                          (readMaybe)
-import           Encoins.Relay.Apps.Internal        (withResultSaving, partiallyGet)
+import           Cardano.Api                          (writeFileJSON)
+import           Cardano.Server.Utils.Logger          ((.<))
+import           Control.Arrow                        ((>>>))
+import           Control.Monad                        (MonadPlus (mzero), forM, forever, guard, join, unless, (>=>))
+import           Control.Monad.Trans.Class            (MonadTrans (..))
+import           Control.Monad.Trans.Maybe            (MaybeT (..))
+import           Data.Aeson                           (FromJSON (..), ToJSON (..), eitherDecodeFileStrict)
+import           Data.Bifunctor                       (Bifunctor (..))
+import           Data.Either.Extra                    (eitherToMaybe)
+import           Data.Function                        (on)
+import           Data.Functor                         ((<&>))
+import           Data.List                            (sort, sortBy, stripPrefix)
+import qualified Data.List.NonEmpty                   as NonEmpty
+import           Data.Maybe                           (catMaybes, fromMaybe, listToMaybe, mapMaybe)
+import           Data.Ord                             (Down (..))
+import           Data.Text                            (Text)
+import qualified Data.Text                            as T
+import qualified Data.Text.IO                         as T
+import qualified Data.Time                            as Time
+import           Encoins.Relay.Apps.Delegation.Config (DelegationConfig (..), getConfig)
+import           Encoins.Relay.Apps.Internal          (getResponsesIO, withResultSaving)
+import           GHC.Generics                         (Generic)
+import           Ledger                               (Address, CurrencySymbol, Datum (..), DatumHash, PubKeyHash (PubKeyHash),
+                                                       Slot, StakingCredential, TokenName, TxId, TxOutRef (..))
+import           Network.URI                          (isIPv4address, isURI)
+import           Plutus.V1.Ledger.Credential          (Credential (PubKeyCredential), StakingCredential (StakingHash))
+import qualified PlutusAppsExtra.IO.ChainIndex.Kupo   as Kupo
+import           PlutusAppsExtra.Utils.Address        (getStakeKey)
+import           PlutusAppsExtra.Utils.Kupo           (KupoResponse (..), SlotWithHeaderHash (swhhSlot))
+import           PlutusAppsExtra.Utils.Time           (utcToSlot)
+import           PlutusAppsExtra.Utils.Tx             (txIsSignedByKey)
+import           PlutusTx                             (FromData (..))
+import           PlutusTx.Builtins                    (decodeUtf8, fromBuiltin)
+import           System.Directory                     (getCurrentDirectory, listDirectory)
+import           Text.Read                            (readMaybe)
 
 main :: FilePath -> IO ()
 main configFp = forever $ do
         ct <- Time.getCurrentTime
-        conf <- decodeOrErrorFromFile configFp
+        conf <- getConfig configFp
         (pastDelegators, time) <- getPastDelegators
-        let start = fromMaybe (dcDelegationStart conf) time
-        delegators <- findDelegators (conf{dcDelegationStart = start}) (mkDelegationHandle conf)
+        let start = maybe (dcDelegationStart conf) (utcToSlot $ dcSlotConfig conf) time
+            handle = mkDelegationHandle conf
+        delegators <- findDelegators (conf{dcDelegationStart = start}) handle
         let res = filter (`notElem` delegators) (fromMaybe [] pastDelegators) <> delegators
         print res
         writeFileJSON ("delegators_" <> show ct <> ".json") res
@@ -116,23 +114,6 @@ data Delegation = Delegation
     , delegIp       :: Text
     } deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
-data DelegationConfig = DelegationConfig
-    { dcNetworkId       :: NetworkId
-    , dcMinTokenAmount  :: Integer
-    , dcDelegationStart :: Time.UTCTime
-    , dcCs              :: CurrencySymbol
-    , dcTokenName       :: TokenName
-    } deriving (Show, Eq, Generic)
-
-instance FromJSON DelegationConfig where
-    parseJSON = withObject "DelegationConfig" $ \o -> do
-        dcNetworkId       <- o .: "networkId" <|> pure Mainnet
-        dcMinTokenAmount  <- o .: "minTokenAmount"
-        dcDelegationStart <- o .: "delegationStart" >>= parseTime <&> slotToUtc
-        dcCs              <- o .: "currencySymbol" <|> pure encoinsCS
-        dcTokenName       <- o .: "tokenName" <|> pure encoinsTokenName
-        pure $ DelegationConfig{..}
-
 data DelegationHandle m = DelegationHandle
     { dhGetResponses     :: m [KupoResponse]
     , dhGetDatumByHash   :: DatumHash -> m (Maybe Datum)
@@ -143,20 +124,17 @@ data DelegationHandle m = DelegationHandle
     }
 
 mkDelegationHandle :: DelegationConfig -> DelegationHandle IO
-mkDelegationHandle d = DelegationHandle
-    (getResponsesIO d)
-    Kupo.getDatumByHash
-    getTokenBalanceIO
-    checkTxSignatureIO
-    T.putStrLn
-    withResultSaving
-
-getResponsesIO :: DelegationConfig -> IO [KupoResponse]
-getResponsesIO DelegationConfig{..} = do
-    slotTo <- utcToSlot <$> Time.getCurrentTime
-    let slotFrom = utcToSlot dcDelegationStart
-        req = def @(KupoRequest 'SUSpent 'CSCreated 'CSCreated)
-    partiallyGet dcNetworkId T.putStrLn slotFrom slotTo 3600 req "delegation/responses_"
+mkDelegationHandle DelegationConfig{..} = DelegationHandle
+        (getResponses dcSlotConfig)
+        Kupo.getDatumByHash
+        getTokenBalanceIO
+        checkTxSignatureIO
+        T.putStrLn
+        withResultSaving
+    where
+        getResponses slotConfig = do
+            slotTo <- utcToSlot slotConfig <$> Time.getCurrentTime
+            getResponsesIO dcNetworkId dcDelegationStart slotTo 3600
 
 getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
 getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing

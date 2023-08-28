@@ -32,10 +32,11 @@ common lang
 library
     import: lang
     exposed-modules:
+      Encoins.Relay.Apps.Delegation.Config
       Encoins.Relay.Apps.Delegation.Main
       Encoins.Relay.Apps.Internal
-      Encoins.Relay.Apps.Poll.Main
       Encoins.Relay.Apps.Poll.Config
+      Encoins.Relay.Apps.Poll.Main
     other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
@@ -52,6 +53,7 @@ library
       exceptions                             -any,
       extra                                  -any,
       lens                                   -any,
+      lens-aeson                             -any,
       mtl                                    -any,
       network-uri                            -any,
       plutus-apps-extra                      -any,

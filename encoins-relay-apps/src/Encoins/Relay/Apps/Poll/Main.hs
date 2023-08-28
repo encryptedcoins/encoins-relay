@@ -19,22 +19,19 @@ import           Cardano.Api                        (writeFileJSON)
 import           Control.Monad                      (forM, guard, void, when)
 import           Control.Monad.IO.Class             (liftIO)
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
-import           Data.Aeson                         (FromJSON, ToJSON, eitherDecodeFileStrict)
-import           Data.Default                       (def)
+import           Data.Aeson                         (FromJSON, ToJSON)
 import           Data.Function                      (on)
 import           Data.List                          (partition, sortBy)
 import qualified Data.List.NonEmpty                 as NonEmpty
 import           Data.Maybe                         (catMaybes)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
-import qualified Data.Text.IO                       as T
-import           Encoins.Relay.Apps.Internal        (partiallyGet, withResultSaving)
-import           Encoins.Relay.Apps.Poll.Config     (PollConfig (..))
+import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultSaving)
+import           Encoins.Relay.Apps.Poll.Config     (PollConfig (..), getConfig)
 import           GHC.Generics                       (Generic)
-import           Ledger                             (Datum (..), DatumHash, PubKeyHash (..), Slot (..), TxId (..))
+import           Ledger                             (Datum (..), PubKeyHash (..), Slot (..), TxId (..))
 import           Plutus.V1.Ledger.Api               (Credential (..), FromData (..), StakingCredential (StakingHash))
-import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..),
-                                                     getTokenBalanceToSlot)
+import           PlutusAppsExtra.IO.ChainIndex.Kupo (getTokenBalanceToSlot)
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
 import           PlutusAppsExtra.Utils.Address      (getStakeKey)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (..))
@@ -45,7 +42,7 @@ import           System.Directory.Extra             (createDirectoryIfMissing)
 
 poll :: Integer -> IO ()
 poll pollNo = do
-    PollConfig{..} <- fmap (either error id) . eitherDecodeFileStrict $ "poll" <> show pollNo <> "config.json"
+    PollConfig{..} <- getConfig $ "poll" <> show pollNo <> "config.json"
     let folderName = "poll" <> show pollNo <> "files"
     createDirectoryIfMissing True folderName
     !result <- getResult folderName pollNo PollConfig{..}
@@ -67,7 +64,7 @@ renderResult votes = mconcat ["Yes: ", renderPercents yes,"\nNo: ", renderPercen
 getResult :: FilePath -> Integer -> PollConfig -> IO [(Vote, Integer)]
 getResult folderName pollNo PollConfig{..} = do
         putStrLn "Getting reponses..."
-        !responses <- getResponses
+        !responses <- getResponsesIO pcNetworkId pcStart pcFinish 3600
 
         putStrLn "Getting votes..."
         !votes <- fmap catMaybes $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
@@ -82,25 +79,18 @@ getResult folderName pollNo PollConfig{..} = do
                 getTokenBalanceToSlot pcCs pcTokenName (Just pcFinish) (StakingHash $ PubKeyCredential votePkh)
 
     where
-        getResponses :: IO [KupoResponse]
-        getResponses =
-            let req = def @(KupoRequest 'SUSpent 'CSCreated 'CSCreated)
-            in partiallyGet pcNetworkId T.putStrLn pcStart pcFinish 3600 req (folderName <> "/responses_")
 
         getVoteFromResponse :: KupoResponse -> MaybeT IO Vote
         getVoteFromResponse KupoResponse{..} = do
-            dh <- MaybeT $ pure krDatumHash
-            dat <- getDatum dh
+            dh             <- MaybeT $ pure krDatumHash
+            dat            <- MaybeT $ Kupo.getDatumByHash dh
             (pkhBbs, vote) <- MaybeT . pure $ extractVoteFromDatum dat
-            pkh <- MaybeT . pure $ getStakeKey krAddress
+            pkh            <- MaybeT . pure $ getStakeKey krAddress
             -- Check that tx signed by key specified in datum
             when pcCheckDatumPkh $ guard =<< MaybeT (Just <$> txIsSignedByKey krTxId pkhBbs)
             let res = Vote pkh (swhhSlot krCreatedAt) krTxId krOutputIndex (fromBuiltin $ decodeUtf8 vote)
             liftIO $ print res
             pure res
-
-        getDatum :: DatumHash -> MaybeT IO Datum
-        getDatum dh = MaybeT $ Kupo.getDatumByHash dh
 
         removeDuplicates :: [Vote] -> [Vote]
         removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . voteSlot)) . NonEmpty.groupBy ((==) `on` votePkh) . sortBy (compare `on` votePkh)

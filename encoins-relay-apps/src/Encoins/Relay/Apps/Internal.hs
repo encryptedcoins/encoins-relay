@@ -1,9 +1,10 @@
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE NumericUnderscores  #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 module Encoins.Relay.Apps.Internal where
 
@@ -15,32 +16,36 @@ import           Control.Monad.Catch                (MonadCatch, MonadThrow (thr
 import           Control.Monad.IO.Class             (MonadIO (liftIO))
 import           Data.Aeson                         (FromJSON (parseJSON), ToJSON, eitherDecodeFileStrict)
 import           Data.Aeson.Types                   (parseMaybe)
+import           Data.Default                       (def)
 import           Data.Maybe                         (catMaybes)
-import           Data.Text                          (Text)
-import qualified Data.Text                          as T
 import           Data.Time                          (getCurrentTime)
-import           Ledger                             (Slot (getSlot))
-import           PlutusAppsExtra.IO.ChainIndex.Kupo (IsValidRequest, KupoRequest (..), getKupoResponse)
+import           Ledger                             (CurrencySymbol, Slot (getSlot), TokenName)
+import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
+import           System.Directory                   (createDirectoryIfMissing)
 
--- getResponses :: MonadIO m => NetworkId -> Maybe Slot -> Maybe Slot -> m [KupoResponse]
--- getResponses networkId slotFrom slotTo = do
-    -- _
+encoinsTokenName :: TokenName
+encoinsTokenName = "ENCS"
 
--- Partially get large kupo responses, with intermediate saving of the result.
-partiallyGet :: forall su b a m. (MonadIO m, MonadCatch m, IsValidRequest su b a)
-    => NetworkId -> (Text -> m ()) -> Slot -> Slot -> Slot -> KupoRequest su b a -> FilePath -> m [KupoResponse]
-partiallyGet newtworkId ((. T.pack) -> mkLog) slotFrom slotTo slotDelta req fp = do
-    let intervals = divideTimeIntoIntervals slotFrom slotTo slotDelta
-    resValue <- fmap concat $ forM (zip [1 :: Int ..] intervals) $ \(i, (f, t)) -> reloadHandler $ do
+-- Mainnet only
+encoinsCS :: CurrencySymbol
+encoinsCS = "9abf0afd2f236a19f2842d502d0450cbcd9c79f123a9708f96fd9b96"
+
+getResponsesIO :: (MonadIO m, MonadCatch m) => NetworkId -> Slot -> Slot -> Slot -> m [KupoResponse]
+getResponsesIO networkId slotFrom slotTo slotDelta = do
+    _ <- liftIO $ createDirectoryIfMissing True "savedResponses"
+    resValue <- fmap concat $ forM (zip [1 :: Int ..] intervals) $ \(i, (from, to)) -> reloadHandler $ do
         mkLog $ show i <> "/" <> show (length intervals)
-        let fileName = fp <> show (getSlot f) <> "_"  <> show (getSlot t) <> ".json"
-            getResponse = liftIO $ fmap (kupoResponseToJSON newtworkId) <$> do
-                let req' = req{reqCreatedOrSpentAfter = Just f, reqCreatedOrSpentBefore = Just t} :: KupoRequest su b a
+        let fileName = "response" <> show (getSlot from) <> "_"  <> show (getSlot to) <> ".json"
+            req' :: KupoRequest 'SUSpent 'CSCreated 'CSCreated 
+            req' = def{reqCreatedOrSpentAfter = Just from, reqCreatedOrSpentBefore = Just to}
+        withResultSaving ("savedResponses/" <> fileName) $ liftIO $ fmap (kupoResponseToJSON networkId) <$> do
                 getKupoResponse req'
-        withResultSaving fileName getResponse
+
     pure $ catMaybes $ parseMaybe parseJSON <$> resValue
     where
+        intervals = divideTimeIntoIntervals slotFrom slotTo slotDelta
+        mkLog = liftIO . putStrLn
         reloadHandler ma = (`handle` ma) $ \e -> case fromException e of
             Just UserInterrupt -> throwM UserInterrupt
             _ -> do
@@ -68,5 +73,5 @@ divideTimeIntoIntervals from to delta
     | otherwise          = zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
     where
         -- First delta multiplier
-        from' = head $ [x | x <- [from ..], x `mod` delta == 0]
+        from' = head [x | x <- [from ..], x `mod` delta == 0]
         xs = [from, from + delta .. to]
