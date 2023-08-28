@@ -75,3 +75,6 @@ divideTimeIntoIntervals from to delta
         -- First delta multiplier
         from' = head [x | x <- [from ..], x `mod` delta == 0]
         xs = [from, from + delta .. to]
+
+defaultSlotConfigFilePath :: FilePath
+defaultSlotConfigFilePath = "../plutus-chain-index/plutus-chain-index-config.json"

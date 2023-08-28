@@ -15,7 +15,7 @@ import           Data.Aeson.Lens             (key)
 import           Data.Aeson.Types            (parseEither)
 import           Data.Maybe                  (fromMaybe)
 import qualified Data.Text                   as T
-import           Encoins.Relay.Apps.Internal (encoinsCS, encoinsTokenName)
+import           Encoins.Relay.Apps.Internal (encoinsCS, encoinsTokenName, defaultSlotConfigFilePath)
 import           GHC.Stack                   (HasCallStack)
 import           Ledger                      (CurrencySymbol, Slot, TokenName)
 import           PlutusAppsExtra.Utils.Time  (parseSlotConfig, parseSlotOrUtc, utcToSlot)
@@ -33,7 +33,7 @@ data PollConfig = PollConfig
 getConfig :: HasCallStack => FilePath -> IO PollConfig
 getConfig fp = do
     val <- decodeOrErrorFromFile fp
-    let slotConfigFp = fromMaybe (error "No slot config file path.") $ val ^? key "slotConfigFilePath" >>= \case
+    let slotConfigFp = fromMaybe defaultSlotConfigFilePath $ val ^? key "slotConfigFilePath" >>= \case
             J.String scFp -> pure $ T.unpack scFp
             _             -> Nothing
     pcSlotConfig <- decodeOrErrorFromFile slotConfigFp >>= either error pure . parseEither parseSlotConfig
