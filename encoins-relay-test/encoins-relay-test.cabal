@@ -19,13 +19,13 @@ common lang
       -Wnoncanonical-monad-instances
       -Wredundant-constraints
       -Wno-unused-do-bind
-      
+
       -- See Plutus Tx readme
       -fno-ignore-interface-pragmas
       -fno-omit-interface-pragmas
       -fno-specialise
       -fno-strictness
-      -fobject-code       
+      -fobject-code
       -fplugin-opt PlutusTx.Plugin:defer-errors
 
 test-suite encoins-relay-test

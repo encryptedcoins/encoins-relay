@@ -66,7 +66,7 @@ source-repository-package
   type: git
   location: https://github.com/input-output-hk/plutus-apps
   tag: cdbd932706108ec4799c0f09783d6fae95ac6103
-  subdir: 
+  subdir:
     cardano-node-emulator
     cardano-streaming
     doc

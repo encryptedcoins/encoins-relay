@@ -1,0 +1,3 @@
+[submodule "libsodium-vrf"]
+	path = libsodium-vrf
+	url = https://github.com/encryptedcoins/libsodium-vrf
