@@ -3,4 +3,4 @@ module Main where
 import Encoins.Relay.Server.Main (runEncoinsServer)
 
 main :: IO ()
-main = runEncoinsServer
+main = runEncoinsServer "config.json"

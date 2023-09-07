@@ -1,5 +1,6 @@
+.history
 dist-newstyle
-result/testnet-preview/wallets/*
-result/testnet-preview/secrets/*
-result/testnet-preview/logs/*
-config/*
+secrets/*
+logs/*
+encoins-relay-test/test/configuration/wallets/*
+*/poll*files/*

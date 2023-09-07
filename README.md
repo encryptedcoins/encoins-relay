@@ -2,7 +2,13 @@
 
 Encoins Relay server and console client applications. Instead of running following commands through cabal, you can use [this script](https://github.com/encryptedcoins/encoins-relay/blob/main/build.sh) to build all executables, and run them directly from [encoins-tools](https://github.com/encryptedcoins/encoins-tools) (you still need cabal for this).
 
-# Server usage:
+## Build server
+
+1. With `ghcup tui` set `GHC` to `8.10.7`and `cabal` to `3.6.2.0`
+2. Fetch submodule `git submodule update --init --recursive`
+3. Run `./build.sh`
+
+## Server usage:
 
 1. Run encoins-relay server:</br>
 ```console
@@ -19,7 +25,7 @@ $ cabal run encoins-relay-server -- setup
 $ cabal run encoins-relay-verifier
 ```
 
-# Client usage:
+## Client usage:
 
 1. Run client in which it will generate and send a request to selected endpoint with an average *interval* seconds:</br>
 ```console
@@ -62,4 +68,31 @@ $ cabal run encoins-relay-client -- status --manual ada
 2. Get all ledger utxos containing 6 or fewer tokens (including ada) and at least one encoins token:
 ```console
 $ cabal run encoins-relay-client -- status --manual encoins
+```
+
+### Running tests
+To use encoins-relay, you need to have [cardano-node](https://github.com/input-output-hk/cardano-node), [cardano-wallet](https://github.com/cardano-foundation/cardano-wallet) and [kupo](https://github.com/CardanoSolutions/kupo) installed. To run the tests, follow these steps:
+
+1. Update the paths to the cardano-node socket, cardano-node database and kupo database in the [config.json](https://github.com/encryptedcoins/encoins-relay/blob/v1-rc1/encoins-relay-test/test/configuration/config.json).
+
+2. If you want to use your own wallet, place it in the [wallets directory](https://github.com/encryptedcoins/encoins-relay/blob/v1-rc1/encoins-relay-test/test/configuration/wallets). If you have changed the name of the wallet file, make sure to update it in the [config.json](https://github.com/encryptedcoins/encoins-relay/blob/v1-rc1/encoins-relay-test/test/configuration/config.json). To run the tests successfully, the wallet should have a small amount (around 30₳) of ada.
+
+3. Execute the [prepare_tests.sh](https://github.com/encryptedcoins/encoins-relay/blob/v1-rc1/prepare_tests.sh) script and wait for cardano-wallet to fully sync.
+```console
+$ ./prepare_tests.sh
+```
+You can proceed to the next step when you see a message like this in the cardano-wallet terminal:
+```console
+[cardano-wallet.wallet-engine:Notice:42] [current-time]: In sync! Applied n blocks...
+```
+
+4. If you want to view any server logs, run the encoins-relay server and the verifier server in a separate terminal windows. Otherwise, you can skip this step.
+```console
+$ cabal run encoins-relay-verifier
+$ cabal run encoins-relay-server
+```
+
+5.  Run the server tests.
+```console
+$ cabal run encoins-relay-test
 ```

@@ -2,7 +2,6 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TypeFamilies       #-}
@@ -78,7 +77,7 @@ getMaxAdaWithdraw = do
     utxos <- getLedgerUtxos
     when (null utxos) $ throwM EmptyLedger
     let ada = maximum . map (Ada.fromValue . _decoratedTxOutValue) $ Map.elems utxos
-    pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger . (* 1_000_000) $ toInteger ada
+    pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger $ toInteger ada
 
 getLedgerEncoins :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getLedgerEncoins = do
