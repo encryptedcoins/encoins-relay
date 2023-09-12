@@ -108,6 +108,7 @@ serverSetup = void $ do
     mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
     -- Post the staking validator policy
     mkTx [] def [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
+    mkTx [] def [encoinsSendTx encoinsProtocolParams (ledgerValidatorAddress encoinsProtocolParams) minMaxTxOutValueInLedger]
 
 processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest req = sequence $ case req of

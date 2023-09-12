@@ -13,7 +13,7 @@ main :: IO ()
 main =  do
     createDirectoryIfMissing True "secrets"
     c                <- decodeOrErrorFromFile "config.json"
-    bulletproofSetup <- decodeOrErrorFromFile "bulletproof_setup.json"
+    bulletproofSetup <- decodeOrErrorFromFile "../verifier/bulletproof_setup.json"
     opts             <- runWithOpts
     sh               <- mkServerHandle c
     runClientWithOpts c sh (mkClientHandle bulletproofSetup (optsEncoinsMode opts)) $ extractCommonOptions opts

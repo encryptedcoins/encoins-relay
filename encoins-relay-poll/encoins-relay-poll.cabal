@@ -1,6 +1,6 @@
 cabal-version:      3.0
 
-name:               encoins-relay-client
+name:               encoins-relay-poll
 version:            0.1.0.0
 
 author:             Grigory Petrov
@@ -37,51 +37,37 @@ common lang
 library
     import: lang
     exposed-modules:
-      Encoins.Relay.Client.Main
-      Encoins.Relay.Client.Client
-      Encoins.Relay.Client.Opts
-      Encoins.Relay.Client.Secrets
+      Encoins.Relay.Poll
+      Encoins.Relay.Poll.Config
     other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,
       bytestring                             -any,
+      cardano-api                            -any,
+      cardano-ledger-babbage                 -any,
+      cardano-node-emulator                  -any,
       cardano-server                         -any,
-      cardano-server-client                  -any,
       containers                             -any,
-      csl-types                              -any,
       data-default                           -any,
-      directory                              -any,
-      encoins-bulletproofs                   -any,
       encoins-core                           -any,
-      encoins-relay-server                   -any,
-      encoins-relay-verifier                 -any,
+      exceptions                             -any,
       extra                                  -any,
-      hex-text                               -any,
-      mtl                                    -any,
-      optparse-applicative                   -any,
+      lens                                   -any,
       plutus-apps-extra                      -any,
-      plutus-tx                              -any,
-      plutus-tx-extra                        -any,
+      plutus-chain-index-core                -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
-      random                                 -any,
-      servant-client                         -any,
-      servant-server                         -any,
-      text                                   -any,
+      plutus-tx                              -any,
       time                                   -any,
+      transformers                           -any,
 
     hs-source-dirs: src
 
-executable encoins-relay-client
+executable encoins-relay-poll
   default-language: Haskell2010
   hs-source-dirs: app
   main-is: Main.hs
   build-depends:
     base                          >= 4.9 && < 5,
-    directory                              -any,
-    cardano-server                         -any,
-    cardano-server-client                  -any,
-    encoins-relay-client                   -any,
-    encoins-relay-server                   -any,
-    encoins-relay-verifier                 -any,
+    encoins-relay-poll                         ,

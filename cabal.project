@@ -23,6 +23,7 @@ packages:
     encoins-relay-apps
     encoins-relay-server
     encoins-relay-client
+    encoins-relay-poll
     encoins-relay-verifier
     encoins-relay-test
 
@@ -60,13 +61,13 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: v1-rc1
+  tag: v1-rc2
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/plutus-apps
   tag: cdbd932706108ec4799c0f09783d6fae95ac6103
-  subdir: 
+  subdir:
     cardano-node-emulator
     cardano-streaming
     doc
