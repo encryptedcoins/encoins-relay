@@ -23,7 +23,6 @@ packages:
     encoins-relay-apps
     encoins-relay-server
     encoins-relay-client
-    encoins-relay-poll
     encoins-relay-verifier
     encoins-relay-test
 
