@@ -31,7 +31,7 @@ import qualified Data.Text.IO                       as T
 import qualified Data.Time                          as Time
 import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultSaving)
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
-import           Encoins.Relay.Server.Delegation    (Delegation (..), delegAddress)
+import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Ledger                             (Address (..), CurrencySymbol, Datum (..), DatumHash, PubKeyHash (PubKeyHash),
                                                      Slot, StakingCredential, TokenName, TxId, TxOutRef (..))
 import           Network.URI                        (isIPv4address, isURI)
@@ -98,8 +98,8 @@ findDelegators delegationFolder DelegationHandle{..} slotFrom = do
             pure $ Delegation (addressCredential krAddress) stakeKey (TxOutRef krTxId krOutputIndex) (swhhSlot krCreatedAt) ipAddr
 
         removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
-                         . NonEmpty.groupBy ((==) `on` getStakeKey . delegAddress)
-                         . sortBy (compare `on` getStakeKey . delegAddress)
+                         . NonEmpty.groupBy ((==) `on` delegStakeKey)
+                         . sortBy (compare `on` delegStakeKey)
 
 isValidIp :: Text -> Bool
 isValidIp txt = or $ [isURI, isIPv4address] <&> ($ T.unpack txt)
