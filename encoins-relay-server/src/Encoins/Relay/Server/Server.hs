@@ -16,7 +16,7 @@ module Encoins.Relay.Server.Server where
 import           CSL                                  (TransactionInputs)
 import qualified CSL
 import           CSL.Class                            (FromCSL (..))
-import           Cardano.Server.Config                (Config (..), decodeOrErrorFromFile)
+import           Cardano.Server.Config                (Config (..))
 import           Cardano.Server.Error                 (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input                 (InputContext (..))
 import           Cardano.Server.Internal              (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
@@ -40,7 +40,7 @@ import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (EncoinsR
 import           Encoins.Relay.Server.Status          (EncoinsStatusErrors, EncoinsStatusReqBody, EncoinsStatusResult,
                                                        encoinsStatusHandler)
 import           Encoins.Relay.Verifier.Client        (mkVerifierClientEnv, verifierClient)
-import           Encoins.Relay.Verifier.Server        (VerifierApiError (..), VerifierConfig (..))
+import           Encoins.Relay.Verifier.Server        (VerifierApiError (..))
 import           Ledger                               (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex        (ChainIndex (..), getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet            (getWalletAddr, getWalletUtxos)
@@ -49,11 +49,10 @@ import           PlutusAppsExtra.Types.Tx             (TransactionBuilder)
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
     EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
-    verifierClientEnv      <- mkVerifierClientEnv cVerifierConfig
-    verifierPKH            <- cVerifierPkh <$> decodeOrErrorFromFile cVerifierConfig
+    verifierClientEnv      <- mkVerifierClientEnv cVerifierHost cVerifierPort
     pure $ ServerHandle
         Kupo
-        (EncoinsRelayEnv cRefStakeOwner cRefBeacon verifierPKH verifierClientEnv)
+        (EncoinsRelayEnv cRefStakeOwner cRefBeacon cVerifierPkh verifierClientEnv)
         getTrackedAddresses
         txBuilders
         (pure ())

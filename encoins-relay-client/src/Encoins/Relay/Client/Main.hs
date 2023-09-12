@@ -4,7 +4,6 @@ import           Cardano.Server.Config         (decodeOrErrorFromFile, cAuxiliar
 import           Cardano.Server.Client.Client  (runClientWithOpts)
 import           Encoins.Relay.Client.Client   (mkClientHandle)
 import           Encoins.Relay.Client.Opts     (Options (..), extractCommonOptions, runWithOpts)
-import           Encoins.Relay.Server.Config   (cVerifierConfig)
 import           Encoins.Relay.Server.Server   (mkServerHandle)
 import           Encoins.Relay.Verifier.Server (cBulletproofSetupFilePath)
 import           System.Directory              (createDirectoryIfMissing)
@@ -14,8 +13,7 @@ runEncoinsClient cardanoServerConfigFp = do
     createDirectoryIfMissing True "secrets"
     c                <- decodeOrErrorFromFile cardanoServerConfigFp
     ec               <- decodeOrErrorFromFile $ cAuxiliaryEnvFile c
-    vc               <- decodeOrErrorFromFile $ cVerifierConfig ec
-    bulletproofSetup <- decodeOrErrorFromFile $ cBulletproofSetupFilePath vc
+    bulletproofSetup <- decodeOrErrorFromFile $ cBulletproofSetupFilePath ec
     opts             <- runWithOpts
     sh               <- mkServerHandle c
     runClientWithOpts c sh (mkClientHandle bulletproofSetup (optsEncoinsMode opts)) $ extractCommonOptions opts

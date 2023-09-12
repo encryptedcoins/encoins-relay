@@ -4,7 +4,6 @@ import           Cardano.Server.Config         (decodeOrErrorFromFile, cAuxiliar
 import           Cardano.Server.Client.Client  (runClientWithOpts)
 import           Encoins.Relay.Client.Client   (mkClientHandle)
 import           Encoins.Relay.Client.Opts     (Options (..), extractCommonOptions, runWithOpts)
-import           Encoins.Relay.Server.Config   (cVerifierConfig)
 import           Encoins.Relay.Server.Server   (mkServerHandle)
 import           Encoins.Relay.Verifier.Server (cBulletproofSetupFilePath)
 import           System.Directory              (createDirectoryIfMissing)
