@@ -35,7 +35,7 @@ import           Data.Maybe                    (fromMaybe)
 import           Data.Text                     (Text)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), beaconTx, delegateTx, encoinsSendTx, encoinsTx,
                                                 postEncoinsPolicyTx, postLedgerValidatorTx, stakeOwnerTx)
-import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress, minMaxTxOutValueInLedger)
 import           Encoins.Relay.Server.Config   (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
                                                 treasuryWalletAddress)
 import           Encoins.Relay.Server.Internal (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv), getEncoinsProtocolParams,
