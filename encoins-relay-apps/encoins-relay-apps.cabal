@@ -32,7 +32,6 @@ common lang
 library
     import: lang
     exposed-modules:
-      Encoins.Relay.Apps.Delegation.Config
       Encoins.Relay.Apps.Delegation.Main
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
@@ -50,6 +49,7 @@ library
       data-default                           -any,
       directory                              -any,
       encoins-core                           -any,
+      encoins-relay-server                   -any,
       exceptions                             -any,
       extra                                  -any,
       lens                                   -any,

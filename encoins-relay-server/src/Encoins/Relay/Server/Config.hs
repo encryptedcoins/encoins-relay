@@ -3,16 +3,17 @@
 
 module Encoins.Relay.Server.Config where
 
-import           Cardano.Server.Config         (decodeOrErrorFromFile, Config (..))
+import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile)
+import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Maybe                    (fromJust)
 import           GHC.Generics                  (Generic)
-import           Ledger                        (Address, TxOutRef (..))
+import           Ledger                        (Address, CurrencySymbol, Slot, TokenName, TxOutRef (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 
-loadEncoinsRelayConfig :: Config -> IO EncoinsRelayConfig
-loadEncoinsRelayConfig c = decodeOrErrorFromFile $ cAuxiliaryEnvFile c
+loadEncoinsRelayConfig :: MonadIO m => Config -> m EncoinsRelayConfig
+loadEncoinsRelayConfig c = liftIO $ decodeOrErrorFromFile $ cAuxiliaryEnvFile c
 
 treasuryWalletAddress :: Address
 treasuryWalletAddress = fromJust $ bech32ToAddress
@@ -22,9 +23,14 @@ referenceScriptSalt :: Integer
 referenceScriptSalt = 20
 
 data EncoinsRelayConfig = EncoinsRelayConfig
-    { cRefStakeOwner  :: TxOutRef
-    , cRefBeacon      :: TxOutRef
-    , cVerifierConfig :: FilePath
+    { cRefStakeOwner            :: TxOutRef
+    , cRefBeacon                :: TxOutRef
+    , cVerifierConfig           :: FilePath
+    , cDelegationFolder         :: FilePath
+    , cDelegationMinTokenAmt    :: Integer
+    , cDelegationStart          :: Slot
+    , cDelegationCurrencySymbol :: CurrencySymbol
+    , cDelegationTokenName      :: TokenName
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where

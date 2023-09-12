@@ -33,8 +33,8 @@ import           Data.Default                  (def)
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe)
 import           Data.Text                     (Text)
-import           ENCOINS.Core.OffChain         (EncoinsMode (..), beaconTx, encoinsSendTx, encoinsTx, postEncoinsPolicyTx,
-                                                postLedgerValidatorTx, stakeOwnerTx, delegateTx)
+import           ENCOINS.Core.OffChain         (EncoinsMode (..), beaconTx, delegateTx, encoinsSendTx, encoinsTx,
+                                                postEncoinsPolicyTx, postLedgerValidatorTx, stakeOwnerTx)
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           Encoins.Relay.Server.Config   (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
                                                 treasuryWalletAddress)
@@ -45,7 +45,7 @@ import           Encoins.Relay.Server.Status   (EncoinsStatusErrors, EncoinsStat
 import           Encoins.Relay.Verifier.Client (mkVerifierClientEnv, verifierClient)
 import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifierConfig (..))
 import           GHC.Generics                  (Generic)
-import           Ledger                        (Address, TxId (TxId), TxOutRef (..))
+import           Plutus.V2.Ledger.Api          (Address, TxId (..), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex (ChainIndex (..), getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet     (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Types.Tx      (TransactionBuilder)

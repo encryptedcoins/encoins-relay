@@ -33,15 +33,14 @@ encoinsCS = "9abf0afd2f236a19f2842d502d0450cbcd9c79f123a9708f96fd9b96"
 
 getResponsesIO :: (MonadIO m, MonadCatch m) => NetworkId -> Slot -> Slot -> Slot -> m [KupoResponse]
 getResponsesIO networkId slotFrom slotTo slotDelta = do
-    _ <- liftIO $ createDirectoryIfMissing True "savedResponses"
+    liftIO $ createDirectoryIfMissing True "savedResponses"
     resValue <- fmap concat $ forM (zip [1 :: Int ..] intervals) $ \(i, (from, to)) -> reloadHandler $ do
         mkLog $ show i <> "/" <> show (length intervals)
         let fileName = "response" <> show (getSlot from) <> "_"  <> show (getSlot to) <> ".json"
-            req' :: KupoRequest 'SUSpent 'CSCreated 'CSCreated 
-            req' = def{reqCreatedOrSpentAfter = Just from, reqCreatedOrSpentBefore = Just to}
-        withResultSaving ("savedResponses/" <> fileName) $ liftIO $ fmap (kupoResponseToJSON networkId) <$> do
-                getKupoResponse req'
-
+            req :: KupoRequest 'SUSpent 'CSCreated 'CSCreated
+            req = def{reqCreatedOrSpentAfter = Just from, reqCreatedOrSpentBefore = Just to}
+        withResultSaving ("savedResponses/" <> fileName) $ liftIO $ 
+            fmap (kupoResponseToJSON networkId) <$> getKupoResponse req
     pure $ catMaybes $ parseMaybe parseJSON <$> resValue
     where
         intervals = divideTimeIntoIntervals slotFrom slotTo slotDelta
@@ -67,10 +66,10 @@ withResultSaving fp action =
 -- Divide time into intervals such that each interval except the first is a multiple of delta.
 divideTimeIntoIntervals :: Slot -> Slot -> Slot -> [(Slot, Slot)]
 divideTimeIntoIntervals from to delta
-    | from > to          = []
-    | to - from < delta  = [(from, to)]
-    | from /= from'      = (from, from' - 1) : divideTimeIntoIntervals from' to delta
-    | otherwise          = zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
+    | from > to         = []
+    | to - from < delta = [(from, to)]
+    | from /= from'     = (from, from' - 1) : divideTimeIntoIntervals from' to delta
+    | otherwise         = zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
     where
         -- First delta multiplier
         from' = head [x | x <- [from ..], x `mod` delta == 0]

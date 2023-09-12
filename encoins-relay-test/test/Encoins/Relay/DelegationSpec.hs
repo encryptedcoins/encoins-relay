@@ -14,36 +14,36 @@
 
 module Encoins.Relay.DelegationSpec where
 
-import           Cardano.Server.Client.Handle (HasServantClientEnv)
-import           Cardano.Server.Config        (ServerEndpoint (ServerTxE))
-import           Control.Lens                 (Bifunctor (bimap), view)
-import           Control.Monad                (join, replicateM)
-import           Control.Monad.State          (State, StateT, evalState, evalStateT, runState)
-import qualified Data.ByteString              as BS
-import           Data.Function                (on)
-import           Data.Functor                 ((<&>))
-import           Data.Functor.Identity        (Identity (runIdentity))
-import           Data.List                    (sort, sortBy)
-import           Data.Maybe                   (fromJust)
-import           Data.String                  (IsString)
-import           Data.Text                    (Text)
-import qualified Data.Text                    as T
-import           Encoins.Relay.Client.Client  (TxClientCosntraints, txClientDelegation)
-import           Encoins.Relay.Delegation     (DelegationConfig (DelegationConfig, dcMinTokenAmount), DelegationHandle (..),
-                                               findDelegators, isValidIp)
-import           Internal                     (runEncoinsServerM)
-import           Ledger                       (Address (..), Datum (Datum, getDatum), DatumHash, PubKeyHash (..), Slot (..),
-                                               TxId (..))
-import           Plutus.PAB.Arbitrary         ()
-import           Plutus.V1.Ledger.Credential  (Credential (PubKeyCredential), StakingCredential (StakingHash))
-import           Plutus.V2.Ledger.Api         (Data (..), builtinDataToData, dataToBuiltinData, toBuiltin, toBuiltinData)
-import           PlutusAppsExtra.Utils.Datum  (hashDatum)
-import           PlutusAppsExtra.Utils.Kupo   (KupoDatumType (..), KupoResponse (..), SlotWithHeaderHash (..))
-import           PlutusTx.Builtins            (encodeUtf8)
-import           System.Random                (randomRIO)
-import           Test.Hspec                   (Expectation, Spec, context, describe, it, shouldBe)
-import           Test.QuickCheck              (Arbitrary (..), Gen, Property, Testable (property), choose, generate, oneof,
-                                               shuffle, suchThat, withMaxSuccess)
+import           Cardano.Server.Client.Handle       (HasServantClientEnv)
+import           Cardano.Server.Config              (ServerEndpoint (ServerTxE))
+import           Control.Lens                       (Bifunctor (bimap), view)
+import           Control.Monad                      (join, replicateM)
+import           Control.Monad.State                (State, StateT, evalState, evalStateT, runState)
+import qualified Data.ByteString                    as BS
+import           Data.Function                      (on)
+import           Data.Functor                       ((<&>))
+import           Data.Functor.Identity              (Identity (runIdentity))
+import           Data.List                          (sort, sortBy)
+import           Data.Maybe                         (fromJust)
+import           Data.String                        (IsString)
+import           Data.Text                          (Text)
+import qualified Data.Text                          as T
+import           Encoins.Relay.Apps.Delegation.Main (DelegationHandle (..), findDelegators, isValidIp)
+import           Encoins.Relay.Client.Client        (TxClientCosntraints, txClientDelegation)
+import           Encoins.Relay.Server.Delegation    (Delegation (..))
+import           Internal                           (runEncoinsServerM)
+import           Ledger                             (Address (..), Datum (Datum, getDatum), DatumHash, PubKeyHash (..), Slot (..),
+                                                     StakePubKey (StakePubKey), TxId (..), TxOutRef (..))
+import           Plutus.PAB.Arbitrary               ()
+import           Plutus.V1.Ledger.Credential        (Credential (PubKeyCredential), StakingCredential (StakingHash))
+import           Plutus.V2.Ledger.Api               (Data (..), builtinDataToData, dataToBuiltinData, toBuiltin, toBuiltinData)
+import           PlutusAppsExtra.Utils.Datum        (hashDatum)
+import           PlutusAppsExtra.Utils.Kupo         (KupoDatumType (..), KupoResponse (..), SlotWithHeaderHash (..))
+import           PlutusTx.Builtins                  (encodeUtf8)
+import           System.Random                      (randomRIO)
+import           Test.Hspec                         (Expectation, Spec, context, describe, it, shouldBe)
+import           Test.QuickCheck                    (Arbitrary (..), Gen, Property, Testable (property), choose, generate, oneof,
+                                                     shuffle, suchThat, withMaxSuccess)
 
 spec :: HasServantClientEnv => Spec
 spec = describe "encoins-delegation" $ it "find delegators ips" propDelegation
@@ -53,17 +53,16 @@ propDelegation = property $ \(args :: [TestArg]) -> do
     let balances = map taTokenAmount args
     minTokenAmount <- generate (choose (minimum balances, maximum balances))
     handle <- generate $ mkTestDelegationHandle args
-    let conf = DelegationConfig {dcMinTokenAmount = minTokenAmount}
-        res  = runIdentity $ findDelegators conf handle
+    let res  = runIdentity $ findDelegators "" handle 0
     sort res `shouldBe` expectedResult minTokenAmount args
 
-expectedResult :: Integer -> [TestArg] -> [Text]
-expectedResult minTokenAmount = sort . map (unDelegIp . taDelegIp) . filter f
+expectedResult :: Integer -> [TestArg] -> [Delegation]
+expectedResult minTokenAmount = sort . map mkDeleg . filter taTxSignatureIsRight
     where
-        f TestArg{..} = taTokenAmount >= minTokenAmount && taTxSignatureIsRight
+        mkDeleg TestArg{..} = Delegation taCredential taAddressStakeKey (TxOutRef taTxId taTxIdX) taCreatedAt (unDelegIp taDelegIp)
 
 data TestArg = TestArg
-    { taAddress            :: Address
+    { taCredential         :: Credential
     , taAddressStakeKey    :: PubKeyHash
     , taDelegIp            :: DelegIp
     , taTokenAmount        :: Integer
@@ -78,7 +77,7 @@ data TestArg = TestArg
 argToKupoResponse :: TestArg -> KupoResponse
 argToKupoResponse TestArg{..} =
     let krDatumHash   = Just taDatumHash
-        krAddress     = taAddress
+        krAddress     = Address taCredential (Just $ StakingHash $ PubKeyCredential taAddressStakeKey)
         krTxId        = taTxId
         krOutputIndex = taTxIdX
         krCreatedAt   = SlotWithHeaderHash taCreatedAt undefined
@@ -94,9 +93,9 @@ instance Arbitrary TestArg where
         taTxSignatureIsRight <- choose @Int (1, 50) <&> \case
             50 -> False
             _  -> True
-        addrCred <- arbitrary
+        taCredential <- arbitrary
         taCreatedAt <- abs <$> arbitrary
-        let taAddress = Address addrCred (Just $ StakingHash (PubKeyCredential taAddressStakeKey))
+        let taAddress = Address taCredential (Just $ StakingHash (PubKeyCredential taAddressStakeKey))
             taDatum = Datum $ toBuiltinData $ join bimap (encodeUtf8 . toBuiltin) ("ENCS Delegation", unDelegIp taDelegIp)
             taDatumHash = fromJust $ hashDatum taDatum
         pure TestArg{..}
@@ -135,17 +134,17 @@ mkTestDelegationHandle args = do
     let delegResponses = argToKupoResponse <$> args
         responses = sortBy (compare `on` (swhhSlot . krCreatedAt)) (mockResponses <> delegResponses)
 
-    let getResponses = pure responses
-        getDatumByHash dh = pure $ case filter ((== dh) . taDatumHash) args of
+    let dhGetResponses _ _ = pure responses
+        dhGetDatumByHash dh = pure $ case filter ((== dh) . taDatumHash) args of
             [ta] -> Just $ taDatum ta
             _    -> Nothing
-        getTokenBalance _ _ (StakingHash (PubKeyCredential pkh)) = pure $ case filter ((== pkh) . taAddressStakeKey) args of
+        dhGetTokenBalance _ _ (StakingHash (PubKeyCredential pkh)) = pure $ case filter ((== pkh) . taAddressStakeKey) args of
             [ta] -> taTokenAmount ta
             _    -> 0
-        getTokenBalance _ _ _ = balance
-        checkTxSignature txId _ = pure $ case filter ((== txId) . taTxId) args of
+        dhGetTokenBalance _ _ _ = balance
+        dhCheckTxSignature txId _ = pure $ case filter ((== txId) . taTxId) args of
             [ta] -> taTxSignatureIsRight ta
             _    -> False
-        mkLog = const (pure ())
-        withResultSaving = const id
+        dhMkLog = const (pure ())
+        dhWithResultSaving = const id
     pure $ DelegationHandle{..}
