@@ -17,15 +17,15 @@ import           Control.Exception             (Exception)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..), VerifierConfig (..))
+import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifierConfig (..), VerifyEndpoint)
 import           Network.HTTP.Client           (defaultManagerSettings, newManager)
 import           Servant                       (Proxy (Proxy), WithStatus (..))
-import           Servant.Client                (ClientEnv (..), BaseUrl(..), ClientError, Scheme (..), client, foldMapUnion,
-                                                runClientM, defaultMakeClientRequest)
+import           Servant.Client                (BaseUrl (..), ClientEnv (..), ClientError, Scheme (..), client,
+                                                defaultMakeClientRequest, foldMapUnion, runClientM)
 
 verifierClient :: HasServantClientEnv => EncoinsRedeemer -> IO (Either VerifierClientError EncoinsRedeemerOnChain)
 verifierClient red 
-    = (`runClientM` ?servantClientEnv) (foldUnion <$> client (Proxy @VerifierApi) red) >>= \case
+    = (`runClientM` ?servantClientEnv) (foldUnion <$> client (Proxy @VerifyEndpoint) red) >>= \case
         Right (Right red')  -> pure $ Right red'
         Right (Left apiErr) -> pure $ Left $ VerifierApiError apiErr
         Left clientErr      -> pure $ Left $ VerifierClientError clientErr
