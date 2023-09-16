@@ -5,7 +5,7 @@ module Encoins.Relay.Server.Internal where
 import           Cardano.Server.Internal                  (AuxillaryEnvOf, ServerM, getAuxillaryEnv)
 import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, encoinsSymbol, ledgerValidatorAddress)
 import           Encoins.Relay.Server.Config              (referenceScriptSalt)
-import           Ledger                                   (Address, CurrencySymbol, TxOutRef)
+import           Plutus.V2.Ledger.Api                     (Address, CurrencySymbol, TxOutRef)
 import           PlutusAppsExtra.IO.ChainIndex            (getUtxosAt)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Utils.ChainIndex         (MapUTXO)

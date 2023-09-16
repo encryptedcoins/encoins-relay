@@ -67,6 +67,8 @@ library
       plutus-tx                              -any,
       plutus-tx-extra                        -any,
       plutus-ledger                          -any,
+      plutus-ledger-api                      -any,
+      plutus-script-utils                    -any,
       random                                 -any,
       servant-server                         -any,
       servant-client                         -any,
