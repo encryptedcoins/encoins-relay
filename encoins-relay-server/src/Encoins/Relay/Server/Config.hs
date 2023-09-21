@@ -29,7 +29,6 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     , cVerifierPkh              :: BuiltinByteString
     , cVerifierHost             :: Text
     , cVerifierPort             :: Int
-    , cBulletproofSetupFilePath :: FilePath
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where
