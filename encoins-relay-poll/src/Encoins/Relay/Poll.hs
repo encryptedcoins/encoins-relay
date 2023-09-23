@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -24,14 +25,14 @@ import           Control.Monad                      (forM, guard, join, void)
 import           Control.Monad.Catch                (MonadThrow (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
 import           Data.Aeson                         (eitherDecodeFileStrict)
+import           Data.Default                       (def)
 import           Data.Function                      (on)
 import           Data.List                          (groupBy, partition, sortBy)
 import           Data.Maybe                         (catMaybes, listToMaybe, mapMaybe)
 import           Encoins.Relay.Poll.Config          (PollConfig (..))
 import           Ledger                             (Datum (..), PubKeyHash (..), Slot (..), TxId (..))
-import           Plutus.V1.Ledger.Api               (BuiltinByteString, FromData (..))
-import           PlutusAppsExtra.IO.ChainIndex.Kupo (getDatumByHashSafe, getTokenBalanceToSlotByPkh)
-import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
+import           Plutus.V1.Ledger.Api               (BuiltinByteString, FromData (..), Credential (..), StakingCredential (..))
+import           PlutusAppsExtra.IO.ChainIndex.Kupo
 import           PlutusAppsExtra.Utils.Address      (getStakeKey)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (..))
 import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
@@ -53,7 +54,9 @@ poll pollNo = do
     createDirectoryIfMissing True folderName
 
     putStrLn "Getting votes..."
-    let getVotes f t = Kupo.getKupoResponseBetweenSlots f t >>= (fmap catMaybes <$> mapM (getVoteFromKupoResponse pollNo))
+    let mkReq :: Maybe Slot -> Maybe Slot -> KupoRequest 'SUSpent 'CSCreated 'CSCreated
+        mkReq f t = def{reqCreatedOrSpentAfter = f, reqCreatedOrSpentBefore = t}
+        getVotes f t = getKupoResponse (mkReq f t) >>= (fmap catMaybes <$> mapM (getVoteFromKupoResponse pollNo))
     !votesWithDuplicates <- getSmthPartially folderName getVotes pcStart pcFinish 3600
     let votes = mapMaybe (listToMaybe . reverse)
             $ groupBy ((==) `on` (^. _1))
@@ -61,7 +64,7 @@ poll pollNo = do
     writeFileJSON (folderName <> "/votes") votes
 
     !votesWithWeight <- forM votes $ \(pkh, _, txId, vote) -> do
-        let getWeight = getTokenBalanceToSlotByPkh pcCS pcTokenName pcFinish pkh
+        let getWeight = getTokenBalanceToSlot pcCS pcTokenName (Just pcFinish) (StakingHash $ PubKeyCredential pkh)
         weight <- reloadHandler getWeight
         pure (pkh, weight, txId, fromBuiltin $ decodeUtf8 vote)
     let getVotesNum = sum . map (^. _2)
@@ -91,25 +94,20 @@ getSmthPartially folderName getSmth slotFrom slotTo slotDelta = concat <$> do
             mapM_ print smth
             pure smth
 
-divideTimeIntoIntervals :: Slot -> Slot -> Slot -> [(Slot, Slot)]
-divideTimeIntoIntervals from to delta = do
-    let xs = [from, from + delta .. to]
-    zip (init xs) (subtract 1 <$> tail xs) <> [(last xs, to)]
-
 getVoteFromKupoResponse :: Integer -> KupoResponse -> IO (Maybe (PubKeyHash, Slot, TxId, BuiltinByteString))
 getVoteFromKupoResponse pollNo KupoResponse{..} = runMaybeT $ do
-        dat <- MaybeT $ fmap join $ sequence $ getDatumByHashSafe <$> krDatumHash
+        dat <- MaybeT $ fmap join $ sequence $ getDatumByHash <$> krDatumHash
         (pkhBbs, vote) <- hoistMaybeT $ extractVoteFromDatum dat
         pkh <-  hoistMaybeT $ getStakeKey krAddress
-        MaybeT (Just <$> txIsSignedByKey krTransactionId pkhBbs) >>= guard
-        pureMaybeT (pkh, swhhSlot krCreatedAt, krTransactionId,  vote)
+        MaybeT (Just <$> txIsSignedByKey krTxId pkhBbs) >>= guard
+        pureMaybeT (pkh, swhhSlot krCreatedAt, krTxId,  vote)
     where
         hoistMaybeT = MaybeT . pure
         pureMaybeT = hoistMaybeT . pure
         extractVoteFromDatum (Datum dat) = case fromBuiltinData dat of
-            Just ["ENCOINS", bs1, bs2, bs3] -> 
+            Just ["ENCOINS", bs1, bs2, bs3] ->
                 if bs3 == "Yes" || bs3 == "No" && bs1 == "Poll #" <> stringToBuiltinByteString (show pollNo)
-                then Just (bs2, bs3) 
+                then Just (bs2, bs3)
                 else Nothing
             _ -> Nothing
 

@@ -56,6 +56,7 @@ test-suite encoins-relay-test
     hspec-core                             -any,
     plutus-apps-extra                      -any,
     plutus-ledger                          -any,
+    plutus-ledger-api                      -any,
     plutus-tx                              -any,
     plutus-tx-extra                        -any,
     random                                 -any,

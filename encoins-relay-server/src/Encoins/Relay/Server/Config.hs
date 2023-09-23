@@ -3,13 +3,15 @@
 
 module Encoins.Relay.Server.Config where
 
-import           Cardano.Server.Config         (decodeOrErrorFromFile, Config (..))
+import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile)
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Maybe                    (fromJust)
+import           Data.Text                     (Text)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (Address, TxOutRef (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
+import           PlutusTx.Builtins             (BuiltinByteString)
 
 loadEncoinsRelayConfig :: Config -> IO EncoinsRelayConfig
 loadEncoinsRelayConfig c = decodeOrErrorFromFile $ cAuxiliaryEnvFile c
@@ -22,9 +24,11 @@ referenceScriptSalt :: Integer
 referenceScriptSalt = 20
 
 data EncoinsRelayConfig = EncoinsRelayConfig
-    { cRefStakeOwner  :: TxOutRef
-    , cRefBeacon      :: TxOutRef
-    , cVerifierConfig :: FilePath
+    { cRefStakeOwner            :: TxOutRef
+    , cRefBeacon                :: TxOutRef
+    , cVerifierPkh              :: BuiltinByteString
+    , cVerifierHost             :: Text
+    , cVerifierPort             :: Int
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where

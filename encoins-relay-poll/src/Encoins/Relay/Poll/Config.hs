@@ -1,15 +1,16 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Encoins.Relay.Poll.Config where
 
-import Ledger (Slot, CurrencySymbol, TokenName, NetworkId)
-import Data.Foldable (asum)
-import Data.Time (parseTimeM, defaultTimeLocale, UTCTime)
-import Cardano.Node.Emulator (posixTimeToEnclosingSlot, utcTimeToPOSIXTime)
-import Data.Default (Default(..))
-import Control.Applicative ((<|>), Alternative)
-import Data.Aeson ( FromJSON(..), withObject, (.:) )
-import Cardano.Api (NetworkId(Mainnet))
+import           Cardano.Api           (NetworkId (Mainnet))
+import           Cardano.Node.Emulator (posixTimeToEnclosingSlot, utcTimeToPOSIXTime)
+import           Control.Applicative   (Alternative, (<|>))
+import           Data.Aeson            (FromJSON (..), withObject, (.:))
+import           Data.Default          (Default (..))
+import           Data.Foldable         (asum)
+import           Data.Time             (UTCTime, defaultTimeLocale, parseTimeM)
+import           Ledger                (Slot)
+import           Plutus.V2.Ledger.Api  (CurrencySymbol, TokenName)
 
 data PollConfig = PollConfig
     { pcCS :: CurrencySymbol
@@ -29,7 +30,7 @@ instance FromJSON PollConfig where
         pure $ PollConfig{..}
 
 parseTime :: (Alternative m, MonadFail m) => String -> m Slot
-parseTime s = fmap utcToSlot $ asum $ (\f -> parseTimeM True defaultTimeLocale f s) 
+parseTime s = fmap utcToSlot $ asum $ (\f -> parseTimeM True defaultTimeLocale f s)
     <$> ["%Y-%m-%d", "%Y-%m-%d-%H", "%Y-%m-%d-%H:%M"]
 
 utcToSlot :: UTCTime -> Slot
