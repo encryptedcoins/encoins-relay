@@ -27,9 +27,10 @@ import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
 import           Encoins.Relay.Server.Internal (getLedgerAddress, getEncoinsSymbol)
 import           Encoins.Relay.Server.Server   (EncoinsApi)
 import           GHC.Generics                  (Generic)
-import           Ledger                        (TokenName)
-import           Ledger.Ada                    (lovelaceOf)
-import           Ledger.Value                  (TokenName (..), getValue)
+import           Ledger                        (fromCardanoValue)
+import           Plutus.Script.Utils.Ada       (lovelaceOf)
+import           Plutus.V2.Ledger.Api          (TokenName (..))
+import qualified Plutus.V2.Ledger.Api          as P
 import           PlutusAppsExtra.IO.ChainIndex (getValueAt)
 import           PlutusAppsExtra.IO.Wallet     (getWalletValue)
 import qualified PlutusTx.AssocMap             as PAM
@@ -97,11 +98,11 @@ getEncoinsTokensFromMode :: HasEncoinsModeAndBulletproofSetup => ServerM Encoins
 getEncoinsTokensFromMode = do
     encoinsSymb <- getEncoinsSymbol
     let filterCS cs tokenName = if cs == encoinsSymb then Just tokenName else Nothing
-    concatMap PAM.keys . PAM.elems . PAM.mapMaybeWithKey filterCS . getValue <$> case ?mode of
+    concatMap PAM.keys . PAM.elems . PAM.mapMaybeWithKey filterCS . P.getValue <$> case ?mode of
         WalletMode -> getWalletValue
-        LedgerMode -> getLedgerAddress >>= getValueAt
+        LedgerMode -> getLedgerAddress >>= fmap fromCardanoValue . getValueAt
 
--- It is possible to send 5 tokens, but in this case, the size of the tx will 
+-- It is possible to send 5 tokens, but in this case, the size of the tx will
 -- most likely not fit into the utxo size restrictions.
 genTerms :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi [EncoinsRequestTerm]
 genTerms = do

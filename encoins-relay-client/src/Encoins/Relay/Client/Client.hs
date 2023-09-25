@@ -43,8 +43,9 @@ import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSet
 import           Encoins.Relay.Server.Internal  (getLedgerAddress)
 import           Encoins.Relay.Server.Server    (EncoinsApi, InputOfEncoinsApi (..))
 import           Ledger                         (Address)
-import           Ledger.Ada                     (Ada (getLovelace))
-import           Ledger.Value                   (TokenName (..))
+import           Plutus.Script.Utils.Ada        (Ada (..))
+import           Plutus.V2.Ledger.Api           (TokenName (..))
+
 import           PlutusAppsExtra.IO.ChainIndex  (getRefsAt)
 import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletRefs)
 import           PlutusTx.Builtins              (sha2_256)

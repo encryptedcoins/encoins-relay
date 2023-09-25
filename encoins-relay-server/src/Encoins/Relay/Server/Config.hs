@@ -8,9 +8,12 @@ import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Maybe                    (fromJust)
+import           Data.Text                     (Text)
 import           GHC.Generics                  (Generic)
-import           Ledger                        (Address, CurrencySymbol, Slot, TokenName, TxOutRef (..))
+import           Ledger                        (Slot)
+import           Plutus.V2.Ledger.Api          (Address, CurrencySymbol, TokenName, TxOutRef (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
+import           PlutusTx.Builtins             (BuiltinByteString)
 
 loadEncoinsRelayConfig :: MonadIO m => Config -> m EncoinsRelayConfig
 loadEncoinsRelayConfig c = liftIO $ decodeOrErrorFromFile $ cAuxiliaryEnvFile c
@@ -23,9 +26,14 @@ referenceScriptSalt :: Integer
 referenceScriptSalt = 20
 
 data EncoinsRelayConfig = EncoinsRelayConfig
+    -- Relay
     { cRefStakeOwner            :: TxOutRef
     , cRefBeacon                :: TxOutRef
-    , cVerifierConfig           :: FilePath
+    -- Verifier
+    , cVerifierPkh              :: BuiltinByteString
+    , cVerifierHost             :: Text
+    , cVerifierPort             :: Int
+    -- Delegation
     , cDelegationFolder         :: FilePath
     , cDelegationMinTokenAmt    :: Integer
     , cDelegationStart          :: Slot

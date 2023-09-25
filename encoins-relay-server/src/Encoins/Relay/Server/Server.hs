@@ -17,7 +17,7 @@ module Encoins.Relay.Server.Server where
 import           CSL                           (TransactionInputs)
 import qualified CSL
 import           CSL.Class                     (FromCSL (..))
-import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile)
+import           Cardano.Server.Config         (Config (..))
 import           Cardano.Server.Error          (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input          (InputContext (..))
 import           Cardano.Server.Internal       (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
@@ -33,9 +33,10 @@ import           Data.Default                  (def)
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe)
 import           Data.Text                     (Text)
-import           ENCOINS.Core.OffChain         (EncoinsMode (..), beaconTx, delegateTx, encoinsSendTx, encoinsTx,
-                                                postEncoinsPolicyTx, postLedgerValidatorTx, stakeOwnerTx)
-import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress, minMaxTxOutValueInLedger)
+import           ENCOINS.Core.OffChain         (EncoinsMode (..), beaconTx, encoinsSendTx, encoinsTx, postEncoinsPolicyTx,
+                                                postLedgerValidatorTx, stakeOwnerTx, delegateTx)
+import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress,
+                                                minMaxTxOutValueInLedger)
 import           Encoins.Relay.Server.Config   (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
                                                 treasuryWalletAddress)
 import           Encoins.Relay.Server.Internal (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv), getEncoinsProtocolParams,
@@ -43,9 +44,9 @@ import           Encoins.Relay.Server.Internal (EncoinsRelayEnv (EncoinsRelayEnv
 import           Encoins.Relay.Server.Status   (EncoinsStatusErrors, EncoinsStatusReqBody, EncoinsStatusResult,
                                                 encoinsStatusHandler)
 import           Encoins.Relay.Verifier.Client (mkVerifierClientEnv, verifierClient)
-import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifierConfig (..))
+import           Encoins.Relay.Verifier.Server (VerifierApiError (..))
 import           GHC.Generics                  (Generic)
-import           Plutus.V2.Ledger.Api          (Address, TxId (..), TxOutRef (..))
+import           Ledger                        (Address, TxId (TxId), TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex (ChainIndex (..), getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet     (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Types.Tx      (TransactionBuilder)
@@ -53,11 +54,10 @@ import           PlutusAppsExtra.Types.Tx      (TransactionBuilder)
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
     EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
-    verifierClientEnv      <- mkVerifierClientEnv cVerifierConfig
-    verifierPKH            <- cVerifierPkh <$> decodeOrErrorFromFile cVerifierConfig
+    verifierClientEnv      <- mkVerifierClientEnv cVerifierHost cVerifierPort
     pure $ ServerHandle
         Kupo
-        (EncoinsRelayEnv cRefStakeOwner cRefBeacon verifierPKH verifierClientEnv)
+        (EncoinsRelayEnv cRefStakeOwner cRefBeacon cVerifierPkh verifierClientEnv)
         getTrackedAddresses
         txBuilders
         (pure ())

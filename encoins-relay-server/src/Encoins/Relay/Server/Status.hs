@@ -1,10 +1,10 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE TupleSections      #-}
-{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Encoins.Relay.Server.Status where
 
@@ -20,15 +20,15 @@ import           Data.Aeson                    (FromJSON (..), ToJSON (..))
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe)
 import           GHC.Generics                  (Generic)
-import           Ledger                        (DecoratedTxOut (..))
-import qualified Ledger.Ada                    as Ada
-import           Ledger.Value                  (flattenValue)
+import           Ledger                        (decoratedTxOutPlutusValue)
+import qualified Plutus.Script.Utils.Ada       as Ada
 import           System.Random                 (Random (..))
 
 import qualified CSL
 import           CSL.Class                     (toCSL)
 import           ENCOINS.Core.OnChain          (minAdaTxOutInLedger)
 import           Encoins.Relay.Server.Internal (EncoinsRelayEnv, getEncoinsSymbol, getLedgerUtxos)
+import qualified Plutus.Script.Utils.Value     as P
 
 data EncoinsStatusReqBody
     -- | Get the maximum amount of ada that can be taken from a single utxo bound to a ledger address.
@@ -76,12 +76,12 @@ getMaxAdaWithdraw :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api Encoins
 getMaxAdaWithdraw = do
     utxos <- getLedgerUtxos
     when (null utxos) $ throwM EmptyLedger
-    let ada = maximum . map (Ada.fromValue . _decoratedTxOutValue) $ Map.elems utxos
+    let ada = maximum . map (Ada.fromValue . decoratedTxOutPlutusValue) $ Map.elems utxos
     pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger $ toInteger ada
 
 getLedgerEncoins :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getLedgerEncoins = do
     ecs <- getEncoinsSymbol
     networkId <- getNetworkId
-    let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . flattenValue . _decoratedTxOutValue
+    let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . decoratedTxOutPlutusValue
     LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . Map.filter f <$> getLedgerUtxos

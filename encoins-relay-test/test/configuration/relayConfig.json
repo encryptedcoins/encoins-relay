@@ -1,9 +1,13 @@
-{ "ref_stake_owner"  : {"txOutRefId"  : {"getTxId" : "f2ba0df9a0d50a2b53355116ab072440dc9daad129edafc870dcb6b62e91052d"}, "txOutRefIdx" : 3}
-, "ref_beacon"      : {"txOutRefId"  : {"getTxId" : "f5a4ef6215e3d1a94221ccbb59cf694618b7dc52ce2ea6e9054449d84f56c31a"}, "txOutRefIdx" : 1}
-, "verifier_config" : "encoins-relay-test/test/configuration/verifierConfig.json"
-, "delegation_folder" : "../configuration"
-, "delegation_min_token_amt" : 0
-, "delegation_start" : {"getSlot" : 0}
-, "delegation_currency_symbol" : {"unCurrencySymbol" : ""}
-, "delegation_token_name" : {"unTokenName" : ""}
+{ "ref_stake_owner"             : {"txOutRefId"  : {"getTxId" : "f94b7cf5e7dccafc7a8211b5e66412220639c7f87c1226f1a1ba284ca7bb7fe1"}, "txOutRefIdx" : 5}
+, "ref_beacon"                  : {"txOutRefId"  : {"getTxId" : "fea3f86d1b89c4a1979d2b76f13909b18c6a79afea4b5bbc57f8c772921f06a4"}, "txOutRefIdx" : 1}
+, "verifier_host"               : "localhost"
+, "verifier_port"               : 3001
+, "verifier_pkh"                : "AB39EFD01872F96A4CA2534EB5959D737F1939094BEA19069EE7FE76ECE3494A"
+, "delegation_folder"           : "../configuration"
+, "delegation_min_token_amt"    : 0
+, "delegation_start"            : {"getSlot" : 0}
+, "delegation_currency_symbol"  : {"unCurrencySymbol" : ""}
+, "delegation_token_name"       : {"unTokenName" : ""}
 }
+
+

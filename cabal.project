@@ -11,12 +11,11 @@ repository cardano-haskell-packages
     c00aae8461a256275598500ea0e187588c35a5d5d7454fb57eac18d9edb86a56
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
--- See CONTRIBUTING.adoc for how to update index-state
-index-state: 2022-12-22T00:00:00Z
+index-state: 2023-02-20T00:00:00Z
 
 -- See CONTRIBUTING.adoc for how to update index-state
 index-state:
-  , hackage.haskell.org 2022-12-22T00:00:00Z
+  , hackage.haskell.org 2023-02-20T00:00:00Z
   , cardano-haskell-packages 2022-12-22T00:00:00Z
 
 packages:
@@ -29,7 +28,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: 29cdc01d2ac8da7b71de1837065ef024f8680cb0
+  tag: d2cab75113c5573adf1fb5b9d9ab68ee2e2f54e1
   subdir:
     cardano-server
     cardano-server-client
@@ -38,55 +37,55 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-tx-extra.git
-  tag: v1-rc1
+  tag: 8c54d7f687fcf49011d7aa0961d99fc88019797e
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 4686bb5470530a0b903cde6054afea746866ad64
+  tag: 7b5edd0b5f0319dae7fe1482f97818bc95b4fe95
   subdir:
     plutus-apps-extra
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/csl-types.git
-  tag: v1-rc1
+  tag: 496092d247d4f2d08ed86576fc68bb643bd750d2
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-bulletproofs
-  tag: v1-rc1
+  tag: f62ea3caf1490df449474b5e87577e037206c546
 
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: v1-rc2
+  tag: f1d3441b77521f3ccb22685a05f4e7b7f2a98d9e
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/plutus-apps
-  tag: cdbd932706108ec4799c0f09783d6fae95ac6103
+  tag: 68efca7eda4afd1c14698adf697d70acb5a489e2
   subdir:
     cardano-node-emulator
     cardano-streaming
     doc
     freer-extras
-    marconi
-    marconi-mamba
+    marconi-chain-index
+    marconi-core
+    marconi-sidechain
     pab-blockfrost
     plutus-chain-index
     plutus-chain-index-core
     plutus-contract
     plutus-contract-certification
+    plutus-e2e-tests
     plutus-example
     plutus-ledger
-    plutus-ledger-constraints
     plutus-pab
     plutus-pab-executables
     plutus-script-utils
     plutus-tx-constraints
     plutus-use-cases
-    rewindable-index
 
 -- We never, ever, want this.
 write-ghc-environment-files: never
@@ -137,6 +136,10 @@ constraints:
   , aeson >= 2
 
   , hedgehog >= 1.1
+
+  , resource-pool <0.4.0.0
+
+  , http2 <4.0.0
 
 -- The plugin will typically fail when producing Haddock documentation. However,
 -- in this instance you can simply tell it to defer any errors to runtime (which
@@ -202,7 +205,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/Quviq/quickcheck-contractmodel
-    tag: 462f8c25bea15f88e179e12ebf4e3a4ffcc92d18
+    tag: cc43f13f98c704e0d53dbdef6a98367918f8c5c1
     subdir:
       contractmodel
 

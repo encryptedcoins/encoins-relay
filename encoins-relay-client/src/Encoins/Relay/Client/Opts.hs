@@ -11,8 +11,8 @@ module Encoins.Relay.Client.Opts where
 
 import qualified CSL
 import           Cardano.Server.Client.Internal (Mode)
-import           Cardano.Server.Config          (ServerEndpoint)
 import           Cardano.Server.Client.Opts     (CommonOptions (..), autoModeParser, manualModeParser, serverEndpointParser)
+import           Cardano.Server.Config          (ServerEndpoint)
 import           Control.Applicative            (liftA3, (<|>))
 import           Data.Aeson                     (ToJSON)
 import           Data.Bool                      (bool)
@@ -22,9 +22,9 @@ import           ENCOINS.Bulletproofs.Types     (Secret (..))
 import           ENCOINS.Core.OffChain          (EncoinsMode (..))
 import           GHC.Generics                   (Generic)
 import           Ledger                         (Address)
-import           Ledger.Ada                     (Ada (..))
 import           Options.Applicative            (Parser, argument, auto, execParser, fullDesc, helper, info, metavar, value,
                                                  (<**>))
+import           Plutus.Script.Utils.Ada        (Ada (..))
 import           PlutusAppsExtra.Utils.Address  (bech32ToAddress)
 import           System.Random                  (Random (..))
 import           Text.Read                      (readMaybe)

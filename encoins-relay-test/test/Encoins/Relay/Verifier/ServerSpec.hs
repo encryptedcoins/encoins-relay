@@ -1,10 +1,11 @@
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Encoins.Relay.Verifier.ServerSpec where
 
-import           Cardano.Server.Config         (decodeOrErrorFromFile)
 import           Cardano.Server.Client.Handle  (HasServantClientEnv)
+import           Cardano.Server.Config         (decodeOrErrorFromFile)
 import           Control.Monad                 (replicateM)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Either                   (isLeft)
@@ -17,7 +18,7 @@ import           ENCOINS.Core.OnChain          (EncoinsRedeemer, hashRedeemer)
 import           Encoins.Relay.Client.Client   (secretsToReqBody, termsToSecrets)
 import           Encoins.Relay.Client.Secrets  (randomMintTerm)
 import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVerifierClientEnv, verifierClient)
-import           Encoins.Relay.Verifier.Server (VerifierApiError (..))
+import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifierConfig (..))
 import           Internal                      (runEncoinsServerM)
 import           PlutusAppsExtra.Utils.Crypto  (sign)
 import           PlutusTx.Extra.ByteString     (toBytes)
@@ -27,8 +28,8 @@ import           Test.Hspec                    (Expectation, Spec, describe, it,
 
 spec :: Spec
 spec = describe "encoins-verifier" $ do
-
-    cEnv             <- runIO $ mkVerifierClientEnv   "encoins-relay-test/test/configuration/verifierConfig.json"
+    VerifierConfig{..} <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/verifierConfig.json"
+    cEnv             <- runIO $ mkVerifierClientEnv cHost cPort
     bulletproofSetup <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/bulletproof_setup.json"
 
     let ?mode = WalletMode
