@@ -50,7 +50,7 @@ import qualified PlutusTx.AssocMap                  as PAM
 import           System.Directory                   (createDirectoryIfMissing, listDirectory, removeDirectoryRecursive)
 import           System.Random                      (randomRIO)
 import           Test.Hspec                         (Expectation, HasCallStack, Spec, context, describe, expectationFailure,
-                                                     hspec, it, runIO, shouldBe, shouldSatisfy)
+                                                     hspec, it, runIO, shouldBe, shouldSatisfy, pendingWith)
 import           Test.Hspec.Core.Spec               (sequential)
 import           Test.QuickCheck                    (Arbitrary (..), choose, generate)
 
@@ -71,9 +71,11 @@ spec = do
 
             context "ledger mode" $ let ?mode = LedgerMode in sequential $ do
 
-                it "mint tokens" propMint
+                -- it "mint tokens" propMint
+                it "mint tokens" $ pendingWith "Pending until encoins-core ledger mode fix."
 
-                it "burn tokens" propBurn
+                -- it "burn tokens" propBurn
+                it "burn tokens" $ pendingWith "Pending until encoins-core ledger mode fix."
 
 propMint :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
 propMint = join $ runEncoinsServerM $ do
