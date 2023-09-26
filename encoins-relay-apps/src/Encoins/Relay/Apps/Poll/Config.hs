@@ -15,9 +15,10 @@ import           Data.Aeson.Lens             (key)
 import           Data.Aeson.Types            (parseEither)
 import           Data.Maybe                  (fromMaybe)
 import qualified Data.Text                   as T
-import           Encoins.Relay.Apps.Internal (encoinsCS, encoinsTokenName, defaultSlotConfigFilePath)
+import           Encoins.Relay.Apps.Internal (defaultSlotConfigFilePath, encoinsCS, encoinsTokenName)
 import           GHC.Stack                   (HasCallStack)
-import           Ledger                      (CurrencySymbol, Slot, TokenName)
+import           Ledger                      (Slot)
+import           Plutus.V2.Ledger.Api        (CurrencySymbol, TokenName)
 import           PlutusAppsExtra.Utils.Time  (parseSlotConfig, parseSlotOrUtc, utcToSlot)
 
 data PollConfig = PollConfig

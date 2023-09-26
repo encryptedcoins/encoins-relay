@@ -11,13 +11,13 @@ module Encoins.Relay.Apps.Delegation.Main where
 import           Cardano.Api                        (NetworkId, writeFileJSON)
 import           Cardano.Node.Emulator              (SlotConfig)
 import           Cardano.Server.Config              (Config (..), decodeOrErrorFromFile)
-import           Cardano.Server.Internal            (loadSlotConfig)
 import           Cardano.Server.Utils.Logger        ((.<))
 import           Control.Arrow                      ((>>>))
-import           Control.Monad                      (MonadPlus (..), forM, forever, join, unless, (>=>), guard)
+import           Control.Monad                      (MonadPlus (..), forM, forever, guard, join, unless, (>=>))
 import           Control.Monad.Trans.Class          (MonadTrans (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
 import           Data.Aeson                         (eitherDecodeFileStrict)
+import           Data.Aeson.Types                   (parseEither)
 import           Data.Either.Extra                  (eitherToMaybe)
 import           Data.Function                      (on)
 import           Data.Functor                       ((<&>))
@@ -32,13 +32,15 @@ import qualified Data.Time                          as Time
 import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultSaving)
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
-import           Ledger                             (Address (..), CurrencySymbol, Datum (..), DatumHash, PubKeyHash (PubKeyHash),
-                                                     Slot, StakingCredential, TokenName, TxId, TxOutRef (..))
+import           Ledger                             (Address (..), Datum (..), DatumHash, PubKeyHash (PubKeyHash), Slot,
+                                                     StakingCredential, TxId, TxOutRef (..))
 import           Network.URI                        (isIPv4address, isURI)
+import           Plutus.V1.Ledger.Value             (TokenName)
+import           Plutus.V2.Ledger.Api               (CurrencySymbol)
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
 import           PlutusAppsExtra.Utils.Address      (getStakeKey)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (swhhSlot))
-import           PlutusAppsExtra.Utils.Time         (utcToSlot)
+import           PlutusAppsExtra.Utils.Time         (parseSlotConfig, utcToSlot)
 import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
 import           PlutusTx                           (FromData (..))
 import           PlutusTx.Builtins                  (BuiltinByteString, decodeUtf8, fromBuiltin)
@@ -50,7 +52,7 @@ main :: FilePath -> IO ()
 main configFp = do
         config      <- decodeOrErrorFromFile configFp
         relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
-        slotConfig  <- loadSlotConfig $ cSlotConfigFile config
+        slotConfig  <- either error id . parseEither parseSlotConfig <$> decodeOrErrorFromFile (cSlotConfigFile config)
         let handle = mkDelegationHandle config slotConfig
         createDirectoryIfMissing True $ cDelegationFolder relayConfig
         forever $ do

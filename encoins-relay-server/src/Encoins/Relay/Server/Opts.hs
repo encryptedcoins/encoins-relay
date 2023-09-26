@@ -2,10 +2,10 @@
 
 module Encoins.Relay.Server.Opts where
 
-import           Data.Foldable       (asum)
-import           Ledger              (Ada)
-import           Options.Applicative (Parser, auto, execParser, flag', fullDesc, help, helper, info, long, metavar, option,
-                                      (<**>))
+import           Data.Foldable           (asum)
+import           Options.Applicative     (Parser, auto, execParser, flag', fullDesc, help, helper, info, long, metavar, option,
+                                          (<**>))
+import           Plutus.Script.Utils.Ada (Ada)
 
 runWithOpts :: IO ServerMode
 runWithOpts = execParser $ info (modeParser <**> helper) fullDesc

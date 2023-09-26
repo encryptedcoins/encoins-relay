@@ -25,9 +25,10 @@ import qualified Data.Time                          as Time
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..), loadEncoinsRelayConfig)
 import           Encoins.Relay.Server.Server        (EncoinsApi)
 import           GHC.Generics                       (Generic)
-import           Ledger                             (Ada, Address (..), PaymentPubKeyHash (..), PubKeyHash, Slot, TxOutRef)
-import qualified Ledger.Ada                         as Ada
-import           Ledger.Constraints                 (mustPayToPubKeyAddress)
+import           Ledger                             (Address (..), PaymentPubKeyHash (..), PubKeyHash, Slot, TxOutRef)
+import           Ledger.Tx.Constraints              (mustPayToPubKeyAddress)
+import           Plutus.Script.Utils.Ada            (Ada)
+import qualified Plutus.Script.Utils.Ada            as Ada
 import           Plutus.V1.Ledger.Credential        (Credential (..), StakingCredential (..))
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
 import           PlutusAppsExtra.Types.Tx           (TxConstructor (..))
@@ -37,14 +38,14 @@ import           Text.Read                          (readMaybe)
 distributeRewards :: Config -> Ada -> ServerM EncoinsApi ()
 distributeRewards config totalReward = void $ do
     relayConfig <- loadEncoinsRelayConfig config
-    
+
     recepients <- liftIO $ do
         recepients <- getRecepients relayConfig totalReward
         putStrLn "Recepients:"
         mapM_ print recepients
         when (null recepients) $ error "No recepients found."
         pure recepients
-    
+
     let mkConstr pkh scred ada = Just $ mustPayToPubKeyAddress (PaymentPubKeyHash pkh) scred (Ada.toValue ada)
         constrs = mconcat $ flip mapMaybe recepients $ \(addr, reward) -> case addr of
             Address (PubKeyCredential pkh) (Just scred) -> mkConstr pkh scred reward

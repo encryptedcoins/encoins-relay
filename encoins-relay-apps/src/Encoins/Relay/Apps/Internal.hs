@@ -19,7 +19,8 @@ import           Data.Aeson.Types                   (parseMaybe)
 import           Data.Default                       (def)
 import           Data.Maybe                         (catMaybes)
 import           Data.Time                          (getCurrentTime)
-import           Ledger                             (CurrencySymbol, Slot (getSlot), TokenName)
+import           Ledger                             (Slot (getSlot))
+import           Plutus.V2.Ledger.Api               (CurrencySymbol, TokenName)
 import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
 import           System.Directory                   (createDirectoryIfMissing)
@@ -39,7 +40,7 @@ getResponsesIO networkId slotFrom slotTo slotDelta = do
         let fileName = "response" <> show (getSlot from) <> "_"  <> show (getSlot to) <> ".json"
             req :: KupoRequest 'SUSpent 'CSCreated 'CSCreated
             req = def{reqCreatedOrSpentAfter = Just from, reqCreatedOrSpentBefore = Just to}
-        withResultSaving ("savedResponses/" <> fileName) $ liftIO $ 
+        withResultSaving ("savedResponses/" <> fileName) $ liftIO $
             fmap (kupoResponseToJSON networkId) <$> getKupoResponse req
     pure $ catMaybes $ parseMaybe parseJSON <$> resValue
     where
