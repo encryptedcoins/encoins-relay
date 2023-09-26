@@ -34,7 +34,6 @@ import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Internal                           (runEncoinsServerM)
 import           Ledger                             (Address (..), Datum (Datum, getDatum), DatumHash, PubKeyHash (..), Slot (..),
                                                      StakePubKey (StakePubKey), TxId (..), TxOutRef (..))
-import           Plutus.PAB.Arbitrary               ()
 import           Plutus.V1.Ledger.Credential        (Credential (PubKeyCredential), StakingCredential (StakingHash))
 import           Plutus.V2.Ledger.Api               (Data (..), builtinDataToData, dataToBuiltinData, toBuiltin, toBuiltinData)
 import           PlutusAppsExtra.Utils.Datum        (hashDatum)
@@ -46,7 +45,7 @@ import           Test.QuickCheck                    (Arbitrary (..), Gen, Proper
                                                      shuffle, suchThat, withMaxSuccess)
 
 spec :: HasServantClientEnv => Spec
-spec = describe "encoins-delegation" $ it "find delegators ips" propDelegation
+spec = describe "encoins-delegation" $ it "find delegators IP's" propDelegation
 
 propDelegation :: Property
 propDelegation = property $ \(args :: [TestArg]) -> do
