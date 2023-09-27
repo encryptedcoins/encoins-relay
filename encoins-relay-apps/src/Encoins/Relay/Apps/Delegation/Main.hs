@@ -33,7 +33,7 @@ import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultS
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Ledger                             (Address (..), Datum (..), DatumHash, PubKeyHash (PubKeyHash), Slot,
-                                                     StakingCredential, TxId, TxOutRef (..))
+                                                     StakingCredential, TxId (..), TxOutRef (..))
 import           Network.URI                        (isIPv4address, isURI)
 import           Plutus.V1.Ledger.Value             (TokenName)
 import           Plutus.V2.Ledger.Api               (CurrencySymbol)
@@ -47,6 +47,7 @@ import           PlutusTx.Builtins                  (BuiltinByteString, decodeUt
 import           System.Directory                   (createDirectoryIfMissing, getCurrentDirectory, listDirectory,
                                                      setCurrentDirectory)
 import           Text.Read                          (readMaybe)
+
 
 main :: FilePath -> IO ()
 main configFp = do
@@ -90,12 +91,15 @@ findDelegators delegationFolder DelegationHandle{..} slotFrom = do
         -- Token balance validation occurs at rewards distribution
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
         getDelegationFromResponse KupoResponse{..} = do
-            dh                             <- MaybeT $ pure krDatumHash
-            (Datum dat)                    <- MaybeT $ dhGetDatumByHash dh
-            ("ENCS Delegation", ipAddrBbs) <- MaybeT $ pure $ fromBuiltinData @(BuiltinByteString, BuiltinByteString) dat
-            stakeKey                       <- MaybeT $ pure $ getStakeKey krAddress
+            dh                                    <- MaybeT $ pure krDatumHash
+            (Datum dat)                           <- MaybeT $ dhGetDatumByHash dh
+            ["ENCOINS", "Delegate", skBbs, ipBbs] <- MaybeT $ pure $ fromBuiltinData @[BuiltinByteString] dat
+            lift $ dhMkLog $ T.pack $  "Tx found:" <> show krTxId
+            stakeKey                              <- MaybeT $ pure $ getStakeKey krAddress
+            lift $ dhMkLog $ T.pack $ show stakeKey
             guard =<< lift (dhCheckTxSignature krTxId krAddress)
-            let ipAddr = fromBuiltin $ decodeUtf8 ipAddrBbs
+            lift $ dhMkLog "signature is ok"
+            let ipAddr = fromBuiltin $ decodeUtf8 ipBbs
             unless (isValidIp ipAddr) $ lift (dhMkLog $ "Invalid ip: " .< ipAddr) >> mzero
             pure $ Delegation (addressCredential krAddress) stakeKey (TxOutRef krTxId krOutputIndex) (swhhSlot krCreatedAt) ipAddr
 
