@@ -11,6 +11,6 @@
 , "collateral"               : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
 , "protocol_parameters_file" : "encoins-relay-test/test/configuration/protocol-parameters.json"
 , "chain_index"              : "Kupo"
-, "slot_config_file"         : "encoins-relay-test/test/configuration/plutus-chain-index-config.json"
+, "slot_config_file"         : "encoins-relay-test/test/configuration/slotConfig.json"
 , "active_endpoints"         : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status"]
 }

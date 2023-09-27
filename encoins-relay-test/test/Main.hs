@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Main where
 
 import           Cardano.Server.Config             (decodeOrErrorFromFile)
@@ -8,13 +6,15 @@ import qualified Control.Concurrent                as C
 import           Control.Exception                 (bracket, bracket_, try)
 import           Control.Monad                     (void)
 import           Control.Monad.IO.Class            (MonadIO (..))
+import qualified Encoins.Relay.DelegationSpec      as Delegation
 import           Encoins.Relay.Server.Server       (mkServerHandle)
 import qualified Encoins.Relay.Server.ServerSpec   as Server
 import qualified Encoins.Relay.Server.StatusSpec   as Status
 import           Encoins.Relay.Verifier.Server     (runVerifierServer)
 import qualified Encoins.Relay.Verifier.ServerSpec as Verifier
-import           System.Directory                  (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory, setCurrentDirectory)
-import           Test.Hspec                        (parallel, runIO)
+import           System.Directory                  (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory,
+                                                    setCurrentDirectory)
+import           Test.Hspec                        (parallel, runIO, hspec)
 
 main :: IO ()
 main = do
@@ -29,6 +29,4 @@ main = do
             Status.spec
             Verifier.spec
             Server.spec
-
-
-    
+            Delegation.spec

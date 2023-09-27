@@ -39,6 +39,7 @@ library
     exposed-modules:
       Encoins.Relay.Server.Api
       Encoins.Relay.Server.Config
+      Encoins.Relay.Server.Delegation
       Encoins.Relay.Server.Internal
       Encoins.Relay.Server.Main
       Encoins.Relay.Server.Opts
@@ -55,16 +56,19 @@ library
       containers                             -any,
       csl-types                              -any,
       data-default                           -any,
+      directory                              -any,
       encoins-bulletproofs                   -any,
       encoins-core                           -any,
       encoins-relay-verifier                 -any,
       exceptions                             -any,
+      extra                                  -any,
       hex-text                               -any,
       lens                                   -any,
       mtl                                    -any,
       optparse-applicative                   -any,
       plutus-apps-extra                      -any,
       plutus-tx                              -any,
+      plutus-tx-constraints                  -any,
       plutus-tx-extra                        -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
@@ -73,6 +77,7 @@ library
       servant-server                         -any,
       servant-client                         -any,
       text                                   -any,
+      time                                   -any
 
     hs-source-dirs: src
 

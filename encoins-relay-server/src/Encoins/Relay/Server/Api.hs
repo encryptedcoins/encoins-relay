@@ -11,11 +11,8 @@ import           Cardano.Server.Error               (Throws)
 import           Cardano.Server.Error.Servant       (Throwing)
 import           Data.Text                          (Text)
 import           Data.Type.Equality                 ((:~:) (..))
-import           ENCOINS.Core.OnChain               (EncoinsRedeemer)
-import           ENCOINS.Core.OffChain              (EncoinsMode (..))
-import           Encoins.Relay.Server.Server        (EncoinsApi)
+import           Encoins.Relay.Server.Server        (EncoinsApi, InputOfEncoinsApi)
 import           Encoins.Relay.Server.Status        (EncoinsStatusReqBody, EncoinsStatusResult)
-import           Ledger                             (Address)
 import           Servant                            (Get, Post, JSON, NoContent, ReqBody, type (:<|>), type (:>))
 
 type Api
@@ -27,7 +24,7 @@ type Api
       :> Get '[JSON] CSL.TransactionUnspentOutputs
 
     :<|> "newTx"    
-      :> ReqBody '[JSON] (Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode), CSL.TransactionInputs) 
+      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs) 
       :> Post '[JSON] (Text, Text)
 
     :<|> "submitTx" 
@@ -35,7 +32,7 @@ type Api
       :> Post '[JSON] NoContent
 
     :<|> "serverTx" 
-      :> ReqBody '[JSON] (Either (Address, CSL.Value, Address) (EncoinsRedeemer, EncoinsMode), CSL.TransactionInputs) 
+      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs) 
       :> Post '[JSON] NoContent
 
     :<|> "status"   

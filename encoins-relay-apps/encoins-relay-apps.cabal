@@ -1,17 +1,11 @@
 cabal-version:      3.0
 
-name:               encoins-relay-poll
+name:               encoins-relay-apps
 version:            0.1.0.0
 
 author:             Grigory Petrov
                     Vladimir Sinyakov
 maintainer:         team@encoins.io
-build-type: Custom
-
-custom-setup
-    setup-depends: base >= 4.9,
-                   Cabal == 3.2.*,
-                   directory == 1.3.*
 
 -- Plutus language settings
 common lang
@@ -25,20 +19,23 @@ common lang
       -Wnoncanonical-monad-instances
       -Wredundant-constraints
       -Wno-unused-do-bind
-
+      -Wall
+      
       -- See Plutus Tx readme
       -fno-ignore-interface-pragmas
       -fno-omit-interface-pragmas
       -fno-specialise
       -fno-strictness
-      -fobject-code
+      -fobject-code       
       -fplugin-opt PlutusTx.Plugin:defer-errors
 
 library
     import: lang
     exposed-modules:
-      Encoins.Relay.Poll
-      Encoins.Relay.Poll.Config
+      Encoins.Relay.Apps.Delegation.Main
+      Encoins.Relay.Apps.Internal
+      Encoins.Relay.Apps.Poll.Config
+      Encoins.Relay.Apps.Poll.Main
     other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
@@ -50,24 +47,38 @@ library
       cardano-server                         -any,
       containers                             -any,
       data-default                           -any,
+      directory                              -any,
       encoins-core                           -any,
+      encoins-relay-server                   -any,
       exceptions                             -any,
       extra                                  -any,
       lens                                   -any,
+      lens-aeson                             -any,
+      mtl                                    -any,
+      network-uri                            -any,
       plutus-apps-extra                      -any,
       plutus-chain-index-core                -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       plutus-tx                              -any,
+      text                                   -any,
       time                                   -any,
       transformers                           -any,
-
     hs-source-dirs: src
 
 executable encoins-relay-poll
   default-language: Haskell2010
-  hs-source-dirs: app
+  hs-source-dirs: app_poll
   main-is: Main.hs
-  build-depends:
+  build-depends: 
     base                          >= 4.9 && < 5,
-    encoins-relay-poll                         ,
+    encoins-relay-apps                         ,
+
+
+executable encoins-relay-delegation
+  default-language: Haskell2010
+  hs-source-dirs: app_deleg
+  main-is: Main.hs
+  build-depends: 
+    base                          >= 4.9 && < 5,
+    encoins-relay-apps                     -any,

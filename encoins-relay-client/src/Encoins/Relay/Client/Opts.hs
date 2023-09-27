@@ -39,9 +39,9 @@ runWithOpts :: IO Options
 runWithOpts = execParser $ info (optionsParser <**> helper) fullDesc
 
 optionsParser :: Parser Options
-optionsParser = liftA3 Options 
-    serverEndpointParser 
-    (autoModeParser <|> manualModeParser) 
+optionsParser = liftA3 Options
+    serverEndpointParser
+    (autoModeParser <|> manualModeParser)
     encoinsModeParser
 
 encoinsModeParser :: Parser EncoinsMode
@@ -59,7 +59,7 @@ data EncoinsRequestTerm
     deriving (Show, Eq, Generic, ToJSON)
 
 instance Random EncoinsRequestTerm where
-    random g = 
+    random g =
         let (b, g')   = random g
             (a, g'')  = random g'
             (s, g''') = random g''
@@ -83,3 +83,7 @@ readRequestTerms = mapM (readTerm . T.unpack) . T.splitOn ","
 readAddressValue :: Text -> Maybe (Address, CSL.Value)
 readAddressValue (T.splitOn "," -> addr:rest) = (,) <$> bech32ToAddress addr <*> readMaybe (T.unpack $ T.intercalate "," rest)
 readAddressValue _ = Nothing
+
+readAddressIpAddress :: Text -> Maybe (Address, Text)
+readAddressIpAddress (T.splitOn "," -> addr:rest) = (,) <$> bech32ToAddress addr <*> pure (T.intercalate "," rest)
+readAddressIpAddress _ = Nothing
