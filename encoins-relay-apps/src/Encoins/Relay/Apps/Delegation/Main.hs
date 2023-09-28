@@ -13,7 +13,7 @@ import           Cardano.Node.Emulator              (SlotConfig)
 import           Cardano.Server.Config              (Config (..), decodeOrErrorFromFile)
 import           Cardano.Server.Utils.Logger        ((.<))
 import           Control.Arrow                      ((>>>))
-import           Control.Monad                      (MonadPlus (..), forM, forever, guard, join, unless, (>=>))
+import           Control.Monad                      (MonadPlus (..), forM, forever, guard, join, unless, void, (>=>))
 import           Control.Monad.Trans.Class          (MonadTrans (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
 import           Data.Aeson                         (eitherDecodeFileStrict)
@@ -32,8 +32,8 @@ import qualified Data.Time                          as Time
 import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultSaving)
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
-import           Ledger                             (Address (..), Datum (..), DatumHash, PubKeyHash (PubKeyHash), Slot,
-                                                     StakingCredential, TxId (..), TxOutRef (..))
+import           Ledger                             (Address (..), Datum (..), DatumHash, Slot, StakingCredential, TxId (..),
+                                                     TxOutRef (..))
 import           Network.URI                        (isIPv4address, isURI)
 import           Plutus.V1.Ledger.Value             (TokenName)
 import           Plutus.V2.Ledger.Api               (CurrencySymbol)
@@ -63,7 +63,7 @@ main configFp = do
             delegators <- findDelegators (cDelegationFolder relayConfig) handle start
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
-            writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> show ct <> ".json") res
+            void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> show ct <> ".json") res
     where
         getPastDelegators delegationFolder = do
             setCurrentDirectory delegationFolder
@@ -93,14 +93,16 @@ findDelegators delegationFolder DelegationHandle{..} slotFrom = do
         getDelegationFromResponse KupoResponse{..} = do
             dh                                    <- MaybeT $ pure krDatumHash
             (Datum dat)                           <- MaybeT $ dhGetDatumByHash dh
-            ["ENCOINS", "Delegate", skBbs, ipBbs] <- MaybeT $ pure $ fromBuiltinData @[BuiltinByteString] dat
+            ["ENCOINS", "Delegate", skBbs, ipBbs] <- MaybeT $ pure $ fromBuiltinData dat
             lift $ dhMkLog $ T.pack $  "Tx found:" <> show krTxId
             stakeKey                              <- MaybeT $ pure $ getStakeKey krAddress
             lift $ dhMkLog $ T.pack $ show stakeKey
-            guard =<< lift (dhCheckTxSignature krTxId krAddress)
+            guard =<< lift (dhCheckTxSignature krTxId skBbs)
             lift $ dhMkLog "signature is ok"
             let ipAddr = fromBuiltin $ decodeUtf8 ipBbs
-            unless (isValidIp ipAddr) $ lift (dhMkLog $ "Invalid ip: " .< ipAddr) >> mzero
+            unless (isValidIp ipAddr) $ do
+                lift $ dhMkLog $ "Invalid ip: " .< ipAddr
+                mzero
             pure $ Delegation (addressCredential krAddress) stakeKey (TxOutRef krTxId krOutputIndex) (swhhSlot krCreatedAt) ipAddr
 
         removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
@@ -114,7 +116,7 @@ data DelegationHandle m = DelegationHandle
     { dhGetResponses     :: Maybe Slot -> Maybe Slot -> m [KupoResponse]
     , dhGetDatumByHash   :: DatumHash -> m (Maybe Datum)
     , dhGetTokenBalance  :: CurrencySymbol -> TokenName -> StakingCredential -> m Integer
-    , dhCheckTxSignature :: TxId -> Address -> m Bool
+    , dhCheckTxSignature :: TxId -> BuiltinByteString -> m Bool
     , dhMkLog            :: Text -> m ()
     , dhWithResultSaving :: FilePath -> MaybeT m Delegation -> MaybeT m Delegation
     }
@@ -124,7 +126,7 @@ mkDelegationHandle Config{..} slotConfig = DelegationHandle
     { dhGetResponses     = getResponesesIO cNetworkId slotConfig
     , dhGetDatumByHash   = Kupo.getDatumByHash
     , dhGetTokenBalance  = getTokenBalanceIO
-    , dhCheckTxSignature = checkTxSignatureIO
+    , dhCheckTxSignature = txIsSignedByKey
     , dhMkLog            = T.putStrLn
     , dhWithResultSaving = withResultSaving
     }
@@ -137,8 +139,3 @@ getResponesesIO networkId slotConfig from to = do
 
 getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
 getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing
-
-checkTxSignatureIO :: TxId -> Address -> IO Bool
-checkTxSignatureIO txId addr = case getStakeKey addr of
-    Just (PubKeyHash pkh) -> txIsSignedByKey txId pkh
-    _ -> pure False
