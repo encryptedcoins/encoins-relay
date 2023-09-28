@@ -31,7 +31,7 @@ import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T
 import qualified Data.Time                          as Time
-import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultSaving)
+import           Encoins.Relay.Apps.Internal        (getResponsesIO, progressBarStyle, withResultSaving)
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Ledger                             (Address (..), Datum (..), DatumHash, Slot, StakingCredential, TxId (..),
@@ -48,8 +48,8 @@ import           PlutusTx                           (FromData (..))
 import           PlutusTx.Builtins                  (BuiltinByteString, decodeUtf8, fromBuiltin)
 import           System.Directory                   (createDirectoryIfMissing, getCurrentDirectory, listDirectory,
                                                      setCurrentDirectory)
+import           System.ProgressBar                 (Progress (..), ProgressBar, incProgress, newProgressBar)
 import           Text.Read                          (readMaybe)
-
 
 main :: FilePath -> IO ()
 main configFp = do
@@ -80,17 +80,12 @@ main configFp = do
 
 findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> m [Delegation]
 findDelegators delegationFolder DelegationHandle{..} slotFrom = do
-
-        dhMkLog "Getting reponses..."
-        !ixResponses <- zip [(1 :: Int)..] <$> dhGetResponses (Just slotFrom) Nothing
-        let l = length ixResponses
-
-        dhMkLog "Getting delegated txs..."
-        fmap (removeDuplicates . catMaybes) $ forM ixResponses $ \(ix, KupoResponse{..}) -> runMaybeT $ do
-            lift $ dhMkLog $ T.pack $ show ix <> "/" <> show l
+        !responses <- dhGetResponses (Just slotFrom) Nothing
+        pb <- dhNewProgressBar "Getting delegated txs" $ length responses
+        fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
+            lift $ dhIncProgress pb 1
             dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
                 getDelegationFromResponse KupoResponse{..}
-
     where
         -- Token balance validation occurs at rewards distribution
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
@@ -123,6 +118,9 @@ data DelegationHandle m = DelegationHandle
     , dhCheckTxSignature :: TxId -> BuiltinByteString -> m Bool
     , dhMkLog            :: Text -> m ()
     , dhWithResultSaving :: FilePath -> MaybeT m Delegation -> MaybeT m Delegation
+    -- Progress bar
+    , dhNewProgressBar   :: Text -> Int -> m (ProgressBar ())
+    , dhIncProgress      :: ProgressBar () -> Int -> m ()
     }
 
 mkDelegationHandle :: Config -> SlotConfig -> DelegationHandle IO
@@ -133,6 +131,8 @@ mkDelegationHandle Config{..} slotConfig = DelegationHandle
     , dhCheckTxSignature = txIsSignedByKey
     , dhMkLog            = T.putStrLn
     , dhWithResultSaving = withResultSaving
+    , dhNewProgressBar   = \m p -> newProgressBar (progressBarStyle m) 10 (Progress 0 p ())
+    , dhIncProgress      = incProgress
     }
 
 getResponesesIO :: NetworkId -> SlotConfig -> Maybe Slot -> Maybe Slot -> IO [KupoResponse]

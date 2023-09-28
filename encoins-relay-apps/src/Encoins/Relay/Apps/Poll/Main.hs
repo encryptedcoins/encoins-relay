@@ -18,6 +18,7 @@ module Encoins.Relay.Apps.Poll.Main where
 import           Cardano.Api                        (writeFileJSON)
 import           Control.Monad                      (forM, guard, void, when)
 import           Control.Monad.IO.Class             (liftIO)
+import           Control.Monad.Trans                (lift)
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
 import           Data.Aeson                         (FromJSON, ToJSON)
 import           Data.Function                      (on)
@@ -26,7 +27,7 @@ import qualified Data.List.NonEmpty                 as NonEmpty
 import           Data.Maybe                         (catMaybes)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
-import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultSaving)
+import           Encoins.Relay.Apps.Internal        (getResponsesIO, progressBarStyle, withResultSaving)
 import           Encoins.Relay.Apps.Poll.Config     (PollConfig (..), getConfig)
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Datum (..), PubKeyHash (..), Slot (..), TxId (..))
@@ -39,6 +40,7 @@ import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
 import           PlutusTx.Builtins                  (decodeUtf8, fromBuiltin)
 import           PlutusTx.Builtins.Class            (stringToBuiltinByteString)
 import           System.Directory.Extra             (createDirectoryIfMissing)
+import           System.ProgressBar                 (Progress (..), incProgress, newProgressBar)
 
 poll :: Integer -> IO ()
 poll pollNo = do
@@ -63,23 +65,20 @@ renderResult votes = mconcat ["Yes: ", renderPercents yes,"\nNo: ", renderPercen
 
 getResult :: FilePath -> Integer -> PollConfig -> IO [(Vote, Integer)]
 getResult folderName pollNo PollConfig{..} = do
-        putStrLn "Getting reponses..."
         !responses <- getResponsesIO pcNetworkId pcStart pcFinish 3600
-
-        putStrLn "Getting votes..."
+        pb <- newProgressBar (progressBarStyle "Getting votes") 10 (Progress 0 (length responses) ())
         !votes <- fmap catMaybes $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
+            lift $ incProgress pb 1
             withResultSaving (mconcat [folderName, "/vote_", show krTxId, "@", show krOutputIndex, ".json"]) $
                 getVoteFromResponse KupoResponse{..}
 
-        putStrLn "Calculating each vote weight..."
-        let l = show (length votes)
-        forM (zip [1 :: Int ..] $ removeDuplicates votes) $ \(i, Vote{..}) -> fmap (Vote{..},) $ do
-            liftIO $ putStrLn (show i <> "/" <> l)
+        let votes' = removeDuplicates votes
+        pb' <- newProgressBar (progressBarStyle "Calculating each vote weight") 10 (Progress 0 (length votes') ())
+        forM votes' $ \Vote{..} -> fmap (Vote{..},) $ do
+            incProgress pb' 1
             withResultSaving (mconcat [folderName, "/weight_", show voteTxId, "@", show voteTxIdx, ".json"]) $
                 getTokenBalanceToSlot pcCs pcTokenName (Just pcFinish) (StakingHash $ PubKeyCredential votePkh)
-
     where
-
         getVoteFromResponse :: KupoResponse -> MaybeT IO Vote
         getVoteFromResponse KupoResponse{..} = do
             dh             <- MaybeT $ pure krDatumHash

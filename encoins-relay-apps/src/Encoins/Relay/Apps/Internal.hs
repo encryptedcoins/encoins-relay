@@ -18,12 +18,16 @@ import           Data.Aeson                         (FromJSON (parseJSON), ToJSO
 import           Data.Aeson.Types                   (parseMaybe)
 import           Data.Default                       (def)
 import           Data.Maybe                         (catMaybes)
+import           Data.Text                          (Text)
+import qualified Data.Text.Lazy                     as TL
 import           Data.Time                          (getCurrentTime)
 import           Ledger                             (Slot (getSlot))
 import           Plutus.V2.Ledger.Api               (CurrencySymbol, TokenName)
 import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
 import           System.Directory                   (createDirectoryIfMissing)
+import           System.ProgressBar                 (Progress (..), ProgressBarWidth (..), Style (..), defStyle, exact,
+                                                     incProgress, msg, newProgressBar)
 
 encoinsTokenName :: TokenName
 encoinsTokenName = "ENCS"
@@ -35,8 +39,9 @@ encoinsCS = "9abf0afd2f236a19f2842d502d0450cbcd9c79f123a9708f96fd9b96"
 getResponsesIO :: (MonadIO m, MonadCatch m) => NetworkId -> Slot -> Slot -> Slot -> m [KupoResponse]
 getResponsesIO networkId slotFrom slotTo slotDelta = do
     liftIO $ createDirectoryIfMissing True "savedResponses"
-    resValue <- fmap concat $ forM (zip [1 :: Int ..] intervals) $ \(i, (from, to)) -> reloadHandler $ do
-        mkLog $ show i <> "/" <> show (length intervals)
+    pb <- liftIO $ newProgressBar (progressBarStyle "Getting reponses") 10 (Progress 0 (length intervals) ())
+    resValue <- fmap concat $ forM intervals $ \(from, to) -> reloadHandler $ do
+        liftIO $ incProgress pb 1
         let fileName = "response" <> show (getSlot from) <> "_"  <> show (getSlot to) <> ".json"
             req :: KupoRequest 'SUSpent 'CSCreated 'CSCreated
             req = def{reqCreatedOrSpentAfter = Just from, reqCreatedOrSpentBefore = Just to}
@@ -78,3 +83,10 @@ divideTimeIntoIntervals from to delta
 
 defaultSlotConfigFilePath :: FilePath
 defaultSlotConfigFilePath = "../plutus-chain-index/plutus-chain-index-config.json"
+
+progressBarStyle :: Text -> Style s
+progressBarStyle m = defStyle
+    { stylePrefix  = msg $ TL.fromStrict m
+    , styleWidth   = ConstantWidth 100
+    , stylePostfix = exact
+    }
