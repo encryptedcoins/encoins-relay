@@ -12,7 +12,9 @@ import           Cardano.Api                        (NetworkId, writeFileJSON)
 import           Cardano.Node.Emulator              (SlotConfig)
 import           Cardano.Server.Config              (Config (..), decodeOrErrorFromFile)
 import           Cardano.Server.Utils.Logger        ((.<))
+import           Cardano.Server.Utils.Wait          (waitTime)
 import           Control.Arrow                      ((>>>))
+import           Control.Concurrent.Async           (async, wait)
 import           Control.Monad                      (MonadPlus (..), forM, forever, guard, join, unless, void, (>=>))
 import           Control.Monad.Trans.Class          (MonadTrans (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
@@ -58,12 +60,14 @@ main configFp = do
         createDirectoryIfMissing True $ cDelegationFolder relayConfig
         forever $ do
             ct                         <- Time.getCurrentTime
+            delay                      <- async $ waitTime 300
             (mbPastDelegators, mbTime) <- getPastDelegators $ cDelegationFolder relayConfig
             let start = maybe (cDelegationStart relayConfig) (utcToSlot slotConfig) mbTime
             delegators <- findDelegators (cDelegationFolder relayConfig) handle start
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
             void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> show ct <> ".json") res
+            wait delay
     where
         getPastDelegators delegationFolder = do
             setCurrentDirectory delegationFolder
