@@ -58,7 +58,7 @@ main configFp = do
         let handle = mkDelegationHandle config slotConfig
         createDirectoryIfMissing True $ cDelegationFolder relayConfig
         forever $ do
-            ct                         <- Time.getCurrentTime
+            ct                         <- Time.addUTCTime (- 1800) <$> Time.getCurrentTime
             delay                      <- async $ waitTime 300
             (mbPastDelegators, mbTime) <- getPastDelegators $ cDelegationFolder relayConfig
             let start = maybe (cDelegationStart relayConfig) (utcToSlot slotConfig) mbTime
