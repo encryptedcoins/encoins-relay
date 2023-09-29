@@ -46,10 +46,9 @@ import           PlutusAppsExtra.Utils.Time         (parseSlotConfig, utcToSlot)
 import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
 import           PlutusTx                           (FromData (..))
 import           PlutusTx.Builtins                  (BuiltinByteString, decodeUtf8, fromBuiltin)
-import           System.Directory                   (createDirectoryIfMissing, getCurrentDirectory, listDirectory,
-                                                     setCurrentDirectory)
+import           System.Directory                   (createDirectoryIfMissing, listDirectory)
 import           System.ProgressBar                 (Progress (..), ProgressBar, incProgress, newProgressBar)
-import           Text.Read                          (readMaybe)
+
 
 main :: FilePath -> IO ()
 main configFp = do
@@ -66,17 +65,18 @@ main configFp = do
             delegators <- findDelegators (cDelegationFolder relayConfig) handle start
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
-            void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> show ct <> ".json") res
+            void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> formatTime ct <> ".json") res
             wait delay
     where
         getPastDelegators delegationFolder = do
-            setCurrentDirectory delegationFolder
-            files <- getCurrentDirectory >>= listDirectory
-            let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readMaybe @Time.UTCTime) files
-                fp = (\t -> "delegators_" <> t <> ".json") . show <$> time
+            files <- listDirectory delegationFolder
+            let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readTime) files
+                fp = (\t -> delegationFolder <> "/delegators_" <> t <> ".json") . formatTime <$> time
             delegators <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
-            setCurrentDirectory ".."
             pure (delegators, time)
+        formatTime   = Time.formatTime Time.defaultTimeLocale formatString
+        readTime     = Time.parseTimeM True Time.defaultTimeLocale formatString
+        formatString = "%d-%b-%YT%H:%M:%S"
 
 findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> m [Delegation]
 findDelegators delegationFolder DelegationHandle{..} slotFrom = do
