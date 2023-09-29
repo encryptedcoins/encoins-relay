@@ -68,16 +68,18 @@ getResult folderName pollNo PollConfig{..} = do
         !responses <- getResponsesIO pcNetworkId pcStart pcFinish 3600
         pb <- newProgressBar (progressBarStyle "Getting votes") 10 (Progress 0 (length responses) ())
         !votes <- fmap catMaybes $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
-            lift $ incProgress pb 1
-            withResultSaving (mconcat [folderName, "/vote_", show krTxId, "@", show krOutputIndex, ".json"]) $
+            vote <- withResultSaving (mconcat [folderName, "/vote_", show krTxId, "@", show krOutputIndex, ".json"]) $
                 getVoteFromResponse KupoResponse{..}
+            lift $ incProgress pb 1
+            pure vote
 
         let votes' = removeDuplicates votes
         pb' <- newProgressBar (progressBarStyle "Calculating each vote weight") 10 (Progress 0 (length votes') ())
         forM votes' $ \Vote{..} -> fmap (Vote{..},) $ do
-            incProgress pb' 1
-            withResultSaving (mconcat [folderName, "/weight_", show voteTxId, "@", show voteTxIdx, ".json"]) $
+            balance <- withResultSaving (mconcat [folderName, "/weight_", show voteTxId, "@", show voteTxIdx, ".json"]) $
                 getTokenBalanceToSlot pcCs pcTokenName (Just pcFinish) (StakingHash $ PubKeyCredential votePkh)
+            incProgress pb' 1
+            pure balance
     where
         getVoteFromResponse :: KupoResponse -> MaybeT IO Vote
         getVoteFromResponse KupoResponse{..} = do

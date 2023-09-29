@@ -41,12 +41,13 @@ getResponsesIO networkId slotFrom slotTo slotDelta = do
     liftIO $ createDirectoryIfMissing True "savedResponses"
     pb <- liftIO $ newProgressBar (progressBarStyle "Getting reponses") 10 (Progress 0 (length intervals) ())
     resValue <- fmap concat $ forM intervals $ \(from, to) -> reloadHandler $ do
-        liftIO $ incProgress pb 1
         let fileName = "response" <> show (getSlot from) <> "_"  <> show (getSlot to) <> ".json"
             req :: KupoRequest 'SUSpent 'CSCreated 'CSCreated
             req = def{reqCreatedOrSpentAfter = Just from, reqCreatedOrSpentBefore = Just to}
-        withResultSaving ("savedResponses/" <> fileName) $ liftIO $
+        r <- withResultSaving ("savedResponses/" <> fileName) $ liftIO $
             fmap (kupoResponseToJSON networkId) <$> getKupoResponse req
+        liftIO $ incProgress pb 1
+        pure r
     pure $ catMaybes $ parseMaybe parseJSON <$> resValue
     where
         intervals = divideTimeIntoIntervals slotFrom slotTo slotDelta

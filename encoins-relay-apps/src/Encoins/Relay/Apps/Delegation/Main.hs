@@ -83,9 +83,10 @@ findDelegators delegationFolder DelegationHandle{..} slotFrom = do
         !responses <- dhGetResponses (Just slotFrom) Nothing
         pb <- dhNewProgressBar "Getting delegated txs" $ length responses
         fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
-            lift $ dhIncProgress pb 1
-            dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
+            d <- dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
                 getDelegationFromResponse KupoResponse{..}
+            lift $ dhIncProgress pb 1
+            pure d
     where
         -- Token balance validation occurs at rewards distribution
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
