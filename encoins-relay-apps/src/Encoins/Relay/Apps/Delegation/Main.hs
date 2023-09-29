@@ -110,7 +110,10 @@ findDelegators delegationFolder DelegationHandle{..} slotFrom = do
                          . sortBy (compare `on` delegStakeKey)
 
 isValidIp :: Text -> Bool
-isValidIp txt = or $ [isURI, isIPv4address] <&> ($ T.unpack txt)
+isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
+    where
+        isSimpleURI "" = False
+        isSimpleURI _  = case T.splitOn "." txt of [_, _] -> True; _ -> False
 
 data DelegationHandle m = DelegationHandle
     { dhGetResponses     :: Maybe Slot -> Maybe Slot -> m [KupoResponse]
