@@ -20,7 +20,7 @@ import           Control.Lens.Tuple            (Field1 (_1))
 import           Control.Monad                 (when)
 import           Control.Monad.Catch           (Exception, MonadThrow (..))
 import           Data.Aeson                    (FromJSON (..), ToJSON (..))
-import           Data.Maybe                    (fromMaybe, catMaybes, mapMaybe, isNothing)
+import           Data.Maybe                    (fromMaybe, mapMaybe)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (NetworkId, TxId (getTxId), fromCardanoValue)
 import qualified Plutus.Script.Utils.Ada       as Ada
@@ -35,7 +35,6 @@ import           PlutusAppsExtra.Utils.Address (addressToBech32)
 import           PlutusAppsExtra.Utils.Kupo    (KupoResponse (..))
 import           PlutusTx.Builtins.Class       (FromBuiltin (..))
 import           Text.Hex                      (encodeHex)
-import qualified Debug.Trace as D
 
 data EncoinsStatusReqBody
     -- | Get the maximum amount of ada that can be taken from a single utxo bound to a ledger address.
@@ -91,7 +90,7 @@ getLedgerEncoins = do
     ecs <- getEncoinsSymbol
     networkId <- getNetworkId
     let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . fromCardanoValue . krValue
-    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . filter f <$> getLedgerUtxosKupo
+    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) <$> getLedgerUtxosKupo
 
 instance ToCSL ([KupoResponse], NetworkId) CSL.TransactionUnspentOutputs where
     toCSL (responses, networkId) = Just $ mapMaybe (toCSL . (, networkId)) responses
@@ -102,8 +101,5 @@ instance ToCSL (KupoResponse, NetworkId) CSL.TransactionUnspentOutput where
             addr = addressToBech32 networkId krAddress
             val  = toCSL (fromCardanoValue krValue)
 
-        when (isNothing addr) $ D.trace ("\n\n\n\naddr:" <> show addr <> "\n\n\n\n") $ pure ()
-        when (isNothing val)  $ D.trace ("\n\n\n\nval:"  <> show val  <> "\n\n\n\n") $ pure ()
-
-        output <- CSL.TransactionOutput <$> addr <*> val <*> Nothing <*> Nothing
+        output <- CSL.TransactionOutput <$> addr <*> val <*> pure Nothing <*> pure Nothing
         pure $ CSL.TransactionUnspentOutput input output
