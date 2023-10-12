@@ -90,7 +90,7 @@ getLedgerEncoins = do
     ecs <- getEncoinsSymbol
     networkId <- getNetworkId
     let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . fromCardanoValue . krValue
-    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) <$> getLedgerUtxosKupo
+    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . filter f <$> getLedgerUtxosKupo
 
 instance ToCSL ([KupoResponse], NetworkId) CSL.TransactionUnspentOutputs where
     toCSL (responses, networkId) = Just $ mapMaybe (toCSL . (, networkId)) responses
