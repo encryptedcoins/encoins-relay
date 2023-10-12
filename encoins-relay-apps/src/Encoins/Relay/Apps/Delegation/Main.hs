@@ -12,8 +12,10 @@ import           Cardano.Api                        (NetworkId, writeFileJSON)
 import           Cardano.Node.Emulator              (SlotConfig)
 import           Cardano.Server.Config              (Config (..), decodeOrErrorFromFile)
 import           Cardano.Server.Utils.Logger        ((.<))
+import           Cardano.Server.Utils.Wait          (waitTime)
 import           Control.Arrow                      ((>>>))
-import           Control.Monad                      (MonadPlus (..), forM, forever, guard, join, unless, (>=>))
+import           Control.Concurrent.Async           (async, wait)
+import           Control.Monad                      (MonadPlus (..), forM, forever, guard, join, unless, void, (>=>))
 import           Control.Monad.Trans.Class          (MonadTrans (..))
 import           Control.Monad.Trans.Maybe          (MaybeT (..))
 import           Data.Aeson                         (eitherDecodeFileStrict)
@@ -29,11 +31,11 @@ import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T
 import qualified Data.Time                          as Time
-import           Encoins.Relay.Apps.Internal        (getResponsesIO, withResultSaving)
+import           Encoins.Relay.Apps.Internal        (getResponsesIO, progressBarStyle, withResultSaving)
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
-import           Ledger                             (Address (..), Datum (..), DatumHash, PubKeyHash (PubKeyHash), Slot,
-                                                     StakingCredential, TxId, TxOutRef (..))
+import           Ledger                             (Address (..), Datum (..), DatumHash, Slot, StakingCredential, TxId (..),
+                                                     TxOutRef (..))
 import           Network.URI                        (isIPv4address, isURI)
 import           Plutus.V1.Ledger.Value             (TokenName)
 import           Plutus.V2.Ledger.Api               (CurrencySymbol)
@@ -44,9 +46,9 @@ import           PlutusAppsExtra.Utils.Time         (parseSlotConfig, utcToSlot)
 import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
 import           PlutusTx                           (FromData (..))
 import           PlutusTx.Builtins                  (BuiltinByteString, decodeUtf8, fromBuiltin)
-import           System.Directory                   (createDirectoryIfMissing, getCurrentDirectory, listDirectory,
-                                                     setCurrentDirectory)
-import           Text.Read                          (readMaybe)
+import           System.Directory                   (createDirectoryIfMissing, listDirectory)
+import           System.ProgressBar                 (Progress (..), ProgressBar, incProgress, newProgressBar)
+
 
 main :: FilePath -> IO ()
 main configFp = do
@@ -56,47 +58,51 @@ main configFp = do
         let handle = mkDelegationHandle config slotConfig
         createDirectoryIfMissing True $ cDelegationFolder relayConfig
         forever $ do
-            ct                         <- Time.getCurrentTime
+            ct                         <- Time.addUTCTime (- 1800) <$> Time.getCurrentTime
+            delay                      <- async $ waitTime 300
             (mbPastDelegators, mbTime) <- getPastDelegators $ cDelegationFolder relayConfig
             let start = maybe (cDelegationStart relayConfig) (utcToSlot slotConfig) mbTime
             delegators <- findDelegators (cDelegationFolder relayConfig) handle start
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
-            writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> show ct <> ".json") res
+            void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> formatTime ct <> ".json") res
+            wait delay
     where
         getPastDelegators delegationFolder = do
-            setCurrentDirectory delegationFolder
-            files <- getCurrentDirectory >>= listDirectory
-            let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readMaybe @Time.UTCTime) files
-                fp = (\t -> "delegators_" <> t <> ".json") . show <$> time
+            files <- listDirectory delegationFolder
+            let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readTime) files
+                fp = (\t -> delegationFolder <> "/delegators_" <> t <> ".json") . formatTime <$> time
             delegators <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
-            setCurrentDirectory ".."
             pure (delegators, time)
+        formatTime   = Time.formatTime Time.defaultTimeLocale formatString
+        readTime     = Time.parseTimeM True Time.defaultTimeLocale formatString
+        formatString = "%d-%b-%YT%H:%M:%S"
 
 findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> m [Delegation]
 findDelegators delegationFolder DelegationHandle{..} slotFrom = do
-
-        dhMkLog "Getting reponses..."
-        !ixResponses <- zip [(1 :: Int)..] <$> dhGetResponses (Just slotFrom) Nothing
-        let l = length ixResponses
-
-        dhMkLog "Getting delegated txs..."
-        fmap (removeDuplicates . catMaybes) $ forM ixResponses $ \(ix, KupoResponse{..}) -> runMaybeT $ do
-            lift $ dhMkLog $ T.pack $ show ix <> "/" <> show l
-            dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
+        !responses <- dhGetResponses (Just slotFrom) Nothing
+        pb <- dhNewProgressBar "Getting delegated txs" $ length responses
+        fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
+            d <- dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
                 getDelegationFromResponse KupoResponse{..}
-
+            lift $ dhIncProgress pb 1
+            pure d
     where
         -- Token balance validation occurs at rewards distribution
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
         getDelegationFromResponse KupoResponse{..} = do
-            dh                             <- MaybeT $ pure krDatumHash
-            (Datum dat)                    <- MaybeT $ dhGetDatumByHash dh
-            ("ENCS Delegation", ipAddrBbs) <- MaybeT $ pure $ fromBuiltinData @(BuiltinByteString, BuiltinByteString) dat
-            stakeKey                       <- MaybeT $ pure $ getStakeKey krAddress
-            guard =<< lift (dhCheckTxSignature krTxId krAddress)
-            let ipAddr = fromBuiltin $ decodeUtf8 ipAddrBbs
-            unless (isValidIp ipAddr) $ lift (dhMkLog $ "Invalid ip: " .< ipAddr) >> mzero
+            dh                                    <- MaybeT $ pure krDatumHash
+            (Datum dat)                           <- MaybeT $ dhGetDatumByHash dh
+            ["ENCOINS", "Delegate", skBbs, ipBbs] <- MaybeT $ pure $ fromBuiltinData dat
+            lift $ dhMkLog $ T.pack $  "Tx found:" <> show krTxId
+            stakeKey                              <- MaybeT $ pure $ getStakeKey krAddress
+            lift $ dhMkLog $ T.pack $ show stakeKey
+            guard =<< lift (dhCheckTxSignature krTxId skBbs)
+            lift $ dhMkLog "signature is ok"
+            let ipAddr = fromBuiltin $ decodeUtf8 ipBbs
+            unless (isValidIp ipAddr) $ do
+                lift $ dhMkLog $ "Invalid ip: " .< ipAddr
+                mzero
             pure $ Delegation (addressCredential krAddress) stakeKey (TxOutRef krTxId krOutputIndex) (swhhSlot krCreatedAt) ipAddr
 
         removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
@@ -104,15 +110,21 @@ findDelegators delegationFolder DelegationHandle{..} slotFrom = do
                          . sortBy (compare `on` delegStakeKey)
 
 isValidIp :: Text -> Bool
-isValidIp txt = or $ [isURI, isIPv4address] <&> ($ T.unpack txt)
+isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
+    where
+        isSimpleURI "" = False
+        isSimpleURI _  = case T.splitOn "." txt of [_, _] -> True; _ -> False
 
 data DelegationHandle m = DelegationHandle
     { dhGetResponses     :: Maybe Slot -> Maybe Slot -> m [KupoResponse]
     , dhGetDatumByHash   :: DatumHash -> m (Maybe Datum)
     , dhGetTokenBalance  :: CurrencySymbol -> TokenName -> StakingCredential -> m Integer
-    , dhCheckTxSignature :: TxId -> Address -> m Bool
+    , dhCheckTxSignature :: TxId -> BuiltinByteString -> m Bool
     , dhMkLog            :: Text -> m ()
     , dhWithResultSaving :: FilePath -> MaybeT m Delegation -> MaybeT m Delegation
+    -- Progress bar
+    , dhNewProgressBar   :: Text -> Int -> m (ProgressBar ())
+    , dhIncProgress      :: ProgressBar () -> Int -> m ()
     }
 
 mkDelegationHandle :: Config -> SlotConfig -> DelegationHandle IO
@@ -120,9 +132,11 @@ mkDelegationHandle Config{..} slotConfig = DelegationHandle
     { dhGetResponses     = getResponesesIO cNetworkId slotConfig
     , dhGetDatumByHash   = Kupo.getDatumByHash
     , dhGetTokenBalance  = getTokenBalanceIO
-    , dhCheckTxSignature = checkTxSignatureIO
+    , dhCheckTxSignature = txIsSignedByKey
     , dhMkLog            = T.putStrLn
     , dhWithResultSaving = withResultSaving
+    , dhNewProgressBar   = \m p -> newProgressBar (progressBarStyle m) 10 (Progress 0 p ())
+    , dhIncProgress      = incProgress
     }
 
 getResponesesIO :: NetworkId -> SlotConfig -> Maybe Slot -> Maybe Slot -> IO [KupoResponse]
@@ -133,8 +147,3 @@ getResponesesIO networkId slotConfig from to = do
 
 getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
 getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing
-
-checkTxSignatureIO :: TxId -> Address -> IO Bool
-checkTxSignatureIO txId addr = case getStakeKey addr of
-    Just (PubKeyHash pkh) -> txIsSignedByKey txId pkh
-    _ -> pure False

@@ -14,11 +14,7 @@
 
 module Encoins.Relay.DelegationSpec where
 
-import           Cardano.Server.Client.Handle       (HasServantClientEnv)
-import           Cardano.Server.Config              (ServerEndpoint (ServerTxE))
-import           Control.Lens                       (Bifunctor (bimap), view)
-import           Control.Monad                      (join, replicateM)
-import           Control.Monad.State                (State, StateT, evalState, evalStateT, runState)
+import           Control.Monad                      (replicateM)
 import qualified Data.ByteString                    as BS
 import           Data.Function                      (on)
 import           Data.Functor                       ((<&>))
@@ -28,35 +24,30 @@ import           Data.Maybe                         (fromJust)
 import           Data.String                        (IsString)
 import           Data.Text                          (Text)
 import qualified Data.Text                          as T
+import qualified Data.Text.Encoding                 as T
 import           Encoins.Relay.Apps.Delegation.Main (DelegationHandle (..), findDelegators, isValidIp)
-import           Encoins.Relay.Client.Client        (TxClientCosntraints, txClientDelegation)
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
-import           Internal                           (runEncoinsServerM)
-import           Ledger                             (Address (..), Datum (Datum, getDatum), DatumHash, PubKeyHash (..), Slot (..),
-                                                     StakePubKey (StakePubKey), TxId (..), TxOutRef (..))
+import           Ledger                             (Address (..), Datum (..), DatumHash, PubKeyHash (..), Slot (..), TxId (..),
+                                                     TxOutRef (..))
 import           Plutus.V1.Ledger.Credential        (Credential (PubKeyCredential), StakingCredential (StakingHash))
-import           Plutus.V2.Ledger.Api               (Data (..), builtinDataToData, dataToBuiltinData, toBuiltin, toBuiltinData)
+import           Plutus.V2.Ledger.Api               (toBuiltin, toBuiltinData)
 import           PlutusAppsExtra.Utils.Datum        (hashDatum)
 import           PlutusAppsExtra.Utils.Kupo         (KupoDatumType (..), KupoResponse (..), SlotWithHeaderHash (..))
-import           PlutusTx.Builtins                  (encodeUtf8)
-import           System.Random                      (randomRIO)
-import           Test.Hspec                         (Expectation, Spec, context, describe, it, shouldBe)
+import           Test.Hspec                         (Spec, describe, it, shouldBe)
 import           Test.QuickCheck                    (Arbitrary (..), Gen, Property, Testable (property), choose, generate, oneof,
-                                                     shuffle, suchThat, withMaxSuccess)
+                                                     suchThat)
 
-spec :: HasServantClientEnv => Spec
+spec :: Spec
 spec = describe "encoins-delegation" $ it "find delegators IP's" propDelegation
 
 propDelegation :: Property
 propDelegation = property $ \(args :: [TestArg]) -> do
-    let balances = map taTokenAmount args
-    minTokenAmount <- generate (choose (minimum balances, maximum balances))
     handle <- generate $ mkTestDelegationHandle args
     let res  = runIdentity $ findDelegators "" handle 0
-    sort res `shouldBe` expectedResult minTokenAmount args
+    sort res `shouldBe` expectedResult args
 
-expectedResult :: Integer -> [TestArg] -> [Delegation]
-expectedResult minTokenAmount = sort . map mkDeleg . filter taTxSignatureIsRight
+expectedResult :: [TestArg] -> [Delegation]
+expectedResult = sort . map mkDeleg . filter taTxSignatureIsRight
     where
         mkDeleg TestArg{..} = Delegation taCredential taAddressStakeKey (TxOutRef taTxId taTxIdX) taCreatedAt (unDelegIp taDelegIp)
 
@@ -84,7 +75,7 @@ argToKupoResponse TestArg{..} =
 
 instance Arbitrary TestArg where
     arbitrary = do
-        taAddressStakeKey <- PubKeyHash . toBuiltin . BS.pack <$> replicateM 28 arbitrary
+        stakeKeyBs <- BS.pack <$> replicateM 28 arbitrary
         taDelegIp <- arbitrary
         taTokenAmount <- choose (0, 100_000_000_000_000)
         taTxId <- TxId . toBuiltin . BS.pack <$> replicateM 32 arbitrary
@@ -94,8 +85,8 @@ instance Arbitrary TestArg where
             _  -> True
         taCredential <- arbitrary
         taCreatedAt <- abs <$> arbitrary
-        let taAddress = Address taCredential (Just $ StakingHash (PubKeyCredential taAddressStakeKey))
-            taDatum = Datum $ toBuiltinData $ join bimap (encodeUtf8 . toBuiltin) ("ENCS Delegation", unDelegIp taDelegIp)
+        let taAddressStakeKey = PubKeyHash $ toBuiltin stakeKeyBs
+            taDatum = Datum $ toBuiltinData $ map toBuiltin ["ENCOINS", "Delegate", stakeKeyBs, T.encodeUtf8 $ unDelegIp taDelegIp]
             taDatumHash = fromJust $ hashDatum taDatum
         pure TestArg{..}
 
