@@ -1,16 +1,16 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE TupleSections         #-}
-{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Encoins.Relay.Server.Status where
 
+import qualified CSL
+import           CSL.Class                     (ToCSL (..))
 import           Cardano.Server.Error          (ConnectionError, Envelope, IsCardanoServerError (..), toEnvelope)
 import           Cardano.Server.Internal       (AuxillaryEnvOf, ServerM, getNetworkId)
 import           Control.Arrow                 (Arrow ((&&&)))
@@ -20,21 +20,15 @@ import           Control.Lens.Tuple            (Field1 (_1))
 import           Control.Monad                 (when)
 import           Control.Monad.Catch           (Exception, MonadThrow (..))
 import           Data.Aeson                    (FromJSON (..), ToJSON (..))
-import           Data.Maybe                    (fromMaybe, mapMaybe)
-import           GHC.Generics                  (Generic)
-import           Ledger                        (NetworkId, TxId (getTxId), fromCardanoValue)
-import qualified Plutus.Script.Utils.Ada       as Ada
-import           System.Random                 (Random (..))
-
-import qualified CSL
-import           CSL.Class                     (ToCSL (..))
+import           Data.Maybe                    (fromMaybe)
 import           ENCOINS.Core.OnChain          (minAdaTxOutInLedger)
-import           Encoins.Relay.Server.Internal (EncoinsRelayEnv, getEncoinsSymbol, getLedgerUtxosKupo)
+import           Encoins.Relay.Server.Internal (EncoinsRelayEnv, getEncoinsSymbol, getLedgerUtxos)
+import           GHC.Generics                  (Generic)
+import           Ledger                        (fromCardanoValue)
+import qualified Plutus.Script.Utils.Ada       as Ada
 import qualified Plutus.Script.Utils.Value     as P
-import           PlutusAppsExtra.Utils.Address (addressToBech32)
 import           PlutusAppsExtra.Utils.Kupo    (KupoResponse (..))
-import           PlutusTx.Builtins.Class       (FromBuiltin (..))
-import           Text.Hex                      (encodeHex)
+import           System.Random                 (Random (..))
 
 data EncoinsStatusReqBody
     -- | Get the maximum amount of ada that can be taken from a single utxo bound to a ledger address.
@@ -80,7 +74,7 @@ encoinsStatusHandler = \case
 
 getMaxAdaWithdraw :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getMaxAdaWithdraw = do
-    kupoResponses <- getLedgerUtxosKupo
+    kupoResponses <- getLedgerUtxos
     when (null kupoResponses) $ throwM EmptyLedger
     let ada = maximum $ map (Ada.fromValue . fromCardanoValue . krValue) kupoResponses
     pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger $ toInteger ada
@@ -90,16 +84,4 @@ getLedgerEncoins = do
     ecs <- getEncoinsSymbol
     networkId <- getNetworkId
     let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . fromCardanoValue . krValue
-    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . filter f <$> getLedgerUtxosKupo
-
-instance ToCSL ([KupoResponse], NetworkId) CSL.TransactionUnspentOutputs where
-    toCSL (responses, networkId) = Just $ mapMaybe (toCSL . (, networkId)) responses
-
-instance ToCSL (KupoResponse, NetworkId) CSL.TransactionUnspentOutput where
-    toCSL (KupoResponse {..}, networkId) = do
-        let input = CSL.TransactionInput (encodeHex $ fromBuiltin $ getTxId krTxId) krOutputIndex
-            addr = addressToBech32 networkId krAddress
-            val  = toCSL (fromCardanoValue krValue)
-
-        output <- CSL.TransactionOutput <$> addr <*> val <*> pure Nothing <*> pure Nothing
-        pure $ CSL.TransactionUnspentOutput input output
+    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . filter f <$> getLedgerUtxos
