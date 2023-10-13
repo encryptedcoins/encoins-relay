@@ -7,7 +7,7 @@ import           Control.Monad.IO.Class                   (MonadIO (..))
 import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, encoinsSymbol, ledgerValidatorAddress)
 import           Encoins.Relay.Server.Config              (referenceScriptSalt)
 import           Plutus.V2.Ledger.Api                     (Address, CurrencySymbol, TxOutRef)
-import           PlutusAppsExtra.IO.ChainIndex.Kupo       (getUtxosAtKupo)
+import           PlutusAppsExtra.IO.ChainIndex.Kupo       (getKupoUtxosAt)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Utils.Kupo               (KupoResponse)
 import           PlutusTx.Builtins                        (BuiltinByteString)
@@ -29,7 +29,7 @@ getLedgerAddress :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api Address
 getLedgerAddress = head <$> getTrackedAddresses
 
 getLedgerUtxos :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api [KupoResponse]
-getLedgerUtxos = getLedgerAddress >>= liftIO . getUtxosAtKupo
+getLedgerUtxos = getLedgerAddress >>= liftIO . getKupoUtxosAt
 
 getEncoinsProtocolParams :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsProtocolParams
 getEncoinsProtocolParams = (\e -> (envRefStakeOwner e, envRefBeacon e, envVerifierPKH e)) <$> getAuxillaryEnv
