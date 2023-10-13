@@ -45,7 +45,6 @@ library
       Encoins.Relay.Server.Opts
       Encoins.Relay.Server.Server
       Encoins.Relay.Server.Status
-    other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,
@@ -62,6 +61,7 @@ library
       encoins-relay-verifier                 -any,
       exceptions                             -any,
       extra                                  -any,
+      gitrev                                 -any,
       hex-text                               -any,
       lens                                   -any,
       mtl                                    -any,
@@ -73,13 +73,16 @@ library
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       plutus-script-utils                    -any,
+      prettyprinter                          -any,
+      prettyprinter-ansi-terminal            -any,
       random                                 -any,
       servant-server                         -any,
       servant-client                         -any,
       text                                   -any,
       time                                   -any
-
     hs-source-dirs: src
+    other-modules: Paths_encoins_relay_server
+    autogen-modules: Paths_encoins_relay_server
 
 executable encoins-relay-server
   default-language: Haskell2010
