@@ -6,7 +6,7 @@ version:            0.1.0.0
 author:             Grigory Petrov
                     Vladimir Sinyakov
 maintainer:         team@encoins.io
-build-type: Custom
+build-type:         Custom
 
 custom-setup
     setup-depends: base >= 4.9,
@@ -45,6 +45,7 @@ library
       Encoins.Relay.Server.Opts
       Encoins.Relay.Server.Server
       Encoins.Relay.Server.Status
+      Encoins.Relay.Server.Version
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,

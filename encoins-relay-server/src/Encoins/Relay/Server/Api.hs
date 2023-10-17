@@ -13,31 +13,35 @@ import           Data.Text                          (Text)
 import           Data.Type.Equality                 ((:~:) (..))
 import           Encoins.Relay.Server.Server        (EncoinsApi, InputOfEncoinsApi)
 import           Encoins.Relay.Server.Status        (EncoinsStatusReqBody, EncoinsStatusResult)
+import           Encoins.Relay.Server.Version       (ServerVersion)
 import           Servant                            (Get, Post, JSON, NoContent, ReqBody, type (:<|>), type (:>))
 
 type Api
-    =    "ping"     
+    =    "ping"
       :> Get '[JSON] NoContent
 
-    :<|> "utxos"    
-      :> ReqBody '[JSON] Text 
+    :<|> "utxos"
+      :> ReqBody '[JSON] Text
       :> Get '[JSON] CSL.TransactionUnspentOutputs
 
-    :<|> "newTx"    
-      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs) 
+    :<|> "newTx"
+      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs)
       :> Post '[JSON] (Text, Text)
 
-    :<|> "submitTx" 
-      :> ReqBody '[JSON] SubmitTxReqBody 
+    :<|> "submitTx"
+      :> ReqBody '[JSON] SubmitTxReqBody
       :> Post '[JSON] NoContent
 
-    :<|> "serverTx" 
-      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs) 
+    :<|> "serverTx"
+      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs)
       :> Post '[JSON] NoContent
 
-    :<|> "status"   
-      :> ReqBody '[JSON] EncoinsStatusReqBody 
+    :<|> "status"
+      :> ReqBody '[JSON] EncoinsStatusReqBody
       :> Post '[JSON] EncoinsStatusResult
+
+    :<|> "version"
+      :> Get '[JSON] ServerVersion
 
 thisApiIsActual :: Api :~: EraseErrors EncoinsApi
 thisApiIsActual = Refl
