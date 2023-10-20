@@ -71,6 +71,10 @@ argToKupoResponse TestArg{..} =
         krTxId        = taTxId
         krOutputIndex = taTxIdX
         krCreatedAt   = SlotWithHeaderHash taCreatedAt undefined
+        krValue       = mempty
+        krDatumType   = Nothing
+        krScriptHash  = Nothing
+        krSpentAt     = Nothing
     in KupoResponse{..}
 
 instance Arbitrary TestArg where

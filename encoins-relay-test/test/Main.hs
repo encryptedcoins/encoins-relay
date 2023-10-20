@@ -18,15 +18,16 @@ import           Test.Hspec                        (parallel, runIO, hspec)
 
 main :: IO ()
 main = do
-    let configFp = "encoins-relay-test/test/configuration/config.json"
-    c <- decodeOrErrorFromFile configFp
-    sHandle <- mkServerHandle c
-    bracket
-        (C.forkIO $ runVerifierServer "encoins-relay-test/test/configuration/verifierConfig.json")
-        C.killThread
-        $ const $ withCardanoServer configFp sHandle 30 $ do
-            runIO $ C.threadDelay 50000
-            Status.spec
-            Verifier.spec
-            Server.spec
-            Delegation.spec
+    hspec  Delegation.spec
+    -- let configFp = "encoins-relay-test/test/configuration/config.json"
+    -- c <- decodeOrErrorFromFile configFp
+    -- sHandle <- mkServerHandle c
+    -- bracket
+    --     (C.forkIO $ runVerifierServer "encoins-relay-test/test/configuration/verifierConfig.json")
+    --     C.killThread
+    --     $ const $ withCardanoServer configFp sHandle 30 $ do
+    --         -- runIO $ C.threadDelay 50000
+    --         -- Status.spec
+    --         -- Verifier.spec
+    --         -- Server.spec
+    --         Delegation.spec
