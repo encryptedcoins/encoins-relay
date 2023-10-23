@@ -14,20 +14,19 @@ import           Encoins.Relay.Verifier.Server     (runVerifierServer)
 import qualified Encoins.Relay.Verifier.ServerSpec as Verifier
 import           System.Directory                  (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory,
                                                     setCurrentDirectory)
-import           Test.Hspec                        (parallel, runIO, hspec)
+import           Test.Hspec                        (parallel, runIO)
 
 main :: IO ()
 main = do
-    hspec  Delegation.spec
-    -- let configFp = "encoins-relay-test/test/configuration/config.json"
-    -- c <- decodeOrErrorFromFile configFp
-    -- sHandle <- mkServerHandle c
-    -- bracket
-    --     (C.forkIO $ runVerifierServer "encoins-relay-test/test/configuration/verifierConfig.json")
-    --     C.killThread
-    --     $ const $ withCardanoServer configFp sHandle 30 $ do
-    --         -- runIO $ C.threadDelay 50000
-    --         -- Status.spec
-    --         -- Verifier.spec
-    --         -- Server.spec
-    --         Delegation.spec
+    let configFp = "encoins-relay-test/test/configuration/config.json"
+    c <- decodeOrErrorFromFile configFp
+    sHandle <- mkServerHandle c
+    bracket
+        (C.forkIO $ runVerifierServer "encoins-relay-test/test/configuration/verifierConfig.json")
+        C.killThread
+        $ const $ withCardanoServer configFp sHandle 30 $ do
+            runIO $ C.threadDelay 50000
+            Status.spec
+            Verifier.spec
+            Server.spec
+            Delegation.spec
