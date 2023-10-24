@@ -1,10 +1,8 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
 
 module Encoins.Relay.Apps.Delegation.Main where
 
@@ -25,6 +23,7 @@ import           Data.Function                      (on)
 import           Data.Functor                       ((<&>))
 import           Data.List                          (sort, sortBy, stripPrefix)
 import qualified Data.List.NonEmpty                 as NonEmpty
+import qualified Data.Map                           as Map
 import           Data.Maybe                         (catMaybes, fromMaybe, listToMaybe, mapMaybe)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
@@ -37,6 +36,7 @@ import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Ledger                             (Address (..), Datum (..), DatumHash, Slot, StakingCredential, TxId (..),
                                                      TxOutRef (..))
 import           Network.URI                        (isIPv4address, isURI)
+import           Plutus.V1.Ledger.Api               (Credential (PubKeyCredential), StakingCredential (..))
 import           Plutus.V1.Ledger.Value             (TokenName)
 import           Plutus.V2.Ledger.Api               (CurrencySymbol)
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
@@ -66,8 +66,14 @@ main configFp = do
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
             void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> formatTime ct <> ".json") res
+            ipsWithBalances <- mapM (getIpWithBalance handle relayConfig) res <&> fmap (uncurry Map.singleton)
+            void $ writeFileJSON (cDelegationFolder relayConfig <> "/result_" <> formatTime ct <> ".json") ipsWithBalances
             wait delay
     where
+        getIpWithBalance h EncoinsRelayConfig{..} Delegation{..} = do
+            let stakeKey = StakingHash $ PubKeyCredential delegStakeKey
+            balance <- dhGetTokenBalance h cDelegationCurrencySymbol cDelegationTokenName stakeKey
+            pure (delegIp, balance)
         getPastDelegators delegationFolder = do
             files <- listDirectory delegationFolder
             let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readTime) files
@@ -80,13 +86,12 @@ main configFp = do
 
 findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> m [Delegation]
 findDelegators delegationFolder DelegationHandle{..} slotFrom = do
-        !responses <- dhGetResponses (Just slotFrom) Nothing
+        responses <- dhGetResponses (Just slotFrom) Nothing
         pb <- dhNewProgressBar "Getting delegated txs" $ length responses
         fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
-            d <- dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
-                getDelegationFromResponse KupoResponse{..}
             lift $ dhIncProgress pb 1
-            pure d
+            dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
+                getDelegationFromResponse KupoResponse{..}
     where
         -- Token balance validation occurs at rewards distribution
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
