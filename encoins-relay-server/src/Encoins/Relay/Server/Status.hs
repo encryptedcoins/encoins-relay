@@ -8,27 +8,29 @@
 
 module Encoins.Relay.Server.Status where
 
-import           Cardano.Server.Error          (ConnectionError, Envelope, IsCardanoServerError (..), toEnvelope)
-import           Cardano.Server.Internal       (AuxillaryEnvOf, ServerM, getNetworkId)
-import           Control.Arrow                 (Arrow ((&&&)))
-import           Control.Exception             (throw)
-import           Control.Lens                  ((^.))
-import           Control.Lens.Tuple            (Field1 (_1))
-import           Control.Monad                 (when)
-import           Control.Monad.Catch           (Exception, MonadThrow (..))
-import           Data.Aeson                    (FromJSON (..), ToJSON (..))
-import qualified Data.Map                      as Map
-import           Data.Maybe                    (fromMaybe)
-import           GHC.Generics                  (Generic)
-import           Ledger                        (decoratedTxOutPlutusValue)
-import qualified Plutus.Script.Utils.Ada       as Ada
-import           System.Random                 (Random (..))
+import           Cardano.Server.Error               (ConnectionError, Envelope, IsCardanoServerError (..), toEnvelope)
+import           Cardano.Server.Internal            (AuxillaryEnvOf, ServerM, getNetworkId)
+import           Control.Arrow                      (Arrow ((&&&)))
+import           Control.Exception                  (throw)
+import           Control.Lens                       ((^.))
+import           Control.Lens.Tuple                 (Field1 (_1))
+import           Control.Monad                      (when)
+import           Control.Monad.Catch                (Exception, MonadThrow (..))
+import           Control.Monad.IO.Class             (MonadIO (..))
+import           Data.Aeson                         (FromJSON (..), ToJSON (..))
+import           Data.Maybe                         (fromMaybe)
+import           GHC.Generics                       (Generic)
+import           Ledger                             (fromCardanoValue)
+import qualified Plutus.Script.Utils.Ada            as Ada
+import qualified Plutus.Script.Utils.Value          as P
+import           System.Random                      (Random (..))
 
 import qualified CSL
-import           CSL.Class                     (toCSL)
-import           ENCOINS.Core.OnChain          (minAdaTxOutInLedger)
-import           Encoins.Relay.Server.Internal (EncoinsRelayEnv, getEncoinsSymbol, getLedgerUtxos)
-import qualified Plutus.Script.Utils.Value     as P
+import           CSL.Class                          (toCSL)
+import           ENCOINS.Core.OnChain               (minAdaTxOutInLedger)
+import           Encoins.Relay.Server.Internal      (EncoinsRelayEnv, getEncoinsSymbol, getLedgerAddress)
+import           PlutusAppsExtra.IO.ChainIndex.Kupo (getKupoResponsesAt)
+import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..))
 
 data EncoinsStatusReqBody
     -- | Get the maximum amount of ada that can be taken from a single utxo bound to a ledger address.
@@ -74,14 +76,15 @@ encoinsStatusHandler = \case
 
 getMaxAdaWithdraw :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getMaxAdaWithdraw = do
-    utxos <- getLedgerUtxos
-    when (null utxos) $ throwM EmptyLedger
-    let ada = maximum . map (Ada.fromValue . decoratedTxOutPlutusValue) $ Map.elems utxos
+    responses <- getLedgerAddress >>= liftIO . getKupoResponsesAt
+    when (null responses) $ throwM EmptyLedger
+    let ada = maximum $ map (Ada.fromValue . fromCardanoValue . krValue) responses
     pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger $ toInteger ada
 
 getLedgerEncoins :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getLedgerEncoins = do
-    ecs <- getEncoinsSymbol
+    responses <- getLedgerAddress >>= liftIO . getKupoResponsesAt
+    ecs       <- getEncoinsSymbol
     networkId <- getNetworkId
-    let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . decoratedTxOutPlutusValue
-    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . Map.filter f <$> getLedgerUtxos
+    let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . fromCardanoValue . krValue
+    pure $ LedgerUtxoResult $ fromMaybe (throw CslConversionError) $ toCSL $ (,networkId) $ filter f $ responses

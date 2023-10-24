@@ -14,7 +14,7 @@ import           Encoins.Relay.Verifier.Server     (runVerifierServer)
 import qualified Encoins.Relay.Verifier.ServerSpec as Verifier
 import           System.Directory                  (createDirectoryIfMissing, removeDirectoryRecursive, renameDirectory,
                                                     setCurrentDirectory)
-import           Test.Hspec                        (parallel, runIO, hspec)
+import           Test.Hspec                        (parallel, runIO)
 
 main :: IO ()
 main = do
