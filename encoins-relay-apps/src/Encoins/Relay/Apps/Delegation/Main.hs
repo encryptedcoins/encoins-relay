@@ -66,8 +66,8 @@ main configFp = do
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
             void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> formatTime ct <> ".json") res
-            ipsWithBalances <- mapM (getIpWithBalance handle relayConfig) res <&> fmap (uncurry Map.singleton)
-            void $ writeFileJSON (cDelegationFolder relayConfig <> "/result_" <> formatTime ct <> ".json") ipsWithBalances
+            ipsWithBalances <- mapM (getIpWithBalance handle relayConfig) res
+            void $ writeFileJSON (cDelegationFolder relayConfig <> "/result_" <> formatTime ct <> ".json") $ toJSONResult ipsWithBalances
             wait delay
     where
         getIpWithBalance h EncoinsRelayConfig{..} Delegation{..} = do
@@ -83,6 +83,7 @@ main configFp = do
         formatTime   = Time.formatTime Time.defaultTimeLocale formatString
         readTime     = Time.parseTimeM True Time.defaultTimeLocale formatString
         formatString = "%d-%b-%YT%H:%M:%S"
+        toJSONResult = Map.fromList . fmap (fmap (T.pack . show))
 
 findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> m [Delegation]
 findDelegators delegationFolder DelegationHandle{..} slotFrom = do
