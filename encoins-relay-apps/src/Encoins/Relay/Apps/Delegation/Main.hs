@@ -30,7 +30,8 @@ import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T
 import qualified Data.Time                          as Time
-import           Encoins.Relay.Apps.Internal        (getResponsesIO, progressBarStyle, withResultSaving)
+import           Encoins.Relay.Apps.Internal        (progressBarStyle, withResultSaving)
+import qualified Encoins.Relay.Apps.Internal        as Internal
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Ledger                             (Address (..), Datum (..), DatumHash, Slot, StakingCredential, TxId (..),
@@ -135,7 +136,7 @@ data DelegationHandle m = DelegationHandle
 
 mkDelegationHandle :: Config -> SlotConfig -> DelegationHandle IO
 mkDelegationHandle Config{..} slotConfig = DelegationHandle
-    { dhGetResponses     = getResponesesIO cNetworkId slotConfig
+    { dhGetResponses     = getResponsesIO cNetworkId slotConfig
     , dhGetDatumByHash   = Kupo.getDatumByHash
     , dhGetTokenBalance  = getTokenBalanceIO
     , dhCheckTxSignature = txIsSignedByKey
@@ -145,11 +146,11 @@ mkDelegationHandle Config{..} slotConfig = DelegationHandle
     , dhIncProgress      = incProgress
     }
 
-getResponesesIO :: NetworkId -> SlotConfig -> Maybe Slot -> Maybe Slot -> IO [KupoResponse]
-getResponesesIO networkId slotConfig from to = do
+getResponsesIO :: NetworkId -> SlotConfig -> Maybe Slot -> Maybe Slot -> IO [KupoResponse]
+getResponsesIO networkId slotConfig from to = do
     to' <- maybe (utcToSlot slotConfig <$> Time.getCurrentTime) pure to
     putStrLn $ "getting responses from " <> show (fromMaybe 0 from) <> " to " <> show to'
-    getResponsesIO networkId (fromMaybe 0 from) to' 3600
+    Internal.getResponsesIO networkId (fromMaybe 0 from) to' 3600
 
 getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
 getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing
