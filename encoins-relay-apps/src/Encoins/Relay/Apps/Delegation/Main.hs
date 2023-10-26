@@ -58,11 +58,11 @@ main configFp = do
         let handle = mkDelegationHandle config slotConfig
         createDirectoryIfMissing True $ cDelegationFolder relayConfig
         forever $ do
-            ct                         <- Time.addUTCTime (- 1800) <$> Time.getCurrentTime
+            ct                         <- Time.addUTCTime (- 300) <$> Time.getCurrentTime
             delay                      <- async $ waitTime 300
             (mbPastDelegators, mbTime) <- getPastDelegators $ cDelegationFolder relayConfig
             let start = maybe (cDelegationStart relayConfig) (utcToSlot slotConfig) mbTime
-            delegators <- findDelegators (cDelegationFolder relayConfig) handle start
+            delegators <- findDelegators (cDelegationFolder relayConfig) handle start (utcToSlot slotConfig ct)
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
             void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> formatTime ct <> ".json") res
@@ -85,9 +85,9 @@ main configFp = do
         formatString = "%d-%b-%YT%H:%M:%S"
         toJSONResult = Map.fromList . fmap (fmap (T.pack . show))
 
-findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> m [Delegation]
-findDelegators delegationFolder DelegationHandle{..} slotFrom = do
-        responses <- dhGetResponses (Just slotFrom) Nothing
+findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> Slot -> m [Delegation]
+findDelegators delegationFolder DelegationHandle{..} slotFrom slotTo = do
+        responses <- dhGetResponses (Just slotFrom) (Just slotTo)
         pb <- dhNewProgressBar "Getting delegated txs" $ length responses
         fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
             lift $ dhIncProgress pb 1
