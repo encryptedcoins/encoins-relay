@@ -45,13 +45,13 @@ runVerifierServer verifierConfigFp = do
         verifierPrvKey     <- decodeOrErrorFromFile cVerifierPrvKeyFilePath
 
         runVerifier $ logMsg "Starting verifier server..."
-        Warp.runSettings (mkSettings  VerifierConfig{..}) 
-            $ serve (Proxy @VerifierApi) 
-            $ hoistServer (Proxy @VerifierApi) 
-                (Servant.Handler . ExceptT . fmap Right . runVerifier) 
+        Warp.runSettings (mkSettings  VerifierConfig{..})
+            $ serve (Proxy @VerifierApi)
+            $ hoistServer (Proxy @VerifierApi)
+                (Servant.Handler . ExceptT . fmap Right . runVerifier)
                 (verifierApi bulletproofSetup verifierPrvKey)
     where
-        mkSettings VerifierConfig{..} 
+        mkSettings VerifierConfig{..}
             = Warp.setLogger logReceivedRequest
             $ Warp.setOnException (const logException)
             $ Warp.setHost (fromString $ T.unpack cHost)
@@ -72,7 +72,7 @@ instance HasLogger VerifierM where
 
 data VerifierEnv = VerifierEnv
     { vEnvLogger   :: Logger VerifierM
-    , vEnvLoggerFp :: Maybe FilePath 
+    , vEnvLoggerFp :: Maybe FilePath
     }
 
 data VerifierConfig = VerifierConfig
