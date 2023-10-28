@@ -43,7 +43,7 @@ spec = describe "encoins-delegation" $ it "find delegators IP's" propDelegation
 propDelegation :: Property
 propDelegation = property $ \(args :: [TestArg]) -> do
     handle <- generate $ mkTestDelegationHandle args
-    let res  = runIdentity $ findDelegators "" handle 0
+    let res  = runIdentity $ findDelegators "" handle 0 0
     sort res `shouldBe` expectedResult args
 
 expectedResult :: [TestArg] -> [Delegation]
