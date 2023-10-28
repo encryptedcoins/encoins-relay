@@ -66,7 +66,7 @@ import           Ledger                        (Address, TxId (TxId),
 import           PlutusAppsExtra.IO.ChainIndex (ChainIndex (..),
                                                 getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet     (getWalletAddr, getWalletUtxos)
-import           PlutusAppsExtra.Types.Tx      (TransactionBuilder)
+import           PlutusAppsExtra.Types.Tx      (TransactionBuilder, allRequirements, txBuilderRequirements)
 
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
@@ -117,11 +117,11 @@ serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
     encoinsProtocolParams@(_, refBeacon, _) <- getEncoinsProtocolParams
     -- Mint the stake owner token
-    utxos <- getWalletUtxos
+    utxos <- getWalletUtxos mempty
     let utxos' = Map.delete refBeacon utxos
     mkTx [] (InputContextServer utxos') [stakeOwnerTx encoinsProtocolParams]
     -- Mint and send the beacon
-    utxos'' <- getWalletUtxos
+    utxos'' <- getWalletUtxos mempty
     mkTx [] (InputContextServer utxos'') [beaconTx encoinsProtocolParams]
     -- Post the ENCOINS minting policy
     mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
@@ -135,12 +135,16 @@ processRequest req = sequence $ case req of
     s@(InputSending _  _ changeAddr, _)                     -> mkContext WalletMode changeAddr <$> s
     (d@(InputDelegation _ _), _)                            -> (d, pure def)
     where
-        mkContext WalletMode addr inputsCSL  = do
-            utxos <- getMapUtxoFromRefs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
-            pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
-        mkContext LedgerMode _ _  = do
-            utxos <- getWalletUtxos
-            InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
+        mkContext mode addr inputsCSL = do
+            builders <- txBuilders (fst req)
+            reqs     <- liftIO $ txBuilderRequirements builders
+            case mode of
+                WalletMode -> do
+                    utxos    <- getMapUtxoFromRefs reqs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
+                    pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
+                LedgerMode -> do
+                    utxos    <- getWalletUtxos reqs
+                    InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
 txBuilders (InputRedeemer red mode) = do
