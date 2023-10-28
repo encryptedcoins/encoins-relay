@@ -3,7 +3,6 @@
 module Encoins.Relay.Server.Internal where
 
 import           Cardano.Server.Internal                  (AuxillaryEnvOf, ServerM, getAuxillaryEnv)
-import           Control.Monad.IO.Class                   (MonadIO (..))
 import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, encoinsSymbol, ledgerValidatorAddress)
 import           Encoins.Relay.Server.Config              (referenceScriptSalt)
 import           Plutus.V2.Ledger.Api                     (Address, CurrencySymbol, TxOutRef)
