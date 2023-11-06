@@ -1,10 +1,8 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
 
 module Encoins.Relay.Apps.Delegation.Main where
 
@@ -25,18 +23,21 @@ import           Data.Function                      (on)
 import           Data.Functor                       ((<&>))
 import           Data.List                          (sort, sortBy, stripPrefix)
 import qualified Data.List.NonEmpty                 as NonEmpty
+import qualified Data.Map                           as Map
 import           Data.Maybe                         (catMaybes, fromMaybe, listToMaybe, mapMaybe)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T
 import qualified Data.Time                          as Time
-import           Encoins.Relay.Apps.Internal        (getResponsesIO, progressBarStyle, withResultSaving)
+import           Encoins.Relay.Apps.Internal        (progressBarStyle, withResultSaving)
+import qualified Encoins.Relay.Apps.Internal        as Internal
 import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Ledger                             (Address (..), Datum (..), DatumHash, Slot, StakingCredential, TxId (..),
                                                      TxOutRef (..))
 import           Network.URI                        (isIPv4address, isURI)
+import           Plutus.V1.Ledger.Api               (Credential (PubKeyCredential), StakingCredential (..))
 import           Plutus.V1.Ledger.Value             (TokenName)
 import           Plutus.V2.Ledger.Api               (CurrencySymbol)
 import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
@@ -58,16 +59,22 @@ main configFp = do
         let handle = mkDelegationHandle config slotConfig
         createDirectoryIfMissing True $ cDelegationFolder relayConfig
         forever $ do
-            ct                         <- Time.addUTCTime (- 1800) <$> Time.getCurrentTime
+            ct                         <- Time.addUTCTime (- 300) <$> Time.getCurrentTime
             delay                      <- async $ waitTime 300
             (mbPastDelegators, mbTime) <- getPastDelegators $ cDelegationFolder relayConfig
             let start = maybe (cDelegationStart relayConfig) (utcToSlot slotConfig) mbTime
-            delegators <- findDelegators (cDelegationFolder relayConfig) handle start
+            delegators <- findDelegators (cDelegationFolder relayConfig) handle start (utcToSlot slotConfig ct)
             let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
             print res
             void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> formatTime ct <> ".json") res
+            ipsWithBalances <- mapM (getIpWithBalance handle relayConfig) res
+            void $ writeFileJSON (cDelegationFolder relayConfig <> "/result_" <> formatTime ct <> ".json") $ toJSONResult ipsWithBalances
             wait delay
     where
+        getIpWithBalance h EncoinsRelayConfig{..} Delegation{..} = do
+            let stakeKey = StakingHash $ PubKeyCredential delegStakeKey
+            balance <- dhGetTokenBalance h cDelegationCurrencySymbol cDelegationTokenName stakeKey
+            pure (delegIp, balance)
         getPastDelegators delegationFolder = do
             files <- listDirectory delegationFolder
             let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readTime) files
@@ -77,16 +84,16 @@ main configFp = do
         formatTime   = Time.formatTime Time.defaultTimeLocale formatString
         readTime     = Time.parseTimeM True Time.defaultTimeLocale formatString
         formatString = "%d-%b-%YT%H:%M:%S"
+        toJSONResult = Map.fromList . fmap (fmap (T.pack . show))
 
-findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> m [Delegation]
-findDelegators delegationFolder DelegationHandle{..} slotFrom = do
-        !responses <- dhGetResponses (Just slotFrom) Nothing
+findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> Slot -> m [Delegation]
+findDelegators delegationFolder DelegationHandle{..} slotFrom slotTo = do
+        responses <- dhGetResponses (Just slotFrom) (Just slotTo)
         pb <- dhNewProgressBar "Getting delegated txs" $ length responses
         fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
-            d <- dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
-                getDelegationFromResponse KupoResponse{..}
             lift $ dhIncProgress pb 1
-            pure d
+            dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
+                getDelegationFromResponse KupoResponse{..}
     where
         -- Token balance validation occurs at rewards distribution
         getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
@@ -129,7 +136,7 @@ data DelegationHandle m = DelegationHandle
 
 mkDelegationHandle :: Config -> SlotConfig -> DelegationHandle IO
 mkDelegationHandle Config{..} slotConfig = DelegationHandle
-    { dhGetResponses     = getResponesesIO cNetworkId slotConfig
+    { dhGetResponses     = getResponsesIO cNetworkId slotConfig
     , dhGetDatumByHash   = Kupo.getDatumByHash
     , dhGetTokenBalance  = getTokenBalanceIO
     , dhCheckTxSignature = txIsSignedByKey
@@ -139,11 +146,11 @@ mkDelegationHandle Config{..} slotConfig = DelegationHandle
     , dhIncProgress      = incProgress
     }
 
-getResponesesIO :: NetworkId -> SlotConfig -> Maybe Slot -> Maybe Slot -> IO [KupoResponse]
-getResponesesIO networkId slotConfig from to = do
+getResponsesIO :: NetworkId -> SlotConfig -> Maybe Slot -> Maybe Slot -> IO [KupoResponse]
+getResponsesIO networkId slotConfig from to = do
     to' <- maybe (utcToSlot slotConfig <$> Time.getCurrentTime) pure to
     putStrLn $ "getting responses from " <> show (fromMaybe 0 from) <> " to " <> show to'
-    getResponsesIO networkId (fromMaybe 0 from) to' 3600
+    Internal.getResponsesIO networkId (fromMaybe 0 from) to' 3600
 
 getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
 getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing

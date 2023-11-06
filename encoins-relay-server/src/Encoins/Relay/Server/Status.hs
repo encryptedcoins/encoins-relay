@@ -20,14 +20,14 @@ import           Control.Lens.Tuple            (Field1 (_1))
 import           Control.Monad                 (when)
 import           Control.Monad.Catch           (Exception, MonadThrow (..))
 import           Data.Aeson                    (FromJSON (..), ToJSON (..))
+import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe)
 import           ENCOINS.Core.OnChain          (minAdaTxOutInLedger)
 import           Encoins.Relay.Server.Internal (EncoinsRelayEnv, getEncoinsSymbol, getLedgerUtxos)
 import           GHC.Generics                  (Generic)
-import           Ledger                        (fromCardanoValue)
+import           Ledger                        (decoratedTxOutPlutusValue)
 import qualified Plutus.Script.Utils.Ada       as Ada
 import qualified Plutus.Script.Utils.Value     as P
-import           PlutusAppsExtra.Utils.Kupo    (KupoResponse (..))
 import           System.Random                 (Random (..))
 
 data EncoinsStatusReqBody
@@ -74,14 +74,14 @@ encoinsStatusHandler = \case
 
 getMaxAdaWithdraw :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getMaxAdaWithdraw = do
-    kupoResponses <- getLedgerUtxos
-    when (null kupoResponses) $ throwM EmptyLedger
-    let ada = maximum $ map (Ada.fromValue . fromCardanoValue . krValue) kupoResponses
+    utxos <- getLedgerUtxos mempty
+    when (null utxos) $ throwM EmptyLedger
+    let ada = maximum . map (Ada.fromValue . decoratedTxOutPlutusValue) $ Map.elems utxos
     pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger $ toInteger ada
 
 getLedgerEncoins :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getLedgerEncoins = do
-    ecs <- getEncoinsSymbol
+    ecs       <- getEncoinsSymbol
     networkId <- getNetworkId
-    let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . fromCardanoValue . krValue
-    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . filter f <$> getLedgerUtxos
+    let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . decoratedTxOutPlutusValue
+    LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . Map.filter f <$> getLedgerUtxos mempty

@@ -9,64 +9,51 @@
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Encoins.Relay.Server.Server where
 
-import           Cardano.Server.Config         (Config (..))
-import           Cardano.Server.Error          (IsCardanoServerError (errMsg, errStatus))
-import           Cardano.Server.Input          (InputContext (..))
-import           Cardano.Server.Internal       (AuxillaryEnvOf, InputOf,
-                                                InputWithContext,
-                                                ServerHandle (..), ServerM,
-                                                getAuxillaryEnv)
-import           Cardano.Server.Main           (ServerApi)
-import           Cardano.Server.Tx             (mkTx)
-import           Control.Exception             (Exception, throw)
-import           Control.Monad                 (void)
-import           Control.Monad.Catch           (MonadThrow (..))
-import           Control.Monad.IO.Class        (MonadIO (..))
-import           CSL                           (TransactionInputs)
+import           CSL                            (TransactionInputs)
 import qualified CSL
-import           CSL.Class                     (FromCSL (..))
-import           Data.Aeson                    (FromJSON, ToJSON)
-import           Data.Default                  (def)
-import qualified Data.Map                      as Map
-import           Data.Maybe                    (fromMaybe)
-import           Data.Text                     (Text)
-import           ENCOINS.Core.OffChain         (EncoinsMode (..), beaconTx,
-                                                delegateTx, encoinsSendTx,
-                                                encoinsTx, postEncoinsPolicyTx,
-                                                postLedgerValidatorTx,
-                                                stakeOwnerTx)
-import           ENCOINS.Core.OnChain          (EncoinsRedeemer,
-                                                EncoinsRedeemerOnChain,
-                                                ledgerValidatorAddress,
-                                                minMaxTxOutValueInLedger)
-import           Encoins.Relay.Server.Config   (EncoinsRelayConfig (..),
-                                                loadEncoinsRelayConfig,
-                                                referenceScriptSalt,
-                                                treasuryWalletAddress)
-import           Encoins.Relay.Server.Internal (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv),
-                                                getEncoinsProtocolParams,
-                                                getTrackedAddresses)
-import           Encoins.Relay.Server.Status   (EncoinsStatusErrors,
-                                                EncoinsStatusReqBody,
-                                                EncoinsStatusResult,
-                                                encoinsStatusHandler)
-import           Encoins.Relay.Server.Version  (ServerVersion,
-                                                versionHandler)
-import           Encoins.Relay.Verifier.Client (mkVerifierClientEnv,
-                                                verifierClient)
-import           Encoins.Relay.Verifier.Server (VerifierApiError (..))
-import           GHC.Generics                  (Generic)
-import           Ledger                        (Address, TxId (TxId),
-                                                TxOutRef (..))
-import           PlutusAppsExtra.IO.ChainIndex (ChainIndex (..),
-                                                getMapUtxoFromRefs)
-import           PlutusAppsExtra.IO.Wallet     (getWalletAddr, getWalletUtxos)
-import           PlutusAppsExtra.Types.Tx      (TransactionBuilder)
+import           CSL.Class                      (FromCSL (..))
+import           Cardano.Server.Client.Internal (statusC)
+import           Cardano.Server.Config          (Config (..))
+import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
+import           Cardano.Server.Input           (InputContext (..))
+import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
+                                                 getAuxillaryEnv, mkServerClientEnv)
+import           Cardano.Server.Main            (ServerApi)
+import           Cardano.Server.Tx              (mkTx)
+import           Control.Exception              (Exception, throw)
+import           Control.Monad                  (void)
+import           Control.Monad.Catch            (MonadThrow (..))
+import           Control.Monad.IO.Class         (MonadIO (..))
+import           Data.Aeson                     (FromJSON, ToJSON)
+import           Data.Default                   (def)
+import qualified Data.Map                       as Map
+import           Data.Maybe                     (fromMaybe)
+import           Data.Text                      (Text)
+import           ENCOINS.Core.OffChain          (EncoinsMode (..), beaconTx, delegateTx, encoinsSendTx, encoinsTx,
+                                                 postEncoinsPolicyTx, postLedgerValidatorTx, stakeOwnerTx)
+import           ENCOINS.Core.OnChain           (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress,
+                                                 minMaxTxOutValueInLedger)
+import           Encoins.Relay.Server.Config    (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
+                                                 treasuryWalletAddress)
+import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv),
+                                                 getEncoinsProtocolParams, getTrackedAddresses)
+import           Encoins.Relay.Server.Status    (EncoinsStatusErrors, EncoinsStatusReqBody (MaxAdaWithdraw), EncoinsStatusResult,
+                                                 encoinsStatusHandler)
+import           Encoins.Relay.Server.Version   (ServerVersion, versionHandler)
+import           Encoins.Relay.Verifier.Client  (mkVerifierClientEnv, verifierClient)
+import           Encoins.Relay.Verifier.Server  (VerifierApiError (..))
+import           GHC.Generics                   (Generic)
+import           Ledger                         (Address, TxId (TxId), TxOutRef (..))
+import           PlutusAppsExtra.IO.ChainIndex  (ChainIndex (..), getMapUtxoFromRefs)
+import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletUtxos)
+import           PlutusAppsExtra.Types.Tx       (TransactionBuilder, txBuilderRequirements)
+import qualified Servant.Client                 as Servant
 
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
@@ -80,6 +67,7 @@ mkServerHandle c = do
         (pure ())
         processRequest
         encoinsStatusHandler
+        checkStatusEndpoint
         versionHandler
 
 type EncoinsApi = ServerApi
@@ -117,11 +105,11 @@ serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
     encoinsProtocolParams@(_, refBeacon, _) <- getEncoinsProtocolParams
     -- Mint the stake owner token
-    utxos <- getWalletUtxos
+    utxos <- getWalletUtxos mempty
     let utxos' = Map.delete refBeacon utxos
     mkTx [] (InputContextServer utxos') [stakeOwnerTx encoinsProtocolParams]
     -- Mint and send the beacon
-    utxos'' <- getWalletUtxos
+    utxos'' <- getWalletUtxos mempty
     mkTx [] (InputContextServer utxos'') [beaconTx encoinsProtocolParams]
     -- Post the ENCOINS minting policy
     mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
@@ -135,12 +123,16 @@ processRequest req = sequence $ case req of
     s@(InputSending _  _ changeAddr, _)                     -> mkContext WalletMode changeAddr <$> s
     (d@(InputDelegation _ _), _)                            -> (d, pure def)
     where
-        mkContext WalletMode addr inputsCSL  = do
-            utxos <- getMapUtxoFromRefs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
-            pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
-        mkContext LedgerMode _ _  = do
-            utxos <- getWalletUtxos
-            InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
+        mkContext mode addr inputsCSL = do
+            builders <- txBuilders (fst req)
+            reqs     <- liftIO $ txBuilderRequirements builders
+            case mode of
+                WalletMode -> do
+                    utxos    <- getMapUtxoFromRefs reqs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
+                    pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
+                LedgerMode -> do
+                    utxos    <- getWalletUtxos reqs
+                    InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
 
 txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
 txBuilders (InputRedeemer red mode) = do
@@ -160,3 +152,10 @@ verifyRedeemer red = do
     verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
     let ?servantClientEnv = verifierClientEnv
     liftIO (verifierClient red) >>= either throwM pure
+
+-- Check if status endpoint is alive
+checkStatusEndpoint :: ServerM EncoinsApi (Either Text ())
+checkStatusEndpoint = do
+    env <- mkServerClientEnv
+    res <- liftIO $ Servant.runClientM (statusC @EncoinsApi MaxAdaWithdraw) env
+    either throwM (const $ pure $ Right ()) res
