@@ -26,6 +26,7 @@ import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputW
                                                  getAuxillaryEnv, mkServerClientEnv)
 import           Cardano.Server.Main            (ServerApi)
 import           Cardano.Server.Tx              (mkTx)
+import           Control.Arrow                  ((&&&))
 import           Control.Exception              (Exception, throw)
 import           Control.Monad                  (void)
 import           Control.Monad.Catch            (MonadThrow (..))
@@ -41,8 +42,7 @@ import           ENCOINS.Core.OnChain           (EncoinsRedeemer, EncoinsRedeeme
                                                  minMaxTxOutValueInLedger)
 import           Encoins.Relay.Server.Config    (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
                                                  treasuryWalletAddress)
-import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (EncoinsRelayEnv, envVerifierClientEnv),
-                                                 getEncoinsProtocolParams, getTrackedAddresses)
+import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (..), getEncoinsProtocolParams, getTrackedAddresses)
 import           Encoins.Relay.Server.Status    (EncoinsStatusErrors, EncoinsStatusReqBody (MaxAdaWithdraw), EncoinsStatusResult,
                                                  encoinsStatusHandler)
 import           Encoins.Relay.Server.Version   (ServerVersion, versionHandler)
@@ -61,7 +61,7 @@ mkServerHandle c = do
     verifierClientEnv      <- mkVerifierClientEnv cVerifierHost cVerifierPort
     pure $ ServerHandle
         Kupo
-        (EncoinsRelayEnv cRefStakeOwner cRefBeacon cVerifierPkh verifierClientEnv)
+        (EncoinsRelayEnv cRefStakeOwner cRefBeacon cVerifierPkh verifierClientEnv cDelegationCurrencySymbol cDelegationTokenName)
         getTrackedAddresses
         txBuilders
         (pure ())
@@ -121,7 +121,7 @@ processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi 
 processRequest req = sequence $ case req of
     r@(InputRedeemer ((_, changeAddr, _), _, _, _) mode, _) -> mkContext mode changeAddr <$> r
     s@(InputSending _  _ changeAddr, _)                     -> mkContext WalletMode changeAddr <$> s
-    (d@(InputDelegation _ _), _)                            -> (d, pure def)
+    d@(InputDelegation changeAddr _, _)                     -> mkContext WalletMode changeAddr <$> d
     where
         mkContext mode addr inputsCSL = do
             builders <- txBuilders (fst req)
@@ -145,7 +145,9 @@ txBuilders (InputSending addr valCSL _) = do
     encoinsProtocolParams <- getEncoinsProtocolParams
     pure [encoinsSendTx encoinsProtocolParams addr $ fromMaybe (throw CorruptedValue) $ fromCSL valCSL]
 
-txBuilders (InputDelegation addr ipAddr) = pure [delegateTx addr ipAddr]
+txBuilders (InputDelegation addr ipAddr) = do
+    (cs, tokenName) <- (envDelegationCurrencySymbol &&& envDelegationTokenName) <$> getAuxillaryEnv
+    pure [delegateTx cs tokenName addr ipAddr]
 
 verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
 verifyRedeemer red = do
