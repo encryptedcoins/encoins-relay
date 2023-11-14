@@ -17,7 +17,7 @@ import           Data.Bifunctor                     (Bifunctor (..))
 import           Data.Default                       (Default (..))
 import           Data.Function                      (on)
 import           Data.List.Extra                    (dropPrefix, dropSuffix, sortBy)
-import           Data.Maybe                         (mapMaybe)
+import           Data.Maybe                         (mapMaybe, listToMaybe)
 import           Data.Ord                           (Down (..))
 import           Data.Text                          (Text)
 import           Data.Time                          (getCurrentTime)
@@ -34,6 +34,7 @@ import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
 import           PlutusAppsExtra.Types.Tx           (TxConstructor (..))
 import           System.Directory                   (getDirectoryContents)
 import           Text.Read                          (readMaybe)
+import qualified Data.List.NonEmpty as NonEmpty
 
 distributeRewards :: Config -> Ada -> ServerM EncoinsApi ()
 distributeRewards config totalReward = void $ do
@@ -86,3 +87,11 @@ data Delegation = Delegation
 
 delegAddress :: Delegation -> Address
 delegAddress d = Address (delegCredential d) (Just $ StakingHash $ PubKeyCredential $ delegStakeKey d)
+
+lastDelegation :: [Delegation] -> Maybe Delegation
+lastDelegation = listToMaybe . sortBy (compare `on` Down . delegCreated)
+
+removeDuplicates :: [Delegation] -> [Delegation]
+removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
+                 . NonEmpty.groupBy ((==) `on` delegStakeKey)
+                 . sortBy (compare `on` delegStakeKey)

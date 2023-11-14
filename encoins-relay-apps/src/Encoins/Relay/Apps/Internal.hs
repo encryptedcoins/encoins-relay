@@ -9,23 +9,28 @@
 module Encoins.Relay.Apps.Internal where
 
 import           Cardano.Api                        (NetworkId, writeFileJSON)
+import           Control.Arrow                      ((>>>))
 import           Control.Concurrent                 (threadDelay)
 import           Control.Exception                  (AsyncException (UserInterrupt), Exception (..), SomeException)
-import           Control.Monad                      (forM)
+import           Control.Monad                      (forM, join, (>=>))
 import           Control.Monad.Catch                (MonadCatch, MonadThrow (throwM), handle, try)
 import           Control.Monad.IO.Class             (MonadIO (liftIO))
 import           Data.Aeson                         (FromJSON (parseJSON), ToJSON, eitherDecodeFileStrict)
 import           Data.Aeson.Types                   (parseMaybe)
 import           Data.Default                       (def)
-import           Data.Maybe                         (catMaybes)
+import           Data.Either.Extra                  (eitherToMaybe)
+import           Data.List                          (sort, stripPrefix)
+import           Data.Maybe                         (catMaybes, listToMaybe, mapMaybe)
 import           Data.Text                          (Text)
 import qualified Data.Text.Lazy                     as TL
 import           Data.Time                          (getCurrentTime)
+import qualified Data.Time                          as Time
 import           Ledger                             (Slot (getSlot))
 import           Plutus.V2.Ledger.Api               (CurrencySymbol, TokenName)
-import           PlutusAppsExtra.IO.ChainIndex.Kupo (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
+import           PlutusAppsExtra.Api.Kupo           (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
+import           PlutusAppsExtra.IO.ChainIndex.Kupo ()
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
-import           System.Directory                   (createDirectoryIfMissing)
+import           System.Directory                   (createDirectoryIfMissing, listDirectory)
 import           System.ProgressBar                 (Progress (..), ProgressBarWidth (..), Style (..), defStyle, exact,
                                                      incProgress, msg, newProgressBar)
 
@@ -91,3 +96,20 @@ progressBarStyle m = defStyle
     , styleWidth   = ConstantWidth 100
     , stylePostfix = exact
     }
+
+formatString :: String
+formatString = "%d-%b-%YT%H:%M:%S"
+
+formatTime :: Time.UTCTime -> String
+formatTime   = Time.formatTime Time.defaultTimeLocale formatString
+
+readTime :: MonadFail m => String -> m Time.UTCTime
+readTime = Time.parseTimeM True Time.defaultTimeLocale formatString
+
+loadMostRecentFile :: FromJSON a => FilePath -> String -> IO (Maybe (Time.UTCTime, a))
+loadMostRecentFile dir prefix = do
+    files <- listDirectory dir
+    let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix prefix >=> takeWhile (/= '.') >>> readTime) files
+        fp = (\t -> dir <> "/" <> prefix <> t <> ".json") . formatTime <$> time
+    res <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
+    pure $ (,) <$> time <*> res

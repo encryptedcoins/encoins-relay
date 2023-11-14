@@ -33,7 +33,7 @@ import           GHC.Generics                       (Generic)
 import           Ledger                             (Datum (..), PubKeyHash (..), Slot (..), TxId (..))
 import           Plutus.V1.Ledger.Api               (Credential (..), FromData (..), StakingCredential (StakingHash))
 import           PlutusAppsExtra.IO.ChainIndex.Kupo (getTokenBalanceToSlot)
-import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
+import qualified PlutusAppsExtra.Api.Kupo           as Kupo
 import           PlutusAppsExtra.Utils.Address      (getStakeKey)
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (..))
 import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)

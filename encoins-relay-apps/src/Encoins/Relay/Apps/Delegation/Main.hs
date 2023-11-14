@@ -1,156 +1,115 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE ImplicitParams    #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 
 module Encoins.Relay.Apps.Delegation.Main where
 
-import           Cardano.Api                        (NetworkId, writeFileJSON)
-import           Cardano.Node.Emulator              (SlotConfig)
-import           Cardano.Server.Config              (Config (..), decodeOrErrorFromFile)
-import           Cardano.Server.Utils.Logger        ((.<))
-import           Cardano.Server.Utils.Wait          (waitTime)
-import           Control.Arrow                      ((>>>))
-import           Control.Concurrent.Async           (async, wait)
-import           Control.Monad                      (MonadPlus (..), forM, forever, guard, join, unless, void, (>=>))
-import           Control.Monad.Trans.Class          (MonadTrans (..))
-import           Control.Monad.Trans.Maybe          (MaybeT (..))
-import           Data.Aeson                         (eitherDecodeFileStrict)
-import           Data.Aeson.Types                   (parseEither)
-import           Data.Either.Extra                  (eitherToMaybe)
-import           Data.Function                      (on)
-import           Data.Functor                       ((<&>))
-import           Data.List                          (sort, sortBy, stripPrefix)
-import qualified Data.List.NonEmpty                 as NonEmpty
-import qualified Data.Map                           as Map
-import           Data.Maybe                         (catMaybes, fromMaybe, listToMaybe, mapMaybe)
-import           Data.Ord                           (Down (..))
-import           Data.Text                          (Text)
-import qualified Data.Text                          as T
-import qualified Data.Text.IO                       as T
-import qualified Data.Time                          as Time
-import           Encoins.Relay.Apps.Internal        (progressBarStyle, withResultSaving)
-import qualified Encoins.Relay.Apps.Internal        as Internal
-import           Encoins.Relay.Server.Config        (EncoinsRelayConfig (..))
-import           Encoins.Relay.Server.Delegation    (Delegation (..))
-import           Ledger                             (Address (..), Datum (..), DatumHash, Slot, StakingCredential, TxId (..),
-                                                     TxOutRef (..))
-import           Network.URI                        (isIPv4address, isURI)
-import           Plutus.V1.Ledger.Api               (Credential (PubKeyCredential), StakingCredential (..))
-import           Plutus.V1.Ledger.Value             (TokenName)
-import           Plutus.V2.Ledger.Api               (CurrencySymbol)
-import qualified PlutusAppsExtra.IO.ChainIndex.Kupo as Kupo
-import           PlutusAppsExtra.Utils.Address      (getStakeKey)
-import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), SlotWithHeaderHash (swhhSlot))
-import           PlutusAppsExtra.Utils.Time         (parseSlotConfig, utcToSlot)
-import           PlutusAppsExtra.Utils.Tx           (txIsSignedByKey)
-import           PlutusTx                           (FromData (..))
-import           PlutusTx.Builtins                  (BuiltinByteString, decodeUtf8, fromBuiltin)
-import           System.Directory                   (createDirectoryIfMissing, listDirectory)
-import           System.ProgressBar                 (Progress (..), ProgressBar, incProgress, newProgressBar)
+import           Cardano.Api                           (writeFileJSON)
+import           Cardano.Server.Config                 (Config (..), decodeOrErrorFromFile)
+import           Cardano.Server.Utils.Wait             (waitTime)
+import           Control.Applicative                   ((<|>))
+import           Control.Arrow                         (Arrow ((&&&)))
+import           Control.Concurrent.Async              (async, wait)
+import           Control.Monad                         (MonadPlus (mzero), forM, forever, guard, void)
+import           Control.Monad.Trans.Maybe             (MaybeT (..))
+import           Data.Aeson                            (FromJSON, ToJSON)
+import           Data.Aeson.Types                      (parseEither)
+import           Data.Function                         ((&))
+import           Data.Functor                          ((<&>))
+import           Data.Map                              (Map)
+import qualified Data.Map                              as Map
+import           Data.Maybe                            (catMaybes, listToMaybe, mapMaybe)
+import           Data.Text                             (Text)
+import qualified Data.Time                             as Time
+import qualified Encoins.Relay.Apps.Delegation.V1.Main as V1
+import           Encoins.Relay.Apps.Internal           (formatTime, loadMostRecentFile)
+import           Encoins.Relay.Server.Config           (EncoinsRelayConfig (..))
+import           Encoins.Relay.Server.Delegation       (Delegation (..), removeDuplicates)
+import           GHC.Generics                          (Generic)
+import           Ledger                                (Address (..), Datum (..), DatumFromQuery (..), NetworkId, PubKeyHash (..),
+                                                        TxId, TxOutRef (..))
+import           Plutus.V1.Ledger.Api                  (CurrencySymbol, FromData (..), TokenName, fromBuiltin)
+import qualified PlutusAppsExtra.IO.Blockfrost         as Bf
+import qualified PlutusAppsExtra.IO.Maestro            as Maestro
+import           PlutusAppsExtra.Utils.Address         (getStakeKey)
+import           PlutusAppsExtra.Utils.Maestro         (TxDetailsOutput (..), TxDetailsResponse (..))
+import           PlutusAppsExtra.Utils.Time            (parseSlotConfig)
+import           PlutusTx.Builtins                     (decodeUtf8)
+import           System.Directory                      (createDirectoryIfMissing)
 
+type HasDelegEnv =
+    ( ?networkId :: NetworkId
+    , ?cs        :: CurrencySymbol
+    , ?tokenName :: TokenName
+    )
 
 main :: FilePath -> IO ()
 main configFp = do
         config      <- decodeOrErrorFromFile configFp
         relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
         slotConfig  <- either error id . parseEither parseSlotConfig <$> decodeOrErrorFromFile (cSlotConfigFile config)
-        let handle = mkDelegationHandle config slotConfig
-        createDirectoryIfMissing True $ cDelegationFolder relayConfig
+        let delgFolder = cDelegationFolder relayConfig
+        createDirectoryIfMissing True delgFolder
+        let ?slotConfig       = slotConfig
+            ?networkId        = cNetworkId config
+            ?cs               = cDelegationCurrencySymbol relayConfig
+            ?tokenName        = cDelegationTokenName relayConfig
         forever $ do
-            ct                         <- Time.addUTCTime (- 300) <$> Time.getCurrentTime
-            delay                      <- async $ waitTime 300
-            (mbPastDelegators, mbTime) <- getPastDelegators $ cDelegationFolder relayConfig
-            let start = maybe (cDelegationStart relayConfig) (utcToSlot slotConfig) mbTime
-            delegators <- findDelegators (cDelegationFolder relayConfig) handle start (utcToSlot slotConfig ct)
-            let res = filter (`notElem` delegators) (fromMaybe [] mbPastDelegators) <> delegators
-            print res
-            void $ writeFileJSON (cDelegationFolder relayConfig <> "/delegators_" <> formatTime ct <> ".json") res
-            ipsWithBalances <- mapM (getIpWithBalance handle relayConfig) res
-            void $ writeFileJSON (cDelegationFolder relayConfig <> "/result_" <> formatTime ct <> ".json") $ toJSONResult ipsWithBalances
+            ct           <- Time.addUTCTime (- 300) <$> Time.getCurrentTime
+            delay        <- async $ waitTime 300
+            pastProgress <- loadProgressFile delgFolder
+                        <|> loadV1ProgressFile delgFolder
+                        <|> initProgress
+            newProgress  <- updateProgress pastProgress
+            void $ writeFileJSON (delgFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
+            ipsWithBalances <- getIpsWithBalances $ pDelgations newProgress
+            V1.writeResultFile delgFolder ct ipsWithBalances
             wait delay
     where
-        getIpWithBalance h EncoinsRelayConfig{..} Delegation{..} = do
-            let stakeKey = StakingHash $ PubKeyCredential delegStakeKey
-            balance <- dhGetTokenBalance h cDelegationCurrencySymbol cDelegationTokenName stakeKey
-            pure (delegIp, balance)
-        getPastDelegators delegationFolder = do
-            files <- listDirectory delegationFolder
-            let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix "delegators_" >=> takeWhile (/= '.') >>> readTime) files
-                fp = (\t -> delegationFolder <> "/delegators_" <> t <> ".json") . formatTime <$> time
-            delegators <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
-            pure (delegators, time)
-        formatTime   = Time.formatTime Time.defaultTimeLocale formatString
-        readTime     = Time.parseTimeM True Time.defaultTimeLocale formatString
-        formatString = "%d-%b-%YT%H:%M:%S"
-        toJSONResult = Map.fromList . fmap (fmap (T.pack . show))
+        loadProgressFile delegFolder = loadMostRecentFile delegFolder "delegatorsV2_" >>=
+            maybe mzero (pure . snd)
+        loadV1ProgressFile delegFolder = loadMostRecentFile delegFolder "delegators_" >>=
+            maybe mzero (pure . uncurry Progress . ((listToMaybe . fmap (txOutRefId . delegTxOutRef)) &&& id) . snd)
+        initProgress = do
+            putStrLn "No past delegations found."
+            pure $ Progress Nothing []
 
-findDelegators :: forall m. Monad m => FilePath -> DelegationHandle m -> Slot -> Slot -> m [Delegation]
-findDelegators delegationFolder DelegationHandle{..} slotFrom slotTo = do
-        responses <- dhGetResponses (Just slotFrom) (Just slotTo)
-        pb <- dhNewProgressBar "Getting delegated txs" $ length responses
-        fmap (removeDuplicates . catMaybes) $ forM responses $ \KupoResponse{..} -> runMaybeT $ do
-            lift $ dhIncProgress pb 1
-            dhWithResultSaving (mconcat [delegationFolder, "/deleg_", show krTxId, "@", show krOutputIndex, ".json"]) $
-                getDelegationFromResponse KupoResponse{..}
+getIpsWithBalances :: HasDelegEnv => [Delegation] -> IO (Map Text Integer)
+getIpsWithBalances delegs = V1.concatIpsWithBalances <$> do
+    balances <- Maestro.getAccountAddressesHoldingAssets ?networkId ?cs ?tokenName
+    pure $ delegs & mapMaybe (\Delegation{..} -> Map.lookup delegStakeKey balances <&> (delegIp,))
+
+data Progress = Progress
+    { pLastTxId   :: Maybe TxId
+    , pDelgations :: [Delegation]
+    } deriving (Show, Generic, FromJSON, ToJSON)
+
+updateProgress :: HasDelegEnv => Progress -> IO Progress
+updateProgress Progress{..} = do
+    txIds        <- Bf.getAllAssetTxsAfterTxId ?networkId ?cs ?tokenName pLastTxId
+    newDelegs    <- catMaybes <$> mapM findDeleg txIds
+    putStrLn "new delegs:"
+    print newDelegs
+    let newDelegs' = removeDuplicates newDelegs
+    pure $ Progress (listToMaybe txIds) $ filter ((`notElem` map delegIp newDelegs') . delegIp) pDelgations <> newDelegs'
+
+findDeleg :: HasDelegEnv => TxId -> IO (Maybe Delegation)
+findDeleg txId = runMaybeT $ do
+    TxDetailsResponse{..} <- MaybeT $ Maestro.getTxDetails ?networkId txId
+    MaybeT $ fmap (listToMaybe . catMaybes) $ forM tdrOutputs $ \TxDetailsOutput{..} -> runMaybeT $ do
+        stakeKey  <- hoistMaybe $ getStakeKey tdoAddress
+        (dh, dfq) <- hoistMaybe tdoDatum
+        Datum dat <- case dfq of
+            DatumUnknown   -> MaybeT $ Bf.getDatumByHash ?networkId dh
+            DatumInline da -> pure da
+            DatumInBody da -> pure da
+        ["ENCOINS", "Delegate", skBbs, ipBbs] <- hoistMaybe $ fromBuiltinData dat
+        let ipAddr = fromBuiltin $ decodeUtf8 ipBbs
+        guard $ PubKeyHash skBbs `elem` tdrAdditionalSigners && V1.isValidIp ipAddr
+        pure $ Delegation (addressCredential tdoAddress) stakeKey (TxOutRef tdoTxHash tdoIndex) tdrSlot ipAddr
     where
-        -- Token balance validation occurs at rewards distribution
-        getDelegationFromResponse :: KupoResponse -> MaybeT m Delegation
-        getDelegationFromResponse KupoResponse{..} = do
-            dh                                    <- MaybeT $ pure krDatumHash
-            (Datum dat)                           <- MaybeT $ dhGetDatumByHash dh
-            ["ENCOINS", "Delegate", skBbs, ipBbs] <- MaybeT $ pure $ fromBuiltinData dat
-            lift $ dhMkLog $ T.pack $  "Tx found:" <> show krTxId
-            stakeKey                              <- MaybeT $ pure $ getStakeKey krAddress
-            lift $ dhMkLog $ T.pack $ show stakeKey
-            guard =<< lift (dhCheckTxSignature krTxId skBbs)
-            lift $ dhMkLog "signature is ok"
-            let ipAddr = fromBuiltin $ decodeUtf8 ipBbs
-            unless (isValidIp ipAddr) $ do
-                lift $ dhMkLog $ "Invalid ip: " .< ipAddr
-                mzero
-            pure $ Delegation (addressCredential krAddress) stakeKey (TxOutRef krTxId krOutputIndex) (swhhSlot krCreatedAt) ipAddr
-
-        removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
-                         . NonEmpty.groupBy ((==) `on` delegStakeKey)
-                         . sortBy (compare `on` delegStakeKey)
-
-isValidIp :: Text -> Bool
-isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
-    where
-        isSimpleURI "" = False
-        isSimpleURI _  = case T.splitOn "." txt of [_, _] -> True; _ -> False
-
-data DelegationHandle m = DelegationHandle
-    { dhGetResponses     :: Maybe Slot -> Maybe Slot -> m [KupoResponse]
-    , dhGetDatumByHash   :: DatumHash -> m (Maybe Datum)
-    , dhGetTokenBalance  :: CurrencySymbol -> TokenName -> StakingCredential -> m Integer
-    , dhCheckTxSignature :: TxId -> BuiltinByteString -> m Bool
-    , dhMkLog            :: Text -> m ()
-    , dhWithResultSaving :: FilePath -> MaybeT m Delegation -> MaybeT m Delegation
-    -- Progress bar
-    , dhNewProgressBar   :: Text -> Int -> m (ProgressBar ())
-    , dhIncProgress      :: ProgressBar () -> Int -> m ()
-    }
-
-mkDelegationHandle :: Config -> SlotConfig -> DelegationHandle IO
-mkDelegationHandle Config{..} slotConfig = DelegationHandle
-    { dhGetResponses     = getResponsesIO cNetworkId slotConfig
-    , dhGetDatumByHash   = Kupo.getDatumByHash
-    , dhGetTokenBalance  = getTokenBalanceIO
-    , dhCheckTxSignature = txIsSignedByKey
-    , dhMkLog            = T.putStrLn
-    , dhWithResultSaving = withResultSaving
-    , dhNewProgressBar   = \m p -> newProgressBar (progressBarStyle m) 10 (Progress 0 p ())
-    , dhIncProgress      = incProgress
-    }
-
-getResponsesIO :: NetworkId -> SlotConfig -> Maybe Slot -> Maybe Slot -> IO [KupoResponse]
-getResponsesIO networkId slotConfig from to = do
-    to' <- maybe (utcToSlot slotConfig <$> Time.getCurrentTime) pure to
-    putStrLn $ "getting responses from " <> show (fromMaybe 0 from) <> " to " <> show to'
-    Internal.getResponsesIO networkId (fromMaybe 0 from) to' 3600
-
-getTokenBalanceIO :: CurrencySymbol -> TokenName -> StakingCredential -> IO Integer
-getTokenBalanceIO cs tokenName = Kupo.getTokenBalanceToSlot cs tokenName Nothing
+        hoistMaybe = MaybeT . pure
