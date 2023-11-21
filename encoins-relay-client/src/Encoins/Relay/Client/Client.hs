@@ -93,12 +93,12 @@ txClientAddressValue (addr, val) = do
 
 txClientDelegation :: forall e. TxClientCosntraints e => (Address, Text) -> ServerM EncoinsApi (Either Servant.ClientError (EndpointRes e EncoinsApi))
 txClientDelegation (addr, ipAddr) = do
-    changeAddr <- getWalletAddr
-    txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
+    txInputs <- fromMaybe [] . toCSL <$> getRefsAt addr
     logMsg $ "Sending request with:" .< (addr, ipAddr)
     res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputDelegation addr ipAddr, txInputs))
     logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
     pure res
+
 ----------------------------------------------------------------------------- TxClient with redeemer -----------------------------------------------------------------------------
 
 txClientRedeemer :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => [EncoinsRequestTerm] -> ServerM EncoinsApi (ServerM EncoinsApi ())
@@ -123,7 +123,7 @@ sendTxClientRequest secrets = do
         prettyInput acc (Secret _ v,(bbs, p)) = mconcat
             [ acc
             , "\n"
-            , case p of {Mint -> "M "; Burn -> "B "}
+            , case p of Mint -> "M "; Burn -> "B "
             , T.pack $ show $ fromFieldElement v
             , " "
             , T.pack $ show $ TokenName bbs

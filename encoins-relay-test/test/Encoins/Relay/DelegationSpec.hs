@@ -25,7 +25,6 @@ import           Data.String                        (IsString)
 import           Data.Text                          (Text)
 import qualified Data.Text                          as T
 import qualified Data.Text.Encoding                 as T
-import           Encoins.Relay.Apps.Delegation.Main (DelegationHandle (..), findDelegators, isValidIp)
 import           Encoins.Relay.Server.Delegation    (Delegation (..))
 import           Ledger                             (Address (..), Datum (..), DatumHash, PubKeyHash (..), Slot (..), TxId (..),
                                                      TxOutRef (..))
@@ -36,6 +35,7 @@ import           PlutusAppsExtra.Utils.Kupo         (KupoDatumType (..), KupoRes
 import           Test.Hspec                         (Spec, describe, it, shouldBe)
 import           Test.QuickCheck                    (Arbitrary (..), Gen, Property, Testable (property), choose, generate, oneof,
                                                      suchThat)
+import Encoins.Relay.Apps.Delegation.V1.Main (DelegationHandle (..), isValidIp, findDelegators)
 
 spec :: Spec
 spec = describe "encoins-delegation" $ it "find delegators IP's" propDelegation
@@ -91,7 +91,7 @@ instance Arbitrary TestArg where
         taCreatedAt <- abs <$> arbitrary
         let taAddressStakeKey = PubKeyHash $ toBuiltin stakeKeyBs
             taDatum = Datum $ toBuiltinData $ map toBuiltin ["ENCOINS", "Delegate", stakeKeyBs, T.encodeUtf8 $ unDelegIp taDelegIp]
-            taDatumHash = fromJust $ hashDatum taDatum
+            taDatumHash = hashDatum taDatum
         pure TestArg{..}
 
 newtype DelegIp = DelegIp {unDelegIp :: Text}

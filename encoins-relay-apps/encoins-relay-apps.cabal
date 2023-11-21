@@ -33,6 +33,7 @@ library
     import: lang
     exposed-modules:
       Encoins.Relay.Apps.Delegation.Main
+      Encoins.Relay.Apps.Delegation.V1.Main
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
       Encoins.Relay.Apps.Poll.Main
