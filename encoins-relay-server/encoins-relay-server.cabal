@@ -39,7 +39,6 @@ library
     exposed-modules:
       Encoins.Relay.Server.Api
       Encoins.Relay.Server.Config
-      Encoins.Relay.Server.Delegation
       Encoins.Relay.Server.Internal
       Encoins.Relay.Server.Main
       Encoins.Relay.Server.Opts

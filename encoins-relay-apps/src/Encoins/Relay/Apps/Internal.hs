@@ -105,7 +105,7 @@ formatString :: String
 formatString = "%d-%b-%YT%H:%M:%S"
 
 formatTime :: Time.UTCTime -> String
-formatTime   = Time.formatTime Time.defaultTimeLocale formatString
+formatTime = Time.formatTime Time.defaultTimeLocale formatString
 
 readTime :: MonadFail m => String -> m Time.UTCTime
 readTime = Time.parseTimeM True Time.defaultTimeLocale formatString

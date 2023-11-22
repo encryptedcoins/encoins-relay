@@ -36,62 +36,62 @@ import           System.Directory                   (getDirectoryContents)
 import           Text.Read                          (readMaybe)
 import qualified Data.List.NonEmpty as NonEmpty
 
-distributeRewards :: Config -> Ada -> ServerM EncoinsApi ()
-distributeRewards config totalReward = void $ do
-    relayConfig <- loadEncoinsRelayConfig config
+-- distributeRewards :: Config -> Ada -> ServerM EncoinsApi ()
+-- distributeRewards config totalReward = void $ do
+--     relayConfig <- loadEncoinsRelayConfig config
 
-    recepients <- liftIO $ do
-        recepients <- getRecepients relayConfig totalReward
-        putStrLn "Recepients:"
-        mapM_ print recepients
-        when (null recepients) $ error "No recepients found."
-        pure recepients
+--     recepients <- liftIO $ do
+--         recepients <- getRecepients relayConfig totalReward
+--         putStrLn "Recepients:"
+--         mapM_ print recepients
+--         when (null recepients) $ error "No recepients found."
+--         pure recepients
 
-    let mkConstr pkh scred ada = Just $ mustPayToPubKeyAddress (PaymentPubKeyHash pkh) scred (Ada.toValue ada)
-        constrs = mconcat $ flip mapMaybe recepients $ \(addr, reward) -> case addr of
-            Address (PubKeyCredential pkh) (Just scred) -> mkConstr pkh scred reward
-            _   -> Nothing
-    mkTx [] def $ pure $ modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)}
+--     let mkConstr pkh scred ada = Just $ mustPayToPubKeyAddress (PaymentPubKeyHash pkh) scred (Ada.toValue ada)
+--         constrs = mconcat $ flip mapMaybe recepients $ \(addr, reward) -> case addr of
+--             Address (PubKeyCredential pkh) (Just scred) -> mkConstr pkh scred reward
+--             _   -> Nothing
+--     mkTx [] def $ pure $ modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)}
 
-getRecepients :: EncoinsRelayConfig -> Ada -> IO [(Address, Ada)]
-getRecepients EncoinsRelayConfig{..} totalReward = do
-        (delegsFp, delegsTime) <- getLastDelegationsFile
-        currentTime            <- getCurrentTime
-        when (Time.diffUTCTime currentTime delegsTime > 3600) newDelegationsNotFoundErr
-        delegs                 <- decodeOrErrorFromFile delegsFp
-        putStrLn "Last found delegation file:"
-        print delegs
-        delegsWithTokenAmt     <- filter ((>= cDelegationMinTokenAmt) . snd) <$> addTokenAmt delegs
-        print delegsWithTokenAmt
-        let reward amt = fromInteger $ (amt * fromIntegral totalReward) `div` sum (map snd delegsWithTokenAmt)
-        pure $ map (bimap delegAddress reward) delegsWithTokenAmt
-    where
-        getLastDelegationsFile = do
-            delegFps <- getDirectoryContents cDelegationFolder
-            case sortBy (compare `on` Down . snd) $ mapMaybe sequence (zip delegFps $ map extractTime delegFps) of
-                r:_ -> pure $ first (\fp -> cDelegationFolder <> "/" <> fp) r
-                _   -> delegationsNotFoundErr
-        addTokenAmt = mapM $ \d -> (d,) <$> Kupo.getTokenBalanceToSlot cDelegationCurrencySymbol cDelegationTokenName Nothing (StakingHash $ PubKeyCredential $ delegStakeKey d)
-        extractTime = readMaybe . dropSuffix ".json" . dropPrefix "delegators_"
-        newDelegationsNotFoundErr = error "Can't get fresh delegations file. Maybe delegation app isn't running?"
-        delegationsNotFoundErr    = error "Delegations file not found. Run the delegation app first \
-                                       \and get the delegations file before reward distribution."
+-- getRecepients :: EncoinsRelayConfig -> Ada -> IO [(Address, Ada)]
+-- getRecepients EncoinsRelayConfig{..} totalReward = do
+--         (delegsFp, delegsTime) <- getLastDelegationsFile
+--         currentTime            <- getCurrentTime
+--         when (Time.diffUTCTime currentTime delegsTime > 3600) newDelegationsNotFoundErr
+--         delegs                 <- decodeOrErrorFromFile delegsFp
+--         putStrLn "Last found delegation file:"
+--         print delegs
+--         delegsWithTokenAmt     <- filter ((>= cDelegationMinTokenAmt) . snd) <$> addTokenAmt delegs
+--         print delegsWithTokenAmt
+--         let reward amt = fromInteger $ (amt * fromIntegral totalReward) `div` sum (map snd delegsWithTokenAmt)
+--         pure $ map (bimap delegAddress reward) delegsWithTokenAmt
+--     where
+--         getLastDelegationsFile = do
+--             delegFps <- getDirectoryContents cDelegationFolder
+--             case sortBy (compare `on` Down . snd) $ mapMaybe sequence (zip delegFps $ map extractTime delegFps) of
+--                 r:_ -> pure $ first (\fp -> cDelegationFolder <> "/" <> fp) r
+--                 _   -> delegationsNotFoundErr
+--         addTokenAmt = mapM $ \d -> (d,) <$> Kupo.getTokenBalanceToSlot cDelegationCurrencySymbol cDelegationTokenName Nothing (StakingHash $ PubKeyCredential $ delegStakeKey d)
+--         extractTime = readMaybe . dropSuffix ".json" . dropPrefix "delegators_"
+--         newDelegationsNotFoundErr = error "Can't get fresh delegations file. Maybe delegation app isn't running?"
+--         delegationsNotFoundErr    = error "Delegations file not found. Run the delegation app first \
+--                                        \and get the delegations file before reward distribution."
 
-data Delegation = Delegation
-    { delegCredential :: Credential
-    , delegStakeKey   :: PubKeyHash
-    , delegTxOutRef   :: TxOutRef
-    , delegCreated    :: Slot
-    , delegIp         :: Text
-    } deriving (Show, Eq, Ord, Generic, FromJSON, ToJSON)
+-- data Delegation = Delegation
+--     { delegCredential :: Credential
+--     , delegStakeKey   :: PubKeyHash
+--     , delegTxOutRef   :: TxOutRef
+--     , delegCreated    :: Slot
+--     , delegIp         :: Text
+--     } deriving (Show, Eq, Ord, Generic, FromJSON, ToJSON)
 
-delegAddress :: Delegation -> Address
-delegAddress d = Address (delegCredential d) (Just $ StakingHash $ PubKeyCredential $ delegStakeKey d)
+-- delegAddress :: Delegation -> Address
+-- delegAddress d = Address (delegCredential d) (Just $ StakingHash $ PubKeyCredential $ delegStakeKey d)
 
-lastDelegation :: [Delegation] -> Maybe Delegation
-lastDelegation = listToMaybe . sortBy (compare `on` Down . delegCreated)
+-- lastDelegation :: [Delegation] -> Maybe Delegation
+-- lastDelegation = listToMaybe . sortBy (compare `on` Down . delegCreated)
 
-removeDuplicates :: [Delegation] -> [Delegation]
-removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
-                 . NonEmpty.groupBy ((==) `on` delegStakeKey)
-                 . sortBy (compare `on` delegStakeKey)
+-- removeDuplicates :: [Delegation] -> [Delegation]
+-- removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
+--                  . NonEmpty.groupBy ((==) `on` delegStakeKey)
+--                  . sortBy (compare `on` delegStakeKey)

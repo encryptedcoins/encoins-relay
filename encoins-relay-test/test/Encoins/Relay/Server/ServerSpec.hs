@@ -38,7 +38,6 @@ import           Encoins.Relay.Client.Opts             (EncoinsRequestTerm (RPBu
 import           Encoins.Relay.Client.Secrets          (HasEncoinsModeAndBulletproofSetup, getEncoinsTokensFromMode, mkSecretFile,
                                                         randomMintTermWithUB)
 import           Encoins.Relay.Server.Config           (EncoinsRelayConfig (..), loadEncoinsRelayConfig)
-import           Encoins.Relay.Server.Delegation       (Delegation (delegIp))
 import           Encoins.Relay.Server.Server           (EncoinsApi, mkServerHandle)
 import           Internal                              (runEncoinsServerM)
 import           Plutus.V2.Ledger.Api                  (Credential (PubKeyCredential), StakingCredential (..), TokenName (..))

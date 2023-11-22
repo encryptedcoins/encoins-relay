@@ -32,7 +32,9 @@ common lang
 library
     import: lang
     exposed-modules:
-      Encoins.Relay.Apps.Delegation.Main
+      Encoins.Relay.Apps.Delegation.Client
+      Encoins.Relay.Apps.Delegation.Internal
+      Encoins.Relay.Apps.Delegation.Server
       Encoins.Relay.Apps.Delegation.V1.Main
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
@@ -41,12 +43,14 @@ library
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,
+      aeson-casing                           -any,
       async                                  -any,
       bytestring                             -any,
       cardano-api                            -any,
       cardano-ledger-babbage                 -any,
       cardano-node-emulator                  -any,
       cardano-server                         -any,
+      cardano-server-client                  -any,
       containers                             -any,
       data-default                           -any,
       directory                              -any,
@@ -54,6 +58,7 @@ library
       encoins-relay-server                   -any,
       exceptions                             -any,
       extra                                  -any,
+      http-client                            -any,
       lens                                   -any,
       lens-aeson                             -any,
       mtl                                    -any,
@@ -63,10 +68,13 @@ library
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       plutus-tx                              -any,
+      servant-client                         -any,
+      servant-server                         -any,
       terminal-progress-bar                  -any,
       text                                   -any,
       time                                   -any,
       transformers                           -any,
+      warp                                   -any,
     hs-source-dirs: src
 
 executable encoins-relay-poll

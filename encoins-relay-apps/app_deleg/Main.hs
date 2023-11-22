@@ -1,6 +1,6 @@
 module Main where
 
-import qualified Encoins.Relay.Apps.Delegation.Main as Delegation
+import           Encoins.Relay.Apps.Delegation.Server (runDelegationServer)
 
 main :: IO ()
-main = Delegation.main "config.json"
+main = runDelegationServer "config.json" "delegation-config.json"
