@@ -47,6 +47,7 @@ test-suite encoins-relay-test
     cardano-server                         -any,
     cardano-server-client                  -any,
     cardano-server-test                    -any,
+    containers                             -any,
     directory                              -any,
     encoins-bulletproofs                   -any,
     encoins-core                           -any,

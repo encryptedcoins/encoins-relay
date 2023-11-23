@@ -1,0 +1,7 @@
+{ "host"              : "localhost"
+, "port"              : 3002
+, "delegation_folder" : "encoins-relay-test/test/delegations"
+, "frequency"         : 10
+, "max_delay"         : 300
+, "min_token_amt"     : 3
+}

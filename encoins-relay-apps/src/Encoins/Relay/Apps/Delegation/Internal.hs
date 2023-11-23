@@ -9,40 +9,42 @@
 
 module Encoins.Relay.Apps.Delegation.Internal where
 
-import           Cardano.Api                     (NetworkId)
-import           Cardano.Server.Utils.Logger     (HasLogger (..), Logger, logMsg, (.<))
-import           Control.Exception               (throw)
-import           Control.Monad                   (forM, guard, when)
-import           Control.Monad.Catch             (MonadCatch, MonadThrow (..))
-import           Control.Monad.Except            (MonadError)
-import           Control.Monad.IO.Class          (MonadIO (..))
-import           Control.Monad.Reader            (MonadReader (ask), ReaderT (..), asks)
-import           Control.Monad.Trans.Maybe       (MaybeT (..))
-import           Data.Aeson                      (FromJSON (..), ToJSON, genericParseJSON)
-import           Data.Aeson.Casing               (aesonPrefix, snakeCase)
-import           Data.Function                   (on)
-import           Data.Functor                    ((<&>))
-import           Data.List                       (sortBy)
-import qualified Data.List.NonEmpty              as NonEmpty
-import           Data.Map                        (Map)
-import qualified Data.Map                        as Map
-import           Data.Maybe                      (catMaybes, listToMaybe, mapMaybe)
-import           Data.Text                       (Text)
-import qualified Data.Text                       as T
-import           Encoins.Relay.Apps.Internal     (newProgressBar)
-import           GHC.Generics                    (Generic)
-import           Ledger                          (Address (..), Datum (..), DatumFromQuery (..), PubKeyHash (..), TxId (..),
-                                                  TxOutRef (..), Credential, Slot)
-import           Network.URI                     (isIPv4address, isURI)
-import           Plutus.V1.Ledger.Api            (CurrencySymbol, FromData (..), TokenName, fromBuiltin, StakingCredential (..), Credential (..))
-import qualified PlutusAppsExtra.IO.Blockfrost   as Bf
-import qualified PlutusAppsExtra.IO.Maestro      as Maestro
-import           PlutusAppsExtra.Utils.Address   (getStakeKey)
-import           PlutusAppsExtra.Utils.Maestro   (TxDetailsOutput (..), TxDetailsResponse (..))
-import           PlutusTx.Builtins               (decodeUtf8)
-import           Servant                         (Handler, ServerError, runHandler)
-import           System.ProgressBar              (incProgress)
-import Data.Ord (Down(..))
+import           Cardano.Api                   (NetworkId)
+import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger, logMsg, (.<))
+import           Control.Exception             (throw)
+import           Control.Monad                 (forM, guard, when)
+import           Control.Monad.Catch           (MonadCatch, MonadThrow (..))
+import           Control.Monad.Except          (MonadError)
+import           Control.Monad.IO.Class        (MonadIO (..))
+import           Control.Monad.Reader          (MonadReader (ask), ReaderT (..), asks)
+import           Control.Monad.Trans.Maybe     (MaybeT (..))
+import           Data.Aeson                    (FromJSON (..), ToJSON, genericParseJSON)
+import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
+import           Data.Function                 (on)
+import           Data.Functor                  ((<&>))
+import           Data.List                     (sortBy)
+import qualified Data.List.NonEmpty            as NonEmpty
+import           Data.Map                      (Map)
+import qualified Data.Map                      as Map
+import           Data.Maybe                    (catMaybes, listToMaybe, mapMaybe)
+import           Data.Ord                      (Down (..))
+import           Data.Text                     (Text)
+import qualified Data.Text                     as T
+import           Encoins.Relay.Apps.Internal   (newProgressBar)
+import           GHC.Generics                  (Generic)
+import           Ledger                        (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
+                                                TxId (..), TxOutRef (..))
+import           Network.URI                   (isIPv4address, isURI)
+import           Plutus.V1.Ledger.Api          (Credential (..), CurrencySymbol, FromData (..), StakingCredential (..), TokenName,
+                                                fromBuiltin)
+import qualified PlutusAppsExtra.IO.Blockfrost as Bf
+import qualified PlutusAppsExtra.IO.Maestro    as Maestro
+import           PlutusAppsExtra.Utils.Address (getStakeKey)
+import           PlutusAppsExtra.Utils.Maestro (TxDetailsOutput (..), TxDetailsResponse (..))
+import           PlutusTx.Builtins             (decodeUtf8)
+import           Servant                       (Handler, ServerError, runHandler)
+import           System.ProgressBar            (incProgress)
+import Control.Applicative ((<|>))
 
 newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
     deriving newtype
@@ -64,12 +66,21 @@ instance HasLogger DelegationM where
     getLoggerFilePath = asks dEnvLoggerFp
 
 data DelegationEnv = DelegationEnv
-    { dEnvLogger         :: Logger DelegationM
-    , dEnvLoggerFp       :: Maybe FilePath
-    , dEnvNetworkId      :: NetworkId
-    , dEnvCurrencySymbol :: CurrencySymbol
-    , dEnvTokenName      :: TokenName
-    , dEnvCheckSig       :: Bool
+    { dEnvLogger           :: Logger DelegationM
+    , dEnvLoggerFp         :: Maybe FilePath
+    , dEnvNetworkId        :: NetworkId
+    , dEnvHost             :: Text
+    , dEnvPort             :: Int
+    , dEnvDelegationFolder :: FilePath
+    , dEnvFrequency        :: Int
+    -- ^ Frequency of search for new delegations in seconds
+    , dEnvMaxDelay         :: Int
+    -- ^ Maximum permissible synchronization delay in seconds, if exceeded, an error will be thrown
+    , dEnvMinTokenAmt      :: Integer
+    -- ^ The amount of tokens, exceeding which the server gets into the current servers endpoint
+    , dEnvCurrencySymbol   :: CurrencySymbol
+    , dEnvTokenName        :: TokenName
+    , dEnvCheckSig         :: Bool
     -- ^ There is no signature checks in tests untill cardano-wallet signature fix
     -- https://github.com/cardano-foundation/cardano-wallet/issues/4104
     -- (They are still present outside of tests)
@@ -102,9 +113,11 @@ updateProgress Progress{..} = do
     DelegationEnv{..} <- ask
     txIds     <- liftIO $ Bf.getAllAssetTxsAfterTxId dEnvNetworkId dEnvCurrencySymbol dEnvTokenName pLastTxId
     pb        <- newProgressBar "Getting delegations" (length txIds)
-    newDelegs <- catMaybes <$> mapM (const (incProgress pb 1) >> findDeleg) txIds
+    newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
+        liftIO $ incProgress pb 1
+        findDeleg txId
     logMsg $ "New delegs:" .< newDelegs
-    pure $ Progress (listToMaybe txIds) $ removeDuplicates $ pDelgations <> newDelegs
+    pure $ Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
 
 findDeleg :: TxId -> DelegationM (Maybe Delegation)
 findDeleg txId = runMaybeT $ do

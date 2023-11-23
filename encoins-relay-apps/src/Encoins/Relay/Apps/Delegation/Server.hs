@@ -7,6 +7,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeApplications   #-}
 {-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 module Encoins.Relay.Apps.Delegation.Server where
 
@@ -20,7 +21,7 @@ import           Control.Concurrent.Async               (async, wait)
 import           Control.Monad                          (MonadPlus (mzero), forever, void, when, (>=>))
 import           Control.Monad.Catch                    (Exception, MonadThrow (..), handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Control.Monad.Reader                   (MonadReader (local), ReaderT (..))
+import           Control.Monad.Reader                   (MonadReader (local, ask), ReaderT (..))
 import           Data.Functor                           ((<&>))
 import           Data.Map                               (Map)
 import qualified Data.Map                               as Map
@@ -45,10 +46,11 @@ import           Servant                                (Get, JSON, ReqBody, err
 import           Servant.Server.Internal.ServerError    (ServerError (..))
 import           System.IO                              (BufferMode (LineBuffering), hSetBuffering, stdout)
 import           Text.Read                              (readMaybe)
+import System.Directory (createDirectoryIfMissing)
+import Data.Fixed (Pico)
 
 runDelegationServer :: FilePath -> FilePath -> IO ()
 runDelegationServer configFp delegConfigFp = do
-    hSetBuffering stdout LineBuffering
     config          <- decodeOrErrorFromFile configFp
     relayConfig     <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
@@ -56,29 +58,40 @@ runDelegationServer configFp delegConfigFp = do
             logger
             (Just "delegationServer.log")
             (cNetworkId config)
+            cHost
+            cPort
+            cDelegationFolder
+            cFrequency
+            cMaxDelay
+            cMinTokenAmt
             (cDelegationCurrencySymbol relayConfig)
             (cDelegationTokenName relayConfig)
             True
+    runDelegationServer' env
 
-    -- Launch the delegation search application
-    void $ forkIO $ setApp env $ searchForDelegations DelegConfig{..}
+runDelegationServer' :: DelegationEnv -> IO ()
+runDelegationServer' env = do
+        hSetBuffering stdout LineBuffering
+        createDirectoryIfMissing True $ dEnvDelegationFolder env
+        -- Launch the delegation search application
+        void $ forkIO $ setApp searchForDelegations
 
-    runDelegationM env $ logMsg "Starting delegation server..."
-    Warp.runSettings (mkSettings DelegConfig{..} env)
-        $ serve (Proxy @DelegApi)
-        $ hoistServer (Proxy @DelegApi)
-            ((`runReaderT` env) . unDelegationM)
-            (delegApi DelegConfig{..})
+        runDelegationM env $ logMsg "Starting delegation server..."
+        Warp.runSettings settings
+            $ serve (Proxy @DelegApi)
+            $ hoistServer (Proxy @DelegApi)
+                ((`runReaderT` env) . unDelegationM)
+                delegApi
     where
-        setApp env = runDelegationM env . local (const $ env {dEnvLoggerFp = Just "delegationSearch.log"}) . forever
-        mkSettings DelegConfig{..} env
-            = Warp.setLogger (logReceivedRequest env)
-            $ Warp.setOnException (const $ logException env)
-            $ Warp.setHost (fromString $ T.unpack cHost)
-            $ Warp.setPort cPort Warp.defaultSettings
-        logReceivedRequest env req status _ = runDelegationM env $
+        setApp = runDelegationM env . local (const $ env {dEnvLoggerFp = Just "delegationSearch.log"}) . forever
+        settings
+            = Warp.setLogger logReceivedRequest
+            $ Warp.setOnException (const logException)
+            $ Warp.setHost (fromString $ T.unpack $ dEnvHost env)
+            $ Warp.setPort (dEnvPort env) Warp.defaultSettings
+        logReceivedRequest req status _ = runDelegationM env $
             logMsg $ "Received request:\n" .< req <> "\nStatus:" .< status
-        logException env e = runDelegationM env $
+        logException e = runDelegationM env $
             logMsg $ "Unhandled exception:\n" .< e
 
 ------------------------------------------------------------------- API -------------------------------------------------------------------
@@ -88,41 +101,41 @@ type DelegApi
     :<|> GetCurrentServers
     :<|> GetServerDelegators
 
-delegApi :: DelegConfig
-    ->   DelegationM [Text]
-    :<|> DelegationM [Text]
-    :<|> (Text -> DelegationM (Map PubKeyHash Integer))
-delegApi config
-    =    getServersHandler config
-    :<|> getCurrentServersHandler config
-    :<|> getServerDelegatesHandler config
+delegApi :: DelegationM [Text]
+       :<|> DelegationM [Text]
+       :<|> (Text -> DelegationM (Map PubKeyHash Integer))
+delegApi
+    =    getServersHandler
+    :<|> getCurrentServersHandler
+    :<|> getServerDelegatesHandler
 
 -------------------------------------------------------- Get (all) servers endpoint --------------------------------------------------------
 
 type GetServers = "servers" :> Get '[JSON] [Text]
 
-getServersHandler :: DelegConfig -> DelegationM [Text]
-getServersHandler config = delegationErrorH $ do
-    Progress _ delegs <- getMostRecentProgressFile config
+getServersHandler :: DelegationM [Text]
+getServersHandler = delegationErrorH $ do
+    Progress _ delegs <- getMostRecentProgressFile
     pure $ delegIp <$> delegs
 
 -------------------------------------- Get current (more than 100k delegated tokens) servers endpoint --------------------------------------
 
 type GetCurrentServers = "current" :> Get '[JSON] [Text]
 
-getCurrentServersHandler :: DelegConfig -> DelegationM [Text]
-getCurrentServersHandler config = delegationErrorH $ do
-    Progress _ delegs <- getMostRecentProgressFile config
+getCurrentServersHandler :: DelegationM [Text]
+getCurrentServersHandler = delegationErrorH $ do
+    env <- ask
+    Progress _ delegs <- getMostRecentProgressFile
     ipsWithBalances <- getIpsWithBalances delegs
-    pure $ Map.keys $ Map.filter (> cMinTokenAmt config) ipsWithBalances
+    pure $ Map.keys $ Map.filter (>= dEnvMinTokenAmt env) ipsWithBalances
 
 ------------------------------------------------------ Get server delegators endpoint ------------------------------------------------------
 
 type GetServerDelegators = "delegates" :> ReqBody '[JSON] Text :> Get '[JSON] (Map PubKeyHash Integer)
 
-getServerDelegatesHandler :: DelegConfig -> Text -> DelegationM (Map PubKeyHash Integer)
-getServerDelegatesHandler config ip = delegationErrorH $ do
-    Progress _ delegs <- getMostRecentProgressFile config
+getServerDelegatesHandler :: Text -> DelegationM (Map PubKeyHash Integer)
+getServerDelegatesHandler ip = delegationErrorH $ do
+    Progress _ delegs <- getMostRecentProgressFile
     let delegs' = filter ((== ip) . delegIp) delegs
     when (null delegs') $ throwM UnknownIp
     getBalances <&> Map.filterWithKey (\pkh _ -> pkh `elem` fmap delegStakeKey delegs')
@@ -130,10 +143,11 @@ getServerDelegatesHandler config ip = delegationErrorH $ do
 ------------------------------------------------------------------- Errors -------------------------------------------------------------------
 
 data DelegationServerError
-    = StaleProgressFile Int Int
+    = StaleProgressFile Pico Pico
+    -- ^ The maximum allowable difference and how much it was exceeded, in seconds
     | NoProgressFile
     | UnknownIp
-    deriving (Show, Read, Exception)
+    deriving (Show, Read, Eq, Exception)
 
 delegationServerErr500Prefix :: IsString str => str
 delegationServerErr500Prefix = "The distribution of delegates is not yet ready - "
@@ -156,24 +170,26 @@ delegationErrorH = handle $ \case
 
 ------------------------------------------------------------------ Helpers ------------------------------------------------------------------
 
-getMostRecentProgressFile :: DelegConfig -> DelegationM Progress
-getMostRecentProgressFile DelegConfig{..} = do
-    (progressTime, p) <- liftIO $ loadPastProgress cDelegationFolder <|> throwM NoProgressFile
+getMostRecentProgressFile :: DelegationM Progress
+getMostRecentProgressFile = do
+    DelegationEnv{..} <- ask
+    (progressTime, p) <- liftIO $ loadPastProgress dEnvDelegationFolder <|> throwM NoProgressFile
     logMsg $ "Time of most recent progress file: " .< progressTime
     ct <- liftIO Time.getCurrentTime
-    let diff = fromEnum $ Time.diffUTCTime ct progressTime
-    when (diff > cMaxDelay) $ throwM $ StaleProgressFile diff (diff - cMaxDelay)
+    let diff = Time.nominalDiffTimeToSeconds (Time.diffUTCTime ct progressTime)
+    when (diff > fromIntegral dEnvMaxDelay) $ throwM $ StaleProgressFile diff (diff - fromIntegral dEnvMaxDelay)
     pure p
 
-searchForDelegations :: DelegConfig -> DelegationM ()
-searchForDelegations DelegConfig{..} = do
-        ct           <- liftIO Time.getCurrentTime
-        delay        <- liftIO $ async $ waitTime cFrequency
-        pastProgress <- liftIO $ snd <$> loadPastProgress cDelegationFolder <|> initProgress
-        newProgress  <- updateProgress pastProgress
-        liftIO $ void $ writeFileJSON (cDelegationFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
-        ipsWithBalances <- getIpsWithBalances $ pDelgations newProgress
-        liftIO $ V1.writeResultFile cDelegationFolder ct ipsWithBalances
+searchForDelegations :: DelegationM ()
+searchForDelegations = do
+        DelegationEnv{..} <- ask
+        ct                <- liftIO Time.getCurrentTime
+        delay             <- liftIO $ async $ waitTime dEnvFrequency
+        pastProgress      <- liftIO $ snd <$> loadPastProgress dEnvDelegationFolder <|> initProgress
+        newProgress       <- updateProgress pastProgress
+        void $ liftIO $ writeFileJSON (dEnvDelegationFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
+        ipsWithBalances   <- getIpsWithBalances $ pDelgations newProgress
+        liftIO $ V1.writeResultFile dEnvDelegationFolder ct ipsWithBalances
         liftIO $ wait delay
     where
         initProgress = do
