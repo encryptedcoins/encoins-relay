@@ -11,8 +11,9 @@ module Encoins.Relay.Apps.Delegation.Internal where
 
 import           Cardano.Api                   (NetworkId, writeFileJSON)
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger, logMsg, (.<))
+import           Control.Applicative           ((<|>))
 import           Control.Exception             (throw)
-import           Control.Monad                 (forM, guard, when, mzero, void)
+import           Control.Monad                 (forM, guard, mzero, void, when)
 import           Control.Monad.Catch           (MonadCatch, MonadThrow (..))
 import           Control.Monad.Except          (MonadError)
 import           Control.Monad.IO.Class        (MonadIO (..))
@@ -30,7 +31,8 @@ import           Data.Maybe                    (catMaybes, listToMaybe, mapMaybe
 import           Data.Ord                      (Down (..))
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
-import           Encoins.Relay.Apps.Internal   (newProgressBar, loadMostRecentFile, formatTime)
+import qualified Data.Time                     as Time
+import           Encoins.Relay.Apps.Internal   (formatTime, loadMostRecentFile, newProgressBar)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
                                                 TxId (..), TxOutRef (..))
@@ -44,8 +46,6 @@ import           PlutusAppsExtra.Utils.Maestro (TxDetailsOutput (..), TxDetailsR
 import           PlutusTx.Builtins             (decodeUtf8)
 import           Servant                       (Handler, ServerError, runHandler)
 import           System.ProgressBar            (incProgress)
-import Control.Applicative ((<|>))
-import qualified Data.Time as Time
 
 newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
     deriving newtype
