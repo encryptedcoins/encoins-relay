@@ -39,7 +39,8 @@ propCurrent :: HasServantClientEnv => Expectation
 propCurrent = currentServersClient >>= (`shouldBe` Right ["test.delegation"])
 
 propDelegatesOk :: HasServantClientEnv => Expectation
-propDelegatesOk = serverDelegatesClient "test.delegation" >>= (`shouldBe` Right (Map.fromList [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 3)]))
+propDelegatesOk = serverDelegatesClient "test.delegation" >>=
+    (`shouldBe` Right (Map.fromList [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 3)]))
 
 propDelegates404 :: HasServantClientEnv => Expectation
 propDelegates404 = serverDelegatesClient "non-existent.delegation" >>= (`shouldBe` Left (DelegationServerError UnknownIp))

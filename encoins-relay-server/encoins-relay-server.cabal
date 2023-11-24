@@ -51,6 +51,7 @@ library
       aeson                                  -any,
       aeson-casing                           -any,
       bytestring                             -any,
+      cardano-api                            -any,
       cardano-server                         -any,
       cardano-server-client                  -any,
       containers                             -any,
