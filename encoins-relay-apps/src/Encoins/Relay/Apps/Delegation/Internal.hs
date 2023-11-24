@@ -124,12 +124,15 @@ updateProgress :: Progress -> DelegationM Progress
 updateProgress Progress{..} = do
     DelegationEnv{..} <- ask
     txIds     <- liftIO $ Bf.getAllAssetTxsAfterTxId dEnvNetworkId dEnvCurrencySymbol dEnvTokenName pLastTxId
-    pb        <- newProgressBar "Getting delegations" (length txIds)
-    newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
-        liftIO $ incProgress pb 1
-        findDeleg txId
-    logMsg $ "New delegs:" .< newDelegs
-    pure $ Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
+    if null txIds
+    then Progress{..} <$ logMsg "No new txs."
+    else do
+        pb        <- newProgressBar "Getting delegations" (length txIds)
+        newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
+            liftIO $ incProgress pb 1
+            findDeleg txId
+        logMsg $ "New delegs:" .< newDelegs
+        pure $ Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
 
 writeResultFile :: FilePath -> Time.UTCTime -> Map Text Integer -> IO ()
 writeResultFile delegFolder ct ipsWithBalances =
