@@ -31,8 +31,11 @@ main = do
     let configFp         = "encoins-relay-test/test/configuration/config.json"
         verifierConfigFp = "encoins-relay-test/test/configuration/verifierConfig.json"
         delegConfigFp    = "encoins-relay-test/test/configuration/delegConfig.json"
+    delegConfig <- decodeOrErrorFromFile delegConfigFp
+    print delegConfig
     config <- decodeOrErrorFromFile configFp
     relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
+    print relayConfig
     sHandle <- mkServerHandle config
 
     -- -- Encoins relay server and verifier server specs
@@ -46,7 +49,6 @@ main = do
     --         Server.spec
 
     -- Delegation server specs
-    delegConfig <- decodeOrErrorFromFile delegConfigFp
     delegClientEnv <- mkDelegationClientEnv (Deleg.cHost delegConfig) (Deleg.cPort delegConfig)
     let ?servantClientEnv = delegClientEnv
     copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"

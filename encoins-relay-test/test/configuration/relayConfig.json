@@ -3,11 +3,11 @@
 , "verifier_host"               : "localhost"
 , "verifier_port"               : 3001
 , "verifier_pkh"                : "AB39EFD01872F96A4CA2534EB5959D737F1939094BEA19069EE7FE76ECE3494A"
-, "delegation_folder"           : "../configuration"
-, "delegation_min_token_amt"    : 0
-, "delegation_start"            : {"getSlot" : 0}
 , "delegation_currency_symbol"  : {"unCurrencySymbol" : "2912c4707b5695db33e60e89467125bda41fecd62c7f8e56cd854247"}
 , "delegation_token_name"       : {"unTokenName" : "ENCS"}
+, "delegation_server_host"      : "localhost"
+, "delegation_server_port"      : 3002
+, "delegation_ip"               : "test.delegation"
 }
 
 

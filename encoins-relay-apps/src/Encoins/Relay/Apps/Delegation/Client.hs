@@ -2,28 +2,44 @@
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE ViewPatterns      #-}
 
 module Encoins.Relay.Apps.Delegation.Client where
 
-import           Cardano.Server.Client.Handle         (HasServantClientEnv)
-import           Control.Exception                    (Exception)
-import           Data.Bifunctor                       (Bifunctor (..))
-import qualified Data.ByteString.Lazy                 as BS
-import           Data.Either.Extra                    (eitherToMaybe)
-import           Data.Functor                         ((<&>))
-import           Data.Map                             (Map)
-import           Data.Proxy                           (Proxy (..))
-import           Data.Text                            (Text)
-import qualified Data.Text                            as T
-import           Data.Text.Encoding                   (decodeUtf8')
-import           Encoins.Relay.Apps.Delegation.Server (DelegationServerError, GetCurrentServers, GetServerDelegators, GetServers,
-                                                       readDelegationServerError)
-import           Network.HTTP.Client                  (defaultManagerSettings, newManager)
-import           Servant.Client                       (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError (FailureResponse),
-                                                       ClientM, ResponseF (Response), Scheme (Http), client,
-                                                       defaultMakeClientRequest, runClientM)
+import           Cardano.Server.Client.Handle           (HasServantClientEnv)
+import           Cardano.Server.Config                  (decodeOrErrorFromFile)
+import           Control.Exception                      (Exception)
+import           Data.Bifunctor                         (Bifunctor (..))
+import qualified Data.ByteString.Lazy                   as BS
+import           Data.Either.Extra                      (eitherToMaybe)
+import           Data.Functor                           ((<&>))
+import           Data.Map                               (Map)
+import           Data.Proxy                             (Proxy (..))
+import           Data.String                            (IsString (..))
+import           Data.Text                              (Text)
+import qualified Data.Text                              as T
+import           Data.Text.Encoding                     (decodeUtf8')
+import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..))
+import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError, GetCurrentServers, GetServerDelegators,
+                                                         GetServers, readDelegationServerError)
+import           Network.HTTP.Client                    (defaultManagerSettings, newManager)
+import           Servant.Client                         (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError (FailureResponse),
+                                                         ClientM, ResponseF (Response), Scheme (Http), client,
+                                                         defaultMakeClientRequest, runClientM)
+import           System.Environment                     (getArgs)
+
+main :: FilePath -> IO ()
+main delegConfigFp = do
+    DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
+    clientEnv <- mkDelegationClientEnv cHost cPort
+    let ?servantClientEnv = clientEnv
+    getArgs >>= \case
+        ["servers"] -> serversClient >>= print
+        ["current"] -> currentServersClient >>= print
+        [ip]        -> serverDelegatesClient (fromString ip) >>= print
+        args        -> error $ "unknown args:\n" <> show args
 
 serversClient :: HasServantClientEnv => IO (Either DelegationClientError [Text])
 serversClient = runDelegationClient $ client (Proxy @GetServers)
