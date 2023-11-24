@@ -3,20 +3,21 @@
 module Encoins.Relay.DelegationSpec where
 
 import           Cardano.Api                            (NetworkId (Testnet), NetworkMagic (NetworkMagic))
+import           Cardano.Server.Client.Handle           (HasServantClientEnv)
 import           Cardano.Server.Utils.Logger            (mutedLogger)
 import           Cardano.Server.Utils.Wait              (waitTime)
 import qualified Control.Concurrent                     as C
 import           Control.Exception                      (bracket)
+import qualified Data.Map                               as Map
 import           Data.Maybe                             (listToMaybe)
+import           Encoins.Relay.Apps.Delegation.Client   (DelegationClientError (DelegationServerError), currentServersClient,
+                                                         serverDelegatesClient, serversClient)
 import           Encoins.Relay.Apps.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..),
                                                          runDelegationM, updateProgress)
-import           Encoins.Relay.Apps.Delegation.Server   (runDelegationServer, DelegationServerError (..))
+import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError (..), runDelegationServer)
 import           System.Directory                       (setCurrentDirectory)
-import           Test.Hspec                             (Spec, describe, hspec, it, shouldBe, context, Expectation)
+import           Test.Hspec                             (Expectation, Spec, context, describe, hspec, it, shouldBe)
 import           Test.QuickCheck                        (Property, Testable (property))
-import Cardano.Server.Client.Handle (HasServantClientEnv)
-import Encoins.Relay.Apps.Delegation.Client
-import qualified Data.Map as Map
 
 spec :: HasServantClientEnv => Spec
 spec = describe "Delegation server" $ do
@@ -25,7 +26,7 @@ spec = describe "Delegation server" $ do
         it "gets list of servers" propServers
 
     context "/current" $ do
-        it "gets only servers with amount of delegated tokens more than number, specified in config" propCurrent
+        it "gets only servers with number of delegated tokens more than number, specified in config" propCurrent
 
     context "/delegates" $ do
         it "gets map with pkhs and balances of the delegates when all is ok" propDelegatesOk

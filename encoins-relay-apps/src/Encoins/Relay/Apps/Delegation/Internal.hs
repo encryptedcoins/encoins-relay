@@ -9,10 +9,10 @@
 
 module Encoins.Relay.Apps.Delegation.Internal where
 
-import           Cardano.Api                   (NetworkId)
+import           Cardano.Api                   (NetworkId, writeFileJSON)
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger, logMsg, (.<))
 import           Control.Exception             (throw)
-import           Control.Monad                 (forM, guard, when)
+import           Control.Monad                 (forM, guard, when, mzero, void)
 import           Control.Monad.Catch           (MonadCatch, MonadThrow (..))
 import           Control.Monad.Except          (MonadError)
 import           Control.Monad.IO.Class        (MonadIO (..))
@@ -30,7 +30,7 @@ import           Data.Maybe                    (catMaybes, listToMaybe, mapMaybe
 import           Data.Ord                      (Down (..))
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
-import           Encoins.Relay.Apps.Internal   (newProgressBar)
+import           Encoins.Relay.Apps.Internal   (newProgressBar, loadMostRecentFile, formatTime)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
                                                 TxId (..), TxOutRef (..))
@@ -45,6 +45,7 @@ import           PlutusTx.Builtins             (decodeUtf8)
 import           Servant                       (Handler, ServerError, runHandler)
 import           System.ProgressBar            (incProgress)
 import Control.Applicative ((<|>))
+import qualified Data.Time as Time
 
 newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
     deriving newtype
@@ -66,21 +67,23 @@ instance HasLogger DelegationM where
     getLoggerFilePath = asks dEnvLoggerFp
 
 data DelegationEnv = DelegationEnv
-    { dEnvLogger           :: Logger DelegationM
-    , dEnvLoggerFp         :: Maybe FilePath
-    , dEnvNetworkId        :: NetworkId
-    , dEnvHost             :: Text
-    , dEnvPort             :: Int
-    , dEnvDelegationFolder :: FilePath
-    , dEnvFrequency        :: Int
+    { dEnvLogger               :: Logger DelegationM
+    , dEnvLoggerFp             :: Maybe FilePath
+    , dEnvNetworkId            :: NetworkId
+    , dEnvHost                 :: Text
+    , dEnvPort                 :: Int
+    , dEnvDelegationFolder     :: FilePath
+    , dEnvFrequency            :: Int
     -- ^ Frequency of search for new delegations in seconds
-    , dEnvMaxDelay         :: Int
+    , dEnvMaxDelay             :: Int
     -- ^ Maximum permissible synchronization delay in seconds, if exceeded, an error will be thrown
-    , dEnvMinTokenAmt      :: Integer
-    -- ^ The amount of tokens, exceeding which the server gets into the current servers endpoint
-    , dEnvCurrencySymbol   :: CurrencySymbol
-    , dEnvTokenName        :: TokenName
-    , dEnvCheckSig         :: Bool
+    , dEnvMinTokenNumber       :: Integer
+    -- ^ The number of tokens, exceeding which the server gets into the current servers endpoint
+    , dEnvRewardTokenThreshold :: Integer
+    -- ^ The number of tokens that limits the distribution of rewards
+    , dEnvCurrencySymbol       :: CurrencySymbol
+    , dEnvTokenName            :: TokenName
+    , dEnvCheckSig             :: Bool
     -- ^ There is no signature checks in tests untill cardano-wallet signature fix
     -- https://github.com/cardano-foundation/cardano-wallet/issues/4104
     -- (They are still present outside of tests)
@@ -89,13 +92,18 @@ data DelegationEnv = DelegationEnv
 data DelegConfig = DelegConfig
     { cHost                     :: Text
     , cPort                     :: Int
+    , cNetworkId                :: NetworkId
+    , cDelegationCurrencySymbol :: CurrencySymbol
+    , cDelegationTokenName      :: TokenName
     , cDelegationFolder         :: FilePath
     , cFrequency                :: Int
-    -- ^ Frequency of search for new delegations in seconds
+    -- ^ Minimal frequency of search for new delegations in seconds
     , cMaxDelay                 :: Int
     -- ^ Maximum permissible synchronization delay in seconds, if exceeded, an error will be thrown
-    , cMinTokenAmt              :: Integer
-    -- ^ The amount of tokens, exceeding which the server gets into the current servers endpoint
+    , cMinTokenNumber           :: Integer
+    -- ^ The number of tokens, exceeding which the server gets into the current servers endpoint
+    , cRewardTokenThreshold     :: Integer
+    -- ^ The number of tokens that limits the distribution of rewards
     } deriving (Show, Generic)
 
 instance FromJSON DelegConfig where
@@ -108,6 +116,10 @@ data Progress = Progress
     , pDelgations :: [Delegation]
     } deriving (Show, Generic, FromJSON, ToJSON)
 
+loadPastProgress :: FilePath -> IO (Time.UTCTime, Progress)
+loadPastProgress delegFolder =
+    loadMostRecentFile delegFolder "delegatorsV2_" >>= maybe mzero pure
+
 updateProgress :: Progress -> DelegationM Progress
 updateProgress Progress{..} = do
     DelegationEnv{..} <- ask
@@ -118,6 +130,11 @@ updateProgress Progress{..} = do
         findDeleg txId
     logMsg $ "New delegs:" .< newDelegs
     pure $ Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
+
+writeResultFile :: FilePath -> Time.UTCTime -> Map Text Integer -> IO ()
+writeResultFile delegFolder ct ipsWithBalances =
+    let result = Map.map (T.pack . show) ipsWithBalances
+    in  void $ writeFileJSON (delegFolder <> "/result_" <> formatTime ct <> ".json") result
 
 findDeleg :: TxId -> DelegationM (Maybe Delegation)
 findDeleg txId = runMaybeT $ do

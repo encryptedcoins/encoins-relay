@@ -11,8 +11,8 @@ import           Control.Exception                      (bracket, bracket_, try)
 import           Control.Monad                          (void)
 import           Control.Monad.IO.Class                 (MonadIO (..))
 import           Encoins.Relay.Apps.Delegation.Client   (mkDelegationClientEnv)
-import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (cDelegationFolder, cFrequency, cHost, cMaxDelay, cMinTokenAmt, cPort),
-                                                         DelegationEnv (DelegationEnv))
+import           Encoins.Relay.Apps.Delegation.Internal (DelegationEnv (..))
+import qualified Encoins.Relay.Apps.Delegation.Internal as Deleg
 import           Encoins.Relay.Apps.Delegation.Server   (runDelegationServer, runDelegationServer')
 import qualified Encoins.Relay.DelegationSpec           as Delegation
 import           Encoins.Relay.Server.Config            (EncoinsRelayConfig (..))
@@ -47,7 +47,7 @@ main = do
 
     -- Delegation server specs
     delegConfig <- decodeOrErrorFromFile delegConfigFp
-    delegClientEnv <- mkDelegationClientEnv delegConfig
+    delegClientEnv <- mkDelegationClientEnv (Deleg.cHost delegConfig) (Deleg.cPort delegConfig)
     let ?servantClientEnv = delegClientEnv
     copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"
     copyFile "encoins-relay-test/test/configuration/maestro.token" "maestro.token"
@@ -55,12 +55,13 @@ main = do
             mutedLogger
             Nothing
             (cNetworkId config)
-            (cHost delegConfig)
-            (cPort delegConfig)
-            (cDelegationFolder delegConfig)
-            (cFrequency delegConfig)
-            (cMaxDelay delegConfig)
-            (cMinTokenAmt delegConfig)
+            (Deleg.cHost delegConfig)
+            (Deleg.cPort delegConfig)
+            (Deleg.cDelegationFolder delegConfig)
+            (Deleg.cFrequency delegConfig)
+            (Deleg.cMaxDelay delegConfig)
+            (Deleg.cMinTokenNumber delegConfig)
+            (Deleg.cRewardTokenThreshold delegConfig)
             (cDelegationCurrencySymbol relayConfig)
             (cDelegationTokenName relayConfig)
             False
@@ -71,7 +72,7 @@ main = do
             getCurrentDirectory >>= print
             removeFile "blockfrost.token"
             removeFile "maestro.token"
-            removeDirectoryRecursive (cDelegationFolder delegConfig)
+            removeDirectoryRecursive (Deleg.cDelegationFolder delegConfig)
         )
         $ const $ (C.threadDelay 30_000_000 >>) $ hspec $ do
             Delegation.spec

@@ -35,6 +35,9 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     -- Delegation
     , cDelegationCurrencySymbol :: CurrencySymbol
     , cDelegationTokenName      :: TokenName
+    , cDelegationServerHost     :: Text
+    , cDelegationServerPort     :: Int
+    , cDelegationIp             :: Text
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where

@@ -5,67 +5,65 @@
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TypeApplications   #-}
 {-# LANGUAGE TypeOperators      #-}
-{-# LANGUAGE NumericUnderscores #-}
 
 module Encoins.Relay.Apps.Delegation.Server where
 
 import           Cardano.Api                            (writeFileJSON)
-import           Cardano.Server.Config                  (Config (..), decodeOrErrorFromFile)
+import           Cardano.Server.Config                  (decodeOrErrorFromFile)
 import           Cardano.Server.Utils.Logger            (logMsg, logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
 import           Control.Applicative                    ((<|>))
 import           Control.Concurrent                     (forkIO)
 import           Control.Concurrent.Async               (async, wait)
-import           Control.Monad                          (MonadPlus (mzero), forever, void, when, (>=>))
+import           Control.Monad                          (forever, void, when, (>=>))
 import           Control.Monad.Catch                    (Exception, MonadThrow (..), handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Control.Monad.Reader                   (MonadReader (local, ask), ReaderT (..))
+import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
+import           Data.Fixed                             (Pico)
+import           Data.Function                          (on)
 import           Data.Functor                           ((<&>))
+import           Data.List                              (sortBy)
 import           Data.Map                               (Map)
 import qualified Data.Map                               as Map
+import           Data.Maybe                             (mapMaybe)
 import           Data.Proxy                             (Proxy (..))
 import           Data.String                            (IsString (..))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
 import qualified Data.Time                              as Time
-
-import           Control.Arrow                          (Arrow ((&&&)))
-import           Data.Maybe                             (listToMaybe)
-import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (delegIp, delegStakeKey, delegTxOutRef),
-                                                         DelegationEnv (..), DelegationM (..), Progress (Progress, pDelgations),
-                                                         getBalances, getIpsWithBalances, runDelegationM, updateProgress)
-import qualified Encoins.Relay.Apps.Delegation.V1.Main  as V1
-import           Encoins.Relay.Apps.Internal            (formatTime, loadMostRecentFile)
-import           Encoins.Relay.Server.Config            (EncoinsRelayConfig (cDelegationCurrencySymbol, cDelegationTokenName))
-import           Ledger                                 (PubKeyHash (..), TxOutRef (..))
+import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
+                                                         Progress (Progress, pDelgations), delegAddress, getBalances,
+                                                         getIpsWithBalances, loadPastProgress, runDelegationM, updateProgress,
+                                                         writeResultFile)
+import           Encoins.Relay.Apps.Internal            (formatTime)
 import qualified Network.Wai.Handler.Warp               as Warp
+import           PlutusAppsExtra.Utils.Address          (addressToBech32)
 import           Servant                                (Get, JSON, ReqBody, err404, err500, hoistServer, serve, throwError,
                                                          type (:<|>) ((:<|>)), (:>))
 import           Servant.Server.Internal.ServerError    (ServerError (..))
+import           System.Directory                       (createDirectoryIfMissing)
 import           System.IO                              (BufferMode (LineBuffering), hSetBuffering, stdout)
 import           Text.Read                              (readMaybe)
-import System.Directory (createDirectoryIfMissing)
-import Data.Fixed (Pico)
 
-runDelegationServer :: FilePath -> FilePath -> IO ()
-runDelegationServer configFp delegConfigFp = do
-    config          <- decodeOrErrorFromFile configFp
-    relayConfig     <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
+runDelegationServer :: FilePath -> IO ()
+runDelegationServer delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     let env = DelegationEnv
             logger
             (Just "delegationServer.log")
-            (cNetworkId config)
+            cNetworkId
             cHost
             cPort
             cDelegationFolder
             cFrequency
             cMaxDelay
-            cMinTokenAmt
-            (cDelegationCurrencySymbol relayConfig)
-            (cDelegationTokenName relayConfig)
+            cMinTokenNumber
+            cRewardTokenThreshold
+            cDelegationCurrencySymbol
+            cDelegationTokenName
             True
     runDelegationServer' env
 
@@ -73,6 +71,7 @@ runDelegationServer' :: DelegationEnv -> IO ()
 runDelegationServer' env = do
         hSetBuffering stdout LineBuffering
         createDirectoryIfMissing True $ dEnvDelegationFolder env
+
         -- Launch the delegation search application
         void $ forkIO $ setApp searchForDelegations
 
@@ -103,7 +102,7 @@ type DelegApi
 
 delegApi :: DelegationM [Text]
        :<|> DelegationM [Text]
-       :<|> (Text -> DelegationM (Map PubKeyHash Integer))
+       :<|> (Text -> DelegationM (Map Text Integer))
 delegApi
     =    getServersHandler
     :<|> getCurrentServersHandler
@@ -118,7 +117,7 @@ getServersHandler = delegationErrorH $ do
     Progress _ delegs <- getMostRecentProgressFile
     pure $ delegIp <$> delegs
 
--------------------------------------- Get current (more than 100k delegated tokens) servers endpoint --------------------------------------
+-------------------------------------- Get current (more than 100k(MinTokenNumber) delegated tokens) servers endpoint --------------------------------------
 
 type GetCurrentServers = "current" :> Get '[JSON] [Text]
 
@@ -127,18 +126,30 @@ getCurrentServersHandler = delegationErrorH $ do
     env <- ask
     Progress _ delegs <- getMostRecentProgressFile
     ipsWithBalances <- getIpsWithBalances delegs
-    pure $ Map.keys $ Map.filter (>= dEnvMinTokenAmt env) ipsWithBalances
+    pure $ Map.keys $ Map.filter (>= dEnvMinTokenNumber env) ipsWithBalances
 
 ------------------------------------------------------ Get server delegators endpoint ------------------------------------------------------
 
-type GetServerDelegators = "delegates" :> ReqBody '[JSON] Text :> Get '[JSON] (Map PubKeyHash Integer)
-
-getServerDelegatesHandler :: Text -> DelegationM (Map PubKeyHash Integer)
+type GetServerDelegators = "delegates" :> ReqBody '[JSON] Text :> Get '[JSON] (Map Text Integer)
+                                                                                -- ^ Address
+-- Get a threshold-limited list of delegate addresses with number of their tokens
+getServerDelegatesHandler :: Text -> DelegationM (Map Text Integer)
 getServerDelegatesHandler ip = delegationErrorH $ do
-    Progress _ delegs <- getMostRecentProgressFile
-    let delegs' = filter ((== ip) . delegIp) delegs
-    when (null delegs') $ throwM UnknownIp
-    getBalances <&> Map.filterWithKey (\pkh _ -> pkh `elem` fmap delegStakeKey delegs')
+        DelegationEnv{..} <- ask
+        Progress _ delegs <- getMostRecentProgressFile
+        let delegs' = sortBy (compare `on` delegCreated) $ filter ((== ip) . delegIp) delegs
+        when (null delegs') $ throwM UnknownIp
+        balances <- getBalances <&> Map.filterWithKey (\pkh _ -> pkh `elem` fmap delegStakeKey delegs')
+        let delegsWithBalances = filterWithThreshold dEnvRewardTokenThreshold $ addBalance balances delegs'
+            addrsWithBalances = mapMaybe (\(d, b) -> (,b) <$> addressToBech32 dEnvNetworkId (delegAddress d)) delegsWithBalances
+        pure $ Map.fromList addrsWithBalances
+    where
+        addBalance balances = mapMaybe (\d -> (d,) <$> Map.lookup (delegStakeKey d) balances)
+        filterWithThreshold _ [] = []
+        filterWithThreshold threshold ((del, balance) : ds)
+            | threshold <= 0       = []
+            | balance <= threshold = (del, balance) : filterWithThreshold (threshold - balance) ds
+            | otherwise            = [(del, threshold)]
 
 ------------------------------------------------------------------- Errors -------------------------------------------------------------------
 
@@ -189,17 +200,9 @@ searchForDelegations = do
         newProgress       <- updateProgress pastProgress
         void $ liftIO $ writeFileJSON (dEnvDelegationFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
         ipsWithBalances   <- getIpsWithBalances $ pDelgations newProgress
-        liftIO $ V1.writeResultFile dEnvDelegationFolder ct ipsWithBalances
+        liftIO $ writeResultFile dEnvDelegationFolder ct ipsWithBalances
         liftIO $ wait delay
     where
         initProgress = do
             logMsg "No progress file found."
             pure $ Progress Nothing []
-
-loadPastProgress :: FilePath -> IO (Time.UTCTime, Progress)
-loadPastProgress delegFolder =
-        (loadMostRecentFile delegFolder "delegatorsV2_" >>= maybe mzero pure)
-        <|>
-        (V1.loadPastProgress delegFolder >>= fromV1Progress)
-    where
-        fromV1Progress = maybe mzero (pure . fmap (uncurry Progress . ((listToMaybe . fmap (txOutRefId . delegTxOutRef)) &&& id)))

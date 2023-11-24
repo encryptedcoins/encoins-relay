@@ -39,6 +39,7 @@ library
     exposed-modules:
       Encoins.Relay.Server.Api
       Encoins.Relay.Server.Config
+      Encoins.Relay.Server.Delegation
       Encoins.Relay.Server.Internal
       Encoins.Relay.Server.Main
       Encoins.Relay.Server.Opts
@@ -58,6 +59,7 @@ library
       directory                              -any,
       encoins-bulletproofs                   -any,
       encoins-core                           -any,
+      encoins-relay-apps                     -any,
       encoins-relay-verifier                 -any,
       exceptions                             -any,
       extra                                  -any,
