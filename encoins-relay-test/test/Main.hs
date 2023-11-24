@@ -32,21 +32,19 @@ main = do
         verifierConfigFp = "encoins-relay-test/test/configuration/verifierConfig.json"
         delegConfigFp    = "encoins-relay-test/test/configuration/delegConfig.json"
     delegConfig <- decodeOrErrorFromFile delegConfigFp
-    print delegConfig
-    config <- decodeOrErrorFromFile configFp
+    config      <- decodeOrErrorFromFile configFp
     relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
-    print relayConfig
-    sHandle <- mkServerHandle config
+    sHandle     <- mkServerHandle config
 
-    -- -- Encoins relay server and verifier server specs
-    -- bracket
-    --     (C.forkIO $ runVerifierServer verifierConfigFp)
-    --     C.killThread
-    --     $ const $ withCardanoServer configFp sHandle 30 $ do
-    --         runIO $ C.threadDelay 50000
-    --         Status.spec
-    --         Verifier.spec
-    --         Server.spec
+    -- Encoins relay server and verifier server specs
+    bracket
+        (C.forkIO $ runVerifierServer verifierConfigFp)
+        C.killThread
+        $ const $ withCardanoServer configFp sHandle 30 $ do
+            runIO $ C.threadDelay 50000
+            Status.spec
+            Verifier.spec
+            Server.spec
 
     -- Delegation server specs
     delegClientEnv <- mkDelegationClientEnv (Deleg.cHost delegConfig) (Deleg.cPort delegConfig)

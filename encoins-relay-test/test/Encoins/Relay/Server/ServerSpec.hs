@@ -29,8 +29,6 @@ import           Data.String                           (IsString (..))
 import qualified Data.Time                             as Time
 import           ENCOINS.BaseTypes                     (MintingPolarity (Mint))
 import           ENCOINS.Core.OffChain                 (EncoinsMode (..))
--- import           Encoins.Relay.Apps.Delegation.V1.Main (DelegationHandle (..), findDelegators, getTokenBalanceIO,
---                                                         mkDelegationHandle)
 import           Encoins.Relay.Apps.Internal           (encoinsCS, encoinsTokenName)
 import           Encoins.Relay.Client.Client           (TxClientCosntraints, secretsToReqBody, sendTxClientRequest,
                                                         termsToSecrets, txClientRedeemer)
