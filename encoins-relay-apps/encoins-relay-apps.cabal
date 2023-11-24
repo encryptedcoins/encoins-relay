@@ -41,7 +41,6 @@ library
       Encoins.Relay.Apps.Delegation.Client
       Encoins.Relay.Apps.Delegation.Internal
       Encoins.Relay.Apps.Delegation.Server
-      Encoins.Relay.Apps.Delegation.V1.Main
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
       Encoins.Relay.Apps.Poll.Main
