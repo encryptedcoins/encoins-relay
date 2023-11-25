@@ -13,6 +13,7 @@ module Encoins.Relay.Verifier.Server where
 
 import           Cardano.Server.Config       (decodeOrErrorFromFile)
 import           Cardano.Server.Error        (IsCardanoServerError (..))
+import           Cardano.Server.Main         (corsWithContentType)
 import           Cardano.Server.Utils.Logger (HasLogger (..), Logger, logMsg, logger, (.<))
 import           Control.Exception           (Exception, throw)
 import           Control.Monad               (unless)
@@ -46,6 +47,7 @@ runVerifierServer verifierConfigFp = do
 
         runVerifier $ logMsg "Starting verifier server..."
         Warp.runSettings (mkSettings  VerifierConfig{..})
+            $ corsWithContentType
             $ serve (Proxy @VerifierApi)
             $ hoistServer (Proxy @VerifierApi)
                 (Servant.Handler . ExceptT . fmap Right . runVerifier)

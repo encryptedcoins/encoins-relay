@@ -13,6 +13,7 @@ module Encoins.Relay.Apps.Delegation.Server where
 
 import           Cardano.Api                            (writeFileJSON)
 import           Cardano.Server.Config                  (decodeOrErrorFromFile)
+import           Cardano.Server.Main                    (corsWithContentType)
 import           Cardano.Server.Utils.Logger            (logMsg, logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
 import           Control.Applicative                    ((<|>))
@@ -73,16 +74,20 @@ runDelegationServer' env = do
         createDirectoryIfMissing True $ dEnvDelegationFolder env
 
         -- Launch the delegation search application
-        void $ forkIO $ setApp searchForDelegations
+        void $ forkIO runDelegationSerach
 
         runDelegationM env $ logMsg "Starting delegation server..."
         Warp.runSettings settings
+            $ corsWithContentType
             $ serve (Proxy @DelegApi)
             $ hoistServer (Proxy @DelegApi)
                 ((`runReaderT` env) . unDelegationM)
                 delegApi
     where
-        setApp = runDelegationM env . local (const $ env {dEnvLoggerFp = Just "delegationSearch.log"}) . forever
+        runDelegationSerach
+            = runDelegationM env
+            $ local (const $ env {dEnvLoggerFp = Just "delegationSearch.log"}) 
+            $ forever searchForDelegations
         settings
             = Warp.setLogger logReceivedRequest
             $ Warp.setOnException (const logException)
