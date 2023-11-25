@@ -60,8 +60,7 @@ runVerifierServer verifierConfigFp = do
             $ Warp.setPort cPort Warp.defaultSettings
         logReceivedRequest req status _ = runVerifier $
             logMsg $ "Received request:\n" .< req <> "\nStatus:" .< status
-        logException e = runVerifier $
-            logMsg $ "Unhandled exception:\n" .< e
+        logException = runVerifier . logCriticalException
         env = VerifierEnv logger (Just "verifier.log")
         runVerifier = (`runReaderT` env) . unVerifierM
 

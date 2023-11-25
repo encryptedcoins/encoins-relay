@@ -95,8 +95,7 @@ runDelegationServer' env = do
             $ Warp.setPort (dEnvPort env) Warp.defaultSettings
         logReceivedRequest req status _ = runDelegationM env $
             logMsg $ "Received request:\n" .< req <> "\nStatus:" .< status
-        logException e = runDelegationM env $
-            logMsg $ "Unhandled exception:\n" .< e
+        logException = runDelegationM env . logCriticalExceptions
 
 ------------------------------------------------------------------- API -------------------------------------------------------------------
 
