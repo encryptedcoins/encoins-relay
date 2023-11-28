@@ -61,7 +61,6 @@ library
         servant-server                         -any,
         servant-client                         -any,
         warp                                   -any,
-        warp-tls                               -any,
     hs-source-dirs: src
 
 executable encoins-relay-verifier

@@ -1,6 +1,5 @@
 { "host"                     : "localhost"
 , "port"                     : 3000
-, "hyper_text_protocol"      : {"tag" : "HTTP"}
 , "auxiliary_env_file"       : "encoins-relay-test/test/configuration/relayConfig.json"
 , "wallet_file"              : "encoins-relay-test/test/configuration/wallets/test-wallet.json"
 , "node_file_path"           : "../../../../encoins-tools/testnet-preprod/apps/cardano-node/node.sock"

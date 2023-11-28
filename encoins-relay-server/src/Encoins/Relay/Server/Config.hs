@@ -10,6 +10,7 @@ import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Maybe                    (fromJust)
 import           Data.Text                     (Text)
 import           GHC.Generics                  (Generic)
+import           Ledger                        (Slot)
 import           Plutus.V2.Ledger.Api          (Address, CurrencySymbol, TokenName, TxOutRef (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusTx.Builtins             (BuiltinByteString)
@@ -33,11 +34,11 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     , cVerifierHost             :: Text
     , cVerifierPort             :: Int
     -- Delegation
+    , cDelegationFolder         :: FilePath
+    , cDelegationMinTokenAmt    :: Integer
+    , cDelegationStart          :: Slot
     , cDelegationCurrencySymbol :: CurrencySymbol
     , cDelegationTokenName      :: TokenName
-    , cDelegationServerHost     :: Text
-    , cDelegationServerPort     :: Int
-    , cDelegationIp             :: Text
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where

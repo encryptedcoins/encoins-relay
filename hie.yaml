@@ -25,9 +25,6 @@ cradle:
     - path: "encoins-relay-apps/app_deleg"
       component: "encoins-relay-apps:exe:encoins-relay-delegation"
 
-    - path: "encoins-relay-apps/app_deleg_client"
-      component: "encoins-relay-apps:exe:encoins-relay-delegation-client"
-
     #Verifier
     - path: "encoins-relay-verifier/src"
       component: "encoins-relay-verifier:lib:encoins-relay-verifier"

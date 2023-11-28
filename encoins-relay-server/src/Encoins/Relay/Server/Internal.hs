@@ -4,7 +4,6 @@
 module Encoins.Relay.Server.Internal where
 
 import           Cardano.Server.Internal                  (AuxillaryEnvOf, ServerM, getAuxillaryEnv)
-import           Data.Text                                (Text)
 import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, encoinsSymbol, ledgerValidatorAddress)
 import           Encoins.Relay.Server.Config              (referenceScriptSalt)
 import           Plutus.V2.Ledger.Api                     (Address, CurrencySymbol, TokenName, TxOutRef)
@@ -24,9 +23,6 @@ data EncoinsRelayEnv = EncoinsRelayEnv
     , envDelegationTokenName      :: TokenName
     -- ^ We don't get cs and tokenName directly using encoins-core functions
     -- so that we can mock them in tests and quickly get the delegation result.
-    , envDelegationSeverHost      :: Text
-    , envDelegationServerPort     :: Int
-    , envDelegationIp             :: Text
     }
 
 getTrackedAddresses :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api [Address]
