@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE ImplicitParams     #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
@@ -12,7 +13,8 @@
 module Encoins.Relay.Apps.Delegation.Server where
 
 import           Cardano.Api                            (writeFileJSON)
-import           Cardano.Server.Config                  (decodeOrErrorFromFile)
+import           Cardano.Server.Config                  (decodeOrErrorFromFile, HasHyperTextProtocol, HyperTextProtocol (..))
+import           Cardano.Server.Error                   (logCriticalExceptions)
 import           Cardano.Server.Main                    (corsWithContentType)
 import           Cardano.Server.Utils.Logger            (logMsg, logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
@@ -36,11 +38,12 @@ import           Data.Text                              (Text)
 import qualified Data.Text                              as T
 import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
-                                                         Progress (Progress, pDelgations), delegAddress, getBalances,
+                                                         Progress (..), delegAddress, getBalances,
                                                          getIpsWithBalances, loadPastProgress, runDelegationM, updateProgress,
                                                          writeResultFile)
 import           Encoins.Relay.Apps.Internal            (formatTime)
 import qualified Network.Wai.Handler.Warp               as Warp
+import qualified Network.Wai.Handler.WarpTLS            as Warp
 import           PlutusAppsExtra.Utils.Address          (addressToBech32)
 import           Servant                                (Get, JSON, ReqBody, err404, err500, hoistServer, serve, throwError,
                                                          type (:<|>) ((:<|>)), (:>))
@@ -52,6 +55,7 @@ import           Text.Read                              (readMaybe)
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
+    let ?protocol = cHyperTextProtocol
     let env = DelegationEnv
             logger
             (Just "delegationServer.log")
@@ -68,7 +72,7 @@ runDelegationServer delegConfigFp = do
             True
     runDelegationServer' env
 
-runDelegationServer' :: DelegationEnv -> IO ()
+runDelegationServer' :: HasHyperTextProtocol => DelegationEnv -> IO ()
 runDelegationServer' env = do
         hSetBuffering stdout LineBuffering
         createDirectoryIfMissing True $ dEnvDelegationFolder env
@@ -77,16 +81,18 @@ runDelegationServer' env = do
         void $ forkIO runDelegationSerach
 
         runDelegationM env $ logMsg "Starting delegation server..."
-        Warp.runSettings settings
-            $ corsWithContentType
-            $ serve (Proxy @DelegApi)
-            $ hoistServer (Proxy @DelegApi)
-                ((`runReaderT` env) . unDelegationM)
-                delegApi
+        let app = corsWithContentType
+                $ serve (Proxy @DelegApi)
+                $ hoistServer (Proxy @DelegApi)
+                    ((`runReaderT` env) . unDelegationM)
+                    delegApi
+        case ?protocol of
+            HTTP               -> Warp.runSettings settings app
+            HTTPS sertFp keyFp -> Warp.runTLS (Warp.tlsSettings sertFp keyFp) settings app
     where
         runDelegationSerach
             = runDelegationM env
-            $ local (const $ env {dEnvLoggerFp = Just "delegationSearch.log"}) 
+            $ local (const $ env {dEnvLoggerFp = Just "delegationSearch.log"})
             $ forever searchForDelegations
         settings
             = Warp.setLogger logReceivedRequest

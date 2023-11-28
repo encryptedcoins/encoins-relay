@@ -19,7 +19,7 @@ import           Encoins.Relay.Server.Config            (EncoinsRelayConfig (..)
 import           Encoins.Relay.Server.Server            (mkServerHandle)
 import qualified Encoins.Relay.Server.ServerSpec        as Server
 import qualified Encoins.Relay.Server.StatusSpec        as Status
-import           Encoins.Relay.Verifier.Server          (runVerifierServer)
+import           Encoins.Relay.Verifier.Server          (runVerifierServer, VerifierConfig (cHyperTextProtocol))
 import qualified Encoins.Relay.Verifier.ServerSpec      as Verifier
 import           System.Directory                       (copyFile, createDirectoryIfMissing, getCurrentDirectory, listDirectory,
                                                          removeDirectory, removeDirectoryRecursive, removeFile, renameDirectory,
@@ -48,7 +48,8 @@ main = do
 
     -- Delegation server specs
     delegClientEnv <- mkDelegationClientEnv (Deleg.cHost delegConfig) (Deleg.cPort delegConfig)
-    let ?servantClientEnv = delegClientEnv
+    let ?protocol         = Deleg.cHyperTextProtocol delegConfig
+        ?servantClientEnv = delegClientEnv
     copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"
     copyFile "encoins-relay-test/test/configuration/maestro.token" "maestro.token"
     let env = DelegationEnv

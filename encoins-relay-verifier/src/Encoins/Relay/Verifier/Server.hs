@@ -11,8 +11,8 @@
 
 module Encoins.Relay.Verifier.Server where
 
-import           Cardano.Server.Config       (decodeOrErrorFromFile)
-import           Cardano.Server.Error        (IsCardanoServerError (..))
+import           Cardano.Server.Config       (decodeOrErrorFromFile, HyperTextProtocol (..))
+import           Cardano.Server.Error        (IsCardanoServerError (..), logCriticalExceptions)
 import           Cardano.Server.Main         (corsWithContentType)
 import           Cardano.Server.Utils.Logger (HasLogger (..), Logger, logMsg, logger, (.<))
 import           Control.Exception           (Exception, throw)
@@ -33,6 +33,7 @@ import           ENCOINS.Core.OffChain       (mkEncoinsRedeemerOnChain)
 import           ENCOINS.Core.OnChain        (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           GHC.Generics                (Generic)
 import qualified Network.Wai.Handler.Warp    as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
 import           PlutusTx.Extra.ByteString   (toBytes)
 import           PlutusTx.Prelude            (BuiltinByteString, sha2_256)
 import           Servant                     (Get, Handler (Handler), JSON, NoContent (..), Proxy (Proxy), ReqBody,
@@ -46,12 +47,14 @@ runVerifierServer verifierConfigFp = do
         verifierPrvKey     <- decodeOrErrorFromFile cVerifierPrvKeyFilePath
 
         runVerifier $ logMsg "Starting verifier server..."
-        Warp.runSettings (mkSettings  VerifierConfig{..})
-            $ corsWithContentType
-            $ serve (Proxy @VerifierApi)
-            $ hoistServer (Proxy @VerifierApi)
-                (Servant.Handler . ExceptT . fmap Right . runVerifier)
-                (verifierApi bulletproofSetup verifierPrvKey)
+        let app = corsWithContentType
+                $ serve (Proxy @VerifierApi)
+                $ hoistServer (Proxy @VerifierApi)
+                    (Servant.Handler . ExceptT . fmap Right . runVerifier)
+                    (verifierApi bulletproofSetup verifierPrvKey)
+        case cHyperTextProtocol of
+            HTTP               -> Warp.runSettings (mkSettings VerifierConfig{..}) app
+            HTTPS sertFp keyFp -> Warp.runTLS (Warp.tlsSettings sertFp keyFp) (mkSettings VerifierConfig{..}) app
     where
         mkSettings VerifierConfig{..}
             = Warp.setLogger logReceivedRequest
@@ -60,7 +63,7 @@ runVerifierServer verifierConfigFp = do
             $ Warp.setPort cPort Warp.defaultSettings
         logReceivedRequest req status _ = runVerifier $
             logMsg $ "Received request:\n" .< req <> "\nStatus:" .< status
-        logException = runVerifier . logCriticalException
+        logException = runVerifier . logCriticalExceptions
         env = VerifierEnv logger (Just "verifier.log")
         runVerifier = (`runReaderT` env) . unVerifierM
 
@@ -79,6 +82,7 @@ data VerifierEnv = VerifierEnv
 data VerifierConfig = VerifierConfig
     { cHost                     :: Text
     , cPort                     :: Int
+    , cHyperTextProtocol        :: HyperTextProtocol
     , cVerifierPkh              :: BuiltinByteString
     , cVerifierPrvKeyFilePath   :: FilePath
     , cBulletproofSetupFilePath :: FilePath

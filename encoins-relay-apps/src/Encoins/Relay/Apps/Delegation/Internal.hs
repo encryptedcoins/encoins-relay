@@ -10,6 +10,7 @@
 module Encoins.Relay.Apps.Delegation.Internal where
 
 import           Cardano.Api                   (NetworkId, writeFileJSON)
+import           Cardano.Server.Config         (HyperTextProtocol)
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger, logMsg, (.<))
 import           Control.Applicative           ((<|>))
 import           Control.Exception             (throw)
@@ -92,6 +93,7 @@ data DelegationEnv = DelegationEnv
 data DelegConfig = DelegConfig
     { cHost                     :: Text
     , cPort                     :: Int
+    , cHyperTextProtocol        :: HyperTextProtocol
     , cNetworkId                :: NetworkId
     , cDelegationCurrencySymbol :: CurrencySymbol
     , cDelegationTokenName      :: TokenName

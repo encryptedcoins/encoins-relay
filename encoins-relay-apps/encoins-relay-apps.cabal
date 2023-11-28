@@ -83,6 +83,7 @@ library
       time                                   -any,
       transformers                           -any,
       warp                                   -any,
+      warp-tls                               -any,
     hs-source-dirs: src
 
 executable encoins-relay-poll
