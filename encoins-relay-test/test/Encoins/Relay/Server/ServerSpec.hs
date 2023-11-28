@@ -29,17 +29,13 @@ import           Data.String                           (IsString (..))
 import qualified Data.Time                             as Time
 import           ENCOINS.BaseTypes                     (MintingPolarity (Mint))
 import           ENCOINS.Core.OffChain                 (EncoinsMode (..))
-import           Encoins.Relay.Apps.Delegation.V1.Main (DelegationHandle (..), findDelegators, getTokenBalanceIO,
-                                                        mkDelegationHandle)
 import           Encoins.Relay.Apps.Internal           (encoinsCS, encoinsTokenName)
 import           Encoins.Relay.Client.Client           (TxClientCosntraints, secretsToReqBody, sendTxClientRequest,
                                                         termsToSecrets, txClientRedeemer)
 import           Encoins.Relay.Client.Opts             (EncoinsRequestTerm (RPBurn))
 import           Encoins.Relay.Client.Secrets          (HasEncoinsModeAndBulletproofSetup, getEncoinsTokensFromMode, mkSecretFile,
                                                         randomMintTermWithUB)
-import           Encoins.Relay.DelegationSpec          (DelegIp (..))
 import           Encoins.Relay.Server.Config           (EncoinsRelayConfig (..), loadEncoinsRelayConfig)
-import           Encoins.Relay.Server.Delegation       (Delegation (delegIp))
 import           Encoins.Relay.Server.Server           (EncoinsApi, mkServerHandle)
 import           Internal                              (runEncoinsServerM)
 import           Plutus.V2.Ledger.Api                  (Credential (PubKeyCredential), StakingCredential (..), TokenName (..))

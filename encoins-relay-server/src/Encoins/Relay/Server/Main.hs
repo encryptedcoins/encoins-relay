@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
 
 module Encoins.Relay.Server.Main where
 
@@ -19,4 +18,4 @@ runEncoinsServer cardanoServerConfigFp = do
     runWithOpts >>= \case
         Run      -> mkServerHandle config >>= runServer config
         Setup    -> mkServerHandle config >>= loadEnv config >>= (`runServerM` serverSetup)
-        Reward r -> mkServerHandle config >>= loadEnv config >>= (`runServerM` distributeRewards config r)
+        Reward r -> mkServerHandle config >>= loadEnv config >>= (`runServerM` distributeRewards r)

@@ -6,6 +6,12 @@ version:            0.1.0.0
 author:             Grigory Petrov
                     Vladimir Sinyakov
 maintainer:         team@encoins.io
+build-type:         Custom
+
+custom-setup
+    setup-depends: base >= 4.9,
+                   Cabal == 3.2.*,
+                   directory == 1.3.*
 
 -- Plutus language settings
 common lang
@@ -32,8 +38,9 @@ common lang
 library
     import: lang
     exposed-modules:
-      Encoins.Relay.Apps.Delegation.Main
-      Encoins.Relay.Apps.Delegation.V1.Main
+      Encoins.Relay.Apps.Delegation.Client
+      Encoins.Relay.Apps.Delegation.Internal
+      Encoins.Relay.Apps.Delegation.Server
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
       Encoins.Relay.Apps.Poll.Main
@@ -41,32 +48,42 @@ library
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,
+      aeson-casing                           -any,
       async                                  -any,
       bytestring                             -any,
       cardano-api                            -any,
       cardano-ledger-babbage                 -any,
       cardano-node-emulator                  -any,
       cardano-server                         -any,
+      cardano-server-client                  -any,
       containers                             -any,
       data-default                           -any,
       directory                              -any,
       encoins-core                           -any,
-      encoins-relay-server                   -any,
+    --   encoins-relay-server                   -any,
       exceptions                             -any,
       extra                                  -any,
+      http-client                            -any,
       lens                                   -any,
       lens-aeson                             -any,
       mtl                                    -any,
       network-uri                            -any,
+      optparse-applicative                   -any,
       plutus-apps-extra                      -any,
       plutus-chain-index-core                -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
+      plutus-script-utils                    -any,
       plutus-tx                              -any,
+      plutus-tx-constraints                  -any,
+      servant-client                         -any,
+      servant-server                         -any,
       terminal-progress-bar                  -any,
       text                                   -any,
       time                                   -any,
       transformers                           -any,
+      warp                                   -any,
+      warp-tls                               -any,
     hs-source-dirs: src
 
 executable encoins-relay-poll
@@ -81,6 +98,14 @@ executable encoins-relay-poll
 executable encoins-relay-delegation
   default-language: Haskell2010
   hs-source-dirs: app_deleg
+  main-is: Main.hs
+  build-depends:
+    base                          >= 4.9 && < 5,
+    encoins-relay-apps                     -any,
+
+executable encoins-relay-delegation-client
+  default-language: Haskell2010
+  hs-source-dirs: app_deleg_client
   main-is: Main.hs
   build-depends:
     base                          >= 4.9 && < 5,

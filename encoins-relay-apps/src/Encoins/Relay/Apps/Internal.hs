@@ -32,7 +32,8 @@ import           PlutusAppsExtra.IO.ChainIndex.Kupo ()
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
 import           System.Directory                   (createDirectoryIfMissing, listDirectory)
 import           System.ProgressBar                 (Progress (..), ProgressBarWidth (..), Style (..), defStyle, exact,
-                                                     incProgress, msg, newProgressBar)
+                                                     incProgress, msg, ProgressBar)
+import qualified System.ProgressBar as PB
 
 encoinsTokenName :: TokenName
 encoinsTokenName = "ENCS"
@@ -44,7 +45,7 @@ encoinsCS = "9abf0afd2f236a19f2842d502d0450cbcd9c79f123a9708f96fd9b96"
 getResponsesIO :: (MonadIO m, MonadCatch m) => NetworkId -> Slot -> Slot -> Slot -> m [KupoResponse]
 getResponsesIO networkId slotFrom slotTo slotDelta = do
     liftIO $ createDirectoryIfMissing True "savedResponses"
-    pb <- liftIO $ newProgressBar (progressBarStyle "Getting reponses") 10 (Progress 0 (length intervals) ())
+    pb <- liftIO $ newProgressBar "Getting reponses" (length intervals)
     resValue <- fmap concat $ forM intervals $ \(from, to) -> reloadHandler $ do
         let fileName = "response" <> show (getSlot from) <> "_"  <> show (getSlot to) <> ".json"
             req :: KupoRequest 'SUSpent 'CSCreated 'CSCreated
@@ -97,11 +98,14 @@ progressBarStyle m = defStyle
     , stylePostfix = exact
     }
 
+newProgressBar :: MonadIO m => Text -> Int -> m (ProgressBar ())
+newProgressBar name n = liftIO $ PB.newProgressBar (progressBarStyle name) 10 (Progress 0 n ())
+
 formatString :: String
 formatString = "%d-%b-%YT%H:%M:%S"
 
 formatTime :: Time.UTCTime -> String
-formatTime   = Time.formatTime Time.defaultTimeLocale formatString
+formatTime = Time.formatTime Time.defaultTimeLocale formatString
 
 readTime :: MonadFail m => String -> m Time.UTCTime
 readTime = Time.parseTimeM True Time.defaultTimeLocale formatString

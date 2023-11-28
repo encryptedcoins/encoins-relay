@@ -7,6 +7,8 @@ cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-verifier-0.1.0.0/bu
 
 cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-client-0.1.0.0/x/encoins-relay-client/build/encoins-relay-client/encoins-relay-client ~/.local/bin/encoins-client
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/x/encoins-relay-poll/build/encoins-relay-poll/encoins-relay-poll ~/.local/bin/encoins-poll
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-poll/encoins-relay-poll ~/.local/bin/encoins-poll
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/x/encoins-relay-delegation/build/encoins-relay-delegation/encoins-relay-delegation ~/.local/bin/encoins-delegation
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-delegation/encoins-relay-delegation ~/.local/bin/encoins-delegation
+
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-delegation-client/encoins-relay-delegation-client ~/.local/bin/encoins-delegation-client

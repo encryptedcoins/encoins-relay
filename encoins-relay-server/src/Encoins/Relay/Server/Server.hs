@@ -61,7 +61,17 @@ mkServerHandle c = do
     verifierClientEnv      <- mkVerifierClientEnv cVerifierHost cVerifierPort
     pure $ ServerHandle
         Kupo
-        (EncoinsRelayEnv cRefStakeOwner cRefBeacon cVerifierPkh verifierClientEnv cDelegationCurrencySymbol cDelegationTokenName)
+        (EncoinsRelayEnv
+            cRefStakeOwner
+            cRefBeacon
+            cVerifierPkh
+            verifierClientEnv
+            cDelegationCurrencySymbol
+            cDelegationTokenName
+            cDelegationServerHost
+            cDelegationServerPort
+            cDelegationIp
+        )
         getTrackedAddresses
         txBuilders
         (pure ())
