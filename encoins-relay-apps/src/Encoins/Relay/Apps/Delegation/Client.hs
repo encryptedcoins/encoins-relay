@@ -41,7 +41,7 @@ main delegConfigFp = do
         [ip]        -> serverDelegatesClient (fromString ip) >>= print
         args        -> error $ "unknown args:\n" <> show args
 
-serversClient :: HasServantClientEnv => IO (Either DelegationClientError [Text])
+serversClient :: HasServantClientEnv => IO (Either DelegationClientError (Map Text Integer))
 serversClient = runDelegationClient $ client (Proxy @GetServers)
 
 currentServersClient :: HasServantClientEnv => IO (Either DelegationClientError [Text])

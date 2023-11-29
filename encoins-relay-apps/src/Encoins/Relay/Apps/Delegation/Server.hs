@@ -110,7 +110,7 @@ type DelegApi
     :<|> GetCurrentServers
     :<|> GetServerDelegators
 
-delegApi :: DelegationM [Text]
+delegApi :: DelegationM (Map Text Integer)
        :<|> DelegationM [Text]
        :<|> (Text -> DelegationM (Map Text Integer))
 delegApi
@@ -118,14 +118,14 @@ delegApi
     :<|> getCurrentServersHandler
     :<|> getServerDelegatesHandler
 
--------------------------------------------------------- Get (all) servers endpoint --------------------------------------------------------
+----------------------------------------------- Get (all) servers ips with delegated tokens number endpoint -----------------------------------------------
 
-type GetServers = "servers" :> Get '[JSON] [Text]
-
-getServersHandler :: DelegationM [Text]
+type GetServers = "servers" :> Get '[JSON] (Map Text Integer)
+                                             -- ^ IP
+getServersHandler :: DelegationM (Map Text Integer)
 getServersHandler = delegationErrorH $ do
     Progress _ delegs <- getMostRecentProgressFile
-    pure $ delegIp <$> delegs
+    getIpsWithBalances delegs
 
 -------------------------------------- Get current (more than 100k(MinTokenNumber) delegated tokens) servers endpoint --------------------------------------
 
