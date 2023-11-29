@@ -63,6 +63,7 @@ library
     --   encoins-relay-server                   -any,
       exceptions                             -any,
       extra                                  -any,
+      file-embed                             -any,
       http-client                            -any,
       lens                                   -any,
       lens-aeson                             -any,

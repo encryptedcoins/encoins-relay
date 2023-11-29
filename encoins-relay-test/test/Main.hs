@@ -4,6 +4,7 @@
 module Main where
 
 import           Cardano.Server.Config                  (Config (cAuxiliaryEnvFile, cNetworkId), decodeOrErrorFromFile)
+import           Cardano.Server.Main                    (embedCreds)
 import           Cardano.Server.Test.Utils              (withCardanoServer)
 import           Cardano.Server.Utils.Logger            (logger, mutedLogger)
 import qualified Control.Concurrent                     as C
@@ -47,8 +48,9 @@ main = do
             Server.spec
 
     -- Delegation server specs
-    delegClientEnv <- mkDelegationClientEnv (Deleg.cHost delegConfig) (Deleg.cPort delegConfig)
+    delegClientEnv <- mkDelegationClientEnv (Deleg.cHost delegConfig) (Deleg.cPort delegConfig) (Deleg.cHyperTextProtocol delegConfig)
     let ?protocol         = Deleg.cHyperTextProtocol delegConfig
+        ?creds            = embedCreds
         ?servantClientEnv = delegClientEnv
     copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"
     copyFile "encoins-relay-test/test/configuration/maestro.token" "maestro.token"

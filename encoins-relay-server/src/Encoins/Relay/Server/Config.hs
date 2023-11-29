@@ -3,7 +3,7 @@
 
 module Encoins.Relay.Server.Config where
 
-import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile)
+import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile, HyperTextProtocol)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
@@ -37,6 +37,7 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     , cDelegationTokenName      :: TokenName
     , cDelegationServerHost     :: Text
     , cDelegationServerPort     :: Int
+    , cDelegationServerProtocol :: HyperTextProtocol
     , cDelegationIp             :: Text
     } deriving (Show, Generic)
 

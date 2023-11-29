@@ -6,6 +6,7 @@
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TypeApplications   #-}
 {-# LANGUAGE TypeOperators      #-}
@@ -13,7 +14,7 @@
 module Encoins.Relay.Apps.Delegation.Server where
 
 import           Cardano.Api                            (writeFileJSON)
-import           Cardano.Server.Config                  (decodeOrErrorFromFile, HasHyperTextProtocol, HyperTextProtocol (..))
+import           Cardano.Server.Config                  (HasHyperTextProtocol, HyperTextProtocol (..), decodeOrErrorFromFile)
 import           Cardano.Server.Error                   (logCriticalExceptions)
 import           Cardano.Server.Main                    (corsWithContentType)
 import           Cardano.Server.Utils.Logger            (logMsg, logger, (.<))
@@ -25,6 +26,8 @@ import           Control.Monad                          (forever, void, when, (>
 import           Control.Monad.Catch                    (Exception, MonadThrow (..), handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
 import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
+import           Data.ByteString                        (ByteString)
+import           Data.FileEmbed                         (embedFileIfExists)
 import           Data.Fixed                             (Pico)
 import           Data.Function                          (on)
 import           Data.Functor                           ((<&>))
@@ -38,9 +41,8 @@ import           Data.Text                              (Text)
 import qualified Data.Text                              as T
 import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
-                                                         Progress (..), delegAddress, getBalances,
-                                                         getIpsWithBalances, loadPastProgress, runDelegationM, updateProgress,
-                                                         writeResultFile)
+                                                         Progress (..), delegAddress, getBalances, getIpsWithBalances,
+                                                         loadPastProgress, runDelegationM, updateProgress, writeResultFile)
 import           Encoins.Relay.Apps.Internal            (formatTime)
 import qualified Network.Wai.Handler.Warp               as Warp
 import qualified Network.Wai.Handler.WarpTLS            as Warp
@@ -56,6 +58,7 @@ runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     let ?protocol = cHyperTextProtocol
+        ?creds    = creds
     let env = DelegationEnv
             logger
             (Just "delegationServer.log")
@@ -72,6 +75,11 @@ runDelegationServer delegConfigFp = do
             True
     runDelegationServer' env
 
+creds :: Maybe (ByteString, ByteString)
+creds = let keyCred  = $(embedFileIfExists "../key.pem")
+            certCred = $(embedFileIfExists "../certificate.pem")
+        in (,) <$> certCred <*> keyCred
+
 runDelegationServer' :: HasHyperTextProtocol => DelegationEnv -> IO ()
 runDelegationServer' env = do
         hSetBuffering stdout LineBuffering
@@ -87,8 +95,12 @@ runDelegationServer' env = do
                     ((`runReaderT` env) . unDelegationM)
                     delegApi
         case ?protocol of
-            HTTP               -> Warp.runSettings settings app
-            HTTPS sertFp keyFp -> Warp.runTLS (Warp.tlsSettings sertFp keyFp) settings app
+            HTTP  -> Warp.runSettings settings app
+            HTTPS -> case ?creds of
+                Just (cert, key) -> Warp.runTLS (Warp.tlsSettingsMemory cert key) settings app
+                Nothing          -> error "No creds given to run with HTTPS. \
+                                          \Add key.pem and certificate.pem file before compilation. \
+                                          \If this error doesn't go away, try running `cabal clean` first."
     where
         runDelegationSerach
             = runDelegationM env

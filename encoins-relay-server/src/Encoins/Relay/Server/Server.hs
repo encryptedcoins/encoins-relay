@@ -70,6 +70,7 @@ mkServerHandle c = do
             cDelegationTokenName
             cDelegationServerHost
             cDelegationServerPort
+            cDelegationServerProtocol
             cDelegationIp
         )
         getTrackedAddresses

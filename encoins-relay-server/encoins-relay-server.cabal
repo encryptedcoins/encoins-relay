@@ -64,6 +64,7 @@ library
       encoins-relay-verifier                 -any,
       exceptions                             -any,
       extra                                  -any,
+      file-embed                             -any,
       gitrev                                 -any,
       hex-text                               -any,
       lens                                   -any,

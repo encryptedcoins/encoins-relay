@@ -7,7 +7,6 @@
 , "delegation_token_name"       : {"unTokenName" : "ENCS"}
 , "delegation_server_host"      : "localhost"
 , "delegation_server_port"      : 3002
+, "delegation_server_protocol"  : "HTTP"
 , "delegation_ip"               : "test.delegation"
 }
-
-

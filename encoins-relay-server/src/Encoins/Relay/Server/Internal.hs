@@ -14,6 +14,7 @@ import           PlutusAppsExtra.Types.Tx                 (UtxoRequirements)
 import           PlutusAppsExtra.Utils.ChainIndex         (MapUTXO)
 import           PlutusTx.Builtins                        (BuiltinByteString)
 import           Servant.Client                           (ClientEnv)
+import Cardano.Server.Config (HyperTextProtocol)
 
 data EncoinsRelayEnv = EncoinsRelayEnv
     { envRefStakeOwner            :: TxOutRef
@@ -26,6 +27,7 @@ data EncoinsRelayEnv = EncoinsRelayEnv
     -- so that we can mock them in tests and quickly get the delegation result.
     , envDelegationSeverHost      :: Text
     , envDelegationServerPort     :: Int
+    , envDelegationServerProtocol :: HyperTextProtocol
     , envDelegationIp             :: Text
     }
 

@@ -9,7 +9,7 @@
 module Encoins.Relay.Apps.Delegation.Client where
 
 import           Cardano.Server.Client.Handle           (HasServantClientEnv)
-import           Cardano.Server.Config                  (decodeOrErrorFromFile)
+import           Cardano.Server.Config                  (decodeOrErrorFromFile, schemeFromProtocol, HyperTextProtocol)
 import           Control.Exception                      (Exception)
 import           Data.Bifunctor                         (Bifunctor (..))
 import qualified Data.ByteString.Lazy                   as BS
@@ -26,14 +26,14 @@ import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError, 
                                                          GetServers, readDelegationServerError)
 import           Network.HTTP.Client                    (defaultManagerSettings, newManager)
 import           Servant.Client                         (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError (FailureResponse),
-                                                         ClientM, ResponseF (Response), Scheme (Http), client,
+                                                         ClientM, ResponseF (Response), client,
                                                          defaultMakeClientRequest, runClientM)
 import           System.Environment                     (getArgs)
 
 main :: FilePath -> IO ()
 main delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
-    clientEnv <- mkDelegationClientEnv cHost cPort
+    clientEnv <- mkDelegationClientEnv cHost cPort cHyperTextProtocol
     let ?servantClientEnv = clientEnv
     getArgs >>= \case
         ["servers"] -> serversClient >>= print
@@ -63,11 +63,11 @@ data DelegationClientError
     | DelegationClientError ClientError
     deriving (Show, Exception, Eq)
 
-mkDelegationClientEnv :: Text -> Int -> IO ClientEnv
-mkDelegationClientEnv host port = do
+mkDelegationClientEnv :: Text -> Int -> HyperTextProtocol -> IO ClientEnv
+mkDelegationClientEnv host port protocol = do
     m <- newManager defaultManagerSettings
     pure $ ClientEnv
         m
-        (BaseUrl Http (T.unpack host) port "")
+        (BaseUrl (schemeFromProtocol protocol) (T.unpack host) port "")
         Nothing
         defaultMakeClientRequest

@@ -54,7 +54,7 @@ getRewardsDistribution totalReward = calculateReward <$> getRecepients
     where
         getRecepients = mapMaybe (\(addrTxt, b) -> (, b) <$> bech32ToAddress addrTxt) <$> do
             EncoinsRelayEnv{..} <- getAuxillaryEnv
-            clientEnv <- liftIO $ mkDelegationClientEnv envDelegationSeverHost envDelegationServerPort
+            clientEnv <- liftIO $ mkDelegationClientEnv envDelegationSeverHost envDelegationServerPort envDelegationServerProtocol
             let ?servantClientEnv = clientEnv
             either (error . show) Map.toList <$> liftIO (serverDelegatesClient envDelegationIp)
 
