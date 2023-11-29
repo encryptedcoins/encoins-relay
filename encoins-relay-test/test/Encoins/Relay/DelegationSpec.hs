@@ -34,16 +34,18 @@ spec = describe "Delegation server" $ do
 
 propServers :: HasServantClientEnv => Expectation
 propServers = serversClient >>= (`shouldBe` Right (Map.fromList
-    [ ("test.delegation", 3)
-    , ("https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/", 2)
+    [ ("https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/", 5)
     ]))
 
 propCurrent :: HasServantClientEnv => Expectation
-propCurrent = currentServersClient >>= (`shouldBe` Right ["test.delegation"])
+propCurrent = currentServersClient >>= (`shouldBe` Right ["https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/"])
 
 propDelegatesOk :: HasServantClientEnv => Expectation
-propDelegatesOk = serverDelegatesClient "test.delegation" >>=
-    (`shouldBe` Right (Map.fromList [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 3)]))
+propDelegatesOk = serverDelegatesClient "https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/" >>=
+    (`shouldBe` Right (Map.fromList
+        [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 3)
+        ,("addr_test1qr8cdsle3chjufssrg9wujvseypyj8fgxj2xg005cclyk0wu66jsm534qu9p759fexv8h2lpsdja54yrzgmzv4z83wmstcscqv", 2)
+        ]))
 
 propDelegates404 :: HasServantClientEnv => Expectation
 propDelegates404 = serverDelegatesClient "non-existent.delegation" >>= (`shouldBe` Left (DelegationServerError UnknownIp))
