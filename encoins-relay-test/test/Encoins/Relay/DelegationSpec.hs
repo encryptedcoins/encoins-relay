@@ -33,7 +33,10 @@ spec = describe "Delegation server" $ do
         it "thows 404 to unknown ips" propDelegates404
 
 propServers :: HasServantClientEnv => Expectation
-propServers = serversClient >>= (`shouldBe` Right ["test.delegation", "https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/"])
+propServers = serversClient >>= (`shouldBe` Right (Map.fromList
+    [ ("test.delegation", 3)
+    , ("https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/", 2)
+    ]))
 
 propCurrent :: HasServantClientEnv => Expectation
 propCurrent = currentServersClient >>= (`shouldBe` Right ["test.delegation"])
