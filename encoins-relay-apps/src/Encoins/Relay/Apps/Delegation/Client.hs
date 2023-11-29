@@ -10,6 +10,7 @@ module Encoins.Relay.Apps.Delegation.Client where
 
 import           Cardano.Server.Client.Handle           (HasServantClientEnv)
 import           Cardano.Server.Config                  (decodeOrErrorFromFile, schemeFromProtocol, HyperTextProtocol)
+import           Cardano.Server.Internal                (mkServantClientEnv)
 import           Control.Exception                      (Exception)
 import           Data.Bifunctor                         (Bifunctor (..))
 import qualified Data.ByteString.Lazy                   as BS
@@ -33,7 +34,7 @@ import           System.Environment                     (getArgs)
 main :: FilePath -> IO ()
 main delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
-    clientEnv <- mkDelegationClientEnv cHost cPort cHyperTextProtocol
+    clientEnv <- mkServantClientEnv cPort cHost cHyperTextProtocol
     let ?servantClientEnv = clientEnv
     getArgs >>= \case
         ["servers"] -> serversClient >>= print
@@ -62,12 +63,3 @@ data DelegationClientError
     = DelegationServerError DelegationServerError
     | DelegationClientError ClientError
     deriving (Show, Exception, Eq)
-
-mkDelegationClientEnv :: Text -> Int -> HyperTextProtocol -> IO ClientEnv
-mkDelegationClientEnv host port protocol = do
-    m <- newManager defaultManagerSettings
-    pure $ ClientEnv
-        m
-        (BaseUrl (schemeFromProtocol protocol) (T.unpack host) port "")
-        Nothing
-        defaultMakeClientRequest

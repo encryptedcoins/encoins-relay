@@ -32,6 +32,7 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     , cVerifierPkh              :: BuiltinByteString
     , cVerifierHost             :: Text
     , cVerifierPort             :: Int
+    , cVerifierProtocol         :: HyperTextProtocol
     -- Delegation
     , cDelegationCurrencySymbol :: CurrencySymbol
     , cDelegationTokenName      :: TokenName

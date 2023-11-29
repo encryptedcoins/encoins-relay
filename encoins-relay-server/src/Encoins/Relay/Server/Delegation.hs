@@ -7,7 +7,7 @@ module Encoins.Relay.Server.Delegation where
 
 import           Cardano.Api                          (writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
-import           Cardano.Server.Internal              (ServerM, getAuxillaryEnv)
+import           Cardano.Server.Internal              (ServerM, mkServantClientEnv, getAuxillaryEnv)
 import           Cardano.Server.Tx                    (mkTx)
 import           Control.Applicative                  ((<|>))
 import           Control.Monad                        (void, when)
@@ -21,7 +21,7 @@ import           Data.List.Extra                      (chunksOf, partition, sort
 import qualified Data.List.NonEmpty                   as NonEmpty
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (mapMaybe)
-import           Encoins.Relay.Apps.Delegation.Client (mkDelegationClientEnv, serverDelegatesClient)
+import           Encoins.Relay.Apps.Delegation.Client (serverDelegatesClient)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (..))
 import           Encoins.Relay.Server.Server          (EncoinsApi)
 import           Ledger                               (Address (..), PaymentPubKeyHash (..), minAdaTxOutEstimated)
@@ -54,7 +54,7 @@ getRewardsDistribution totalReward = calculateReward <$> getRecepients
     where
         getRecepients = mapMaybe (\(addrTxt, b) -> (, b) <$> bech32ToAddress addrTxt) <$> do
             EncoinsRelayEnv{..} <- getAuxillaryEnv
-            clientEnv <- liftIO $ mkDelegationClientEnv envDelegationSeverHost envDelegationServerPort envDelegationServerProtocol
+            clientEnv <- mkServantClientEnv envDelegationServerPort envDelegationSeverHost envDelegationServerProtocol
             let ?servantClientEnv = clientEnv
             either (error . show) Map.toList <$> liftIO (serverDelegatesClient envDelegationIp)
 

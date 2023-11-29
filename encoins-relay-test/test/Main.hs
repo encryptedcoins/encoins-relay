@@ -4,6 +4,7 @@
 module Main where
 
 import           Cardano.Server.Config                  (Config (cAuxiliaryEnvFile, cNetworkId), decodeOrErrorFromFile)
+import           Cardano.Server.Internal                (mkServantClientEnv)
 import           Cardano.Server.Main                    (embedCreds)
 import           Cardano.Server.Test.Utils              (withCardanoServer)
 import           Cardano.Server.Utils.Logger            (logger, mutedLogger)
@@ -11,7 +12,6 @@ import qualified Control.Concurrent                     as C
 import           Control.Exception                      (bracket, bracket_, try)
 import           Control.Monad                          (void)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Encoins.Relay.Apps.Delegation.Client   (mkDelegationClientEnv)
 import           Encoins.Relay.Apps.Delegation.Internal (DelegationEnv (..))
 import qualified Encoins.Relay.Apps.Delegation.Internal as Deleg
 import           Encoins.Relay.Apps.Delegation.Server   (runDelegationServer, runDelegationServer')
@@ -48,7 +48,7 @@ main = do
             Server.spec
 
     -- Delegation server specs
-    delegClientEnv <- mkDelegationClientEnv (Deleg.cHost delegConfig) (Deleg.cPort delegConfig) (Deleg.cHyperTextProtocol delegConfig)
+    delegClientEnv <- mkServantClientEnv (Deleg.cPort delegConfig) (Deleg.cHost delegConfig) (Deleg.cHyperTextProtocol delegConfig)
     let ?protocol         = Deleg.cHyperTextProtocol delegConfig
         ?creds            = embedCreds
         ?servantClientEnv = delegClientEnv
