@@ -1,144 +1,51 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE NumericUnderscores         #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# OPTIONS_GHC -Wno-missing-fields     #-}
-{-# OPTIONS_GHC -Wno-orphans            #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Encoins.Relay.DelegationSpec where
 
-import           Control.Monad                      (replicateM)
-import qualified Data.ByteString                    as BS
-import           Data.Function                      (on)
-import           Data.Functor                       ((<&>))
-import           Data.Functor.Identity              (Identity (runIdentity))
-import           Data.List                          (sort, sortBy)
-import           Data.Maybe                         (fromJust)
-import           Data.String                        (IsString)
-import           Data.Text                          (Text)
-import qualified Data.Text                          as T
-import qualified Data.Text.Encoding                 as T
-import           Encoins.Relay.Server.Delegation    (Delegation (..))
-import           Ledger                             (Address (..), Datum (..), DatumHash, PubKeyHash (..), Slot (..), TxId (..),
-                                                     TxOutRef (..))
-import           Plutus.V1.Ledger.Credential        (Credential (PubKeyCredential), StakingCredential (StakingHash))
-import           Plutus.V2.Ledger.Api               (toBuiltin, toBuiltinData)
-import           PlutusAppsExtra.Utils.Datum        (hashDatum)
-import           PlutusAppsExtra.Utils.Kupo         (KupoDatumType (..), KupoResponse (..), SlotWithHeaderHash (..))
-import           Test.Hspec                         (Spec, describe, it, shouldBe)
-import           Test.QuickCheck                    (Arbitrary (..), Gen, Property, Testable (property), choose, generate, oneof,
-                                                     suchThat)
-import Encoins.Relay.Apps.Delegation.V1.Main (DelegationHandle (..), isValidIp, findDelegators)
+import           Cardano.Api                            (NetworkId (Testnet), NetworkMagic (NetworkMagic))
+import           Cardano.Server.Client.Handle           (HasServantClientEnv)
+import           Cardano.Server.Utils.Logger            (mutedLogger)
+import           Cardano.Server.Utils.Wait              (waitTime)
+import qualified Control.Concurrent                     as C
+import           Control.Exception                      (bracket)
+import qualified Data.Map                               as Map
+import           Data.Maybe                             (listToMaybe)
+import           Encoins.Relay.Apps.Delegation.Client   (DelegationClientError (DelegationServerError), currentServersClient,
+                                                         serverDelegatesClient, serversClient)
+import           Encoins.Relay.Apps.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..),
+                                                         runDelegationM, updateProgress)
+import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError (..), runDelegationServer)
+import           System.Directory                       (setCurrentDirectory)
+import           Test.Hspec                             (Expectation, Spec, context, describe, hspec, it, shouldBe)
+import           Test.QuickCheck                        (Property, Testable (property))
 
-spec :: Spec
-spec = describe "encoins-delegation" $ it "find delegators IP's" propDelegation
+spec :: HasServantClientEnv => Spec
+spec = describe "Delegation server" $ do
 
-propDelegation :: Property
-propDelegation = property $ \(args :: [TestArg]) -> do
-    handle <- generate $ mkTestDelegationHandle args
-    let res  = runIdentity $ findDelegators "" handle 0 0
-    sort res `shouldBe` expectedResult args
+    context "/servers" $ do
+        it "gets list of servers" propServers
 
-expectedResult :: [TestArg] -> [Delegation]
-expectedResult = sort . map mkDeleg . filter taTxSignatureIsRight
-    where
-        mkDeleg TestArg{..} = Delegation taCredential taAddressStakeKey (TxOutRef taTxId taTxIdX) taCreatedAt (unDelegIp taDelegIp)
+    context "/current" $ do
+        it "gets only servers with number of delegated tokens more than number, specified in config" propCurrent
 
-data TestArg = TestArg
-    { taCredential         :: Credential
-    , taAddressStakeKey    :: PubKeyHash
-    , taDelegIp            :: DelegIp
-    , taTokenAmount        :: Integer
-    , taTxId               :: TxId
-    , taTxIdX              :: Integer
-    , taTxSignatureIsRight :: Bool
-    , taDatum              :: Datum
-    , taDatumHash          :: DatumHash
-    , taCreatedAt          :: Slot
-    } deriving (Show, Eq)
+    context "/delegates" $ do
+        it "gets map with pkhs and balances of the delegates when all is ok" propDelegatesOk
+        it "thows 404 to unknown ips" propDelegates404
 
-argToKupoResponse :: TestArg -> KupoResponse
-argToKupoResponse TestArg{..} =
-    let krDatumHash   = Just taDatumHash
-        krAddress     = Address taCredential (Just $ StakingHash $ PubKeyCredential taAddressStakeKey)
-        krTxId        = taTxId
-        krOutputIndex = taTxIdX
-        krCreatedAt   = SlotWithHeaderHash taCreatedAt undefined
-        krValue       = mempty
-        krDatumType   = Nothing
-        krScriptHash  = Nothing
-        krSpentAt     = Nothing
-    in KupoResponse{..}
+propServers :: HasServantClientEnv => Expectation
+propServers = serversClient >>= (`shouldBe` Right (Map.fromList
+    [ ("https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/", 5)
+    ]))
 
-instance Arbitrary TestArg where
-    arbitrary = do
-        stakeKeyBs <- BS.pack <$> replicateM 28 arbitrary
-        taDelegIp <- arbitrary
-        taTokenAmount <- choose (0, 100_000_000_000_000)
-        taTxId <- TxId . toBuiltin . BS.pack <$> replicateM 32 arbitrary
-        taTxIdX <- choose (1, 40)
-        taTxSignatureIsRight <- choose @Int (1, 50) <&> \case
-            50 -> False
-            _  -> True
-        taCredential <- arbitrary
-        taCreatedAt <- abs <$> arbitrary
-        let taAddressStakeKey = PubKeyHash $ toBuiltin stakeKeyBs
-            taDatum = Datum $ toBuiltinData $ map toBuiltin ["ENCOINS", "Delegate", stakeKeyBs, T.encodeUtf8 $ unDelegIp taDelegIp]
-            taDatumHash = hashDatum taDatum
-        pure TestArg{..}
+propCurrent :: HasServantClientEnv => Expectation
+propCurrent = currentServersClient >>= (`shouldBe` Right ["https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/"])
 
-newtype DelegIp = DelegIp {unDelegIp :: Text}
-    deriving newtype (Show, Eq, Ord, IsString)
+propDelegatesOk :: HasServantClientEnv => Expectation
+propDelegatesOk = serverDelegatesClient "https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/" >>=
+    (`shouldBe` Right (Map.fromList
+        [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 3)
+        ,("addr_test1qr8cdsle3chjufssrg9wujvseypyj8fgxj2xg005cclyk0wu66jsm534qu9p759fexv8h2lpsdja54yrzgmzv4z83wmstcscqv", 2)
+        ]))
 
-instance Arbitrary DelegIp where
-    arbitrary = fmap DelegIp $ flip suchThat isValidIp $  T.intercalate "." . fmap (T.pack . show) <$> replicateM 4 (choose @Int (0, 255))
-
-instance Arbitrary KupoResponse where
-    arbitrary = do
-        krTxId        <- arbitrary
-        krOutputIndex <- arbitrary
-        krAddress     <- arbitrary
-        krValue       <- arbitrary
-        krDatumHash   <- arbitrary
-        krDatumType   <- arbitrary
-        krScriptHash  <- arbitrary
-        krCreatedAt   <- arbitrary
-        krSpentAt     <- arbitrary
-        pure $ KupoResponse{..}
-
-instance Arbitrary SlotWithHeaderHash where
-    arbitrary = do
-        swhhSlot <- arbitrary
-        pure $ SlotWithHeaderHash{..}
-
-instance Arbitrary KupoDatumType where
-    arbitrary = oneof $ pure <$> [KupoDatumHash, KupoDatumInline]
-
-mkTestDelegationHandle :: [TestArg] -> Gen (DelegationHandle Identity)
-mkTestDelegationHandle args = do
-    mockResponses <- arbitrary
-    balance <- arbitrary
-    let delegResponses = argToKupoResponse <$> args
-        responses = sortBy (compare `on` (swhhSlot . krCreatedAt)) (mockResponses <> delegResponses)
-
-    let dhGetResponses _ _ = pure responses
-        dhGetDatumByHash dh = pure $ case filter ((== dh) . taDatumHash) args of
-            [ta] -> Just $ taDatum ta
-            _    -> Nothing
-        dhGetTokenBalance _ _ (StakingHash (PubKeyCredential pkh)) = pure $ case filter ((== pkh) . taAddressStakeKey) args of
-            [ta] -> taTokenAmount ta
-            _    -> 0
-        dhGetTokenBalance _ _ _ = balance
-        dhCheckTxSignature txId _ = pure $ case filter ((== txId) . taTxId) args of
-            [ta] -> taTxSignatureIsRight ta
-            _    -> False
-        dhMkLog = const (pure ())
-        dhWithResultSaving = const id
-    pure $ DelegationHandle{..}
+propDelegates404 :: HasServantClientEnv => Expectation
+propDelegates404 = serverDelegatesClient "non-existent.delegation" >>= (`shouldBe` Left (DelegationServerError UnknownIp))

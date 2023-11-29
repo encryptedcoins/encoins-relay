@@ -4,6 +4,7 @@
 module Encoins.Relay.Server.Internal where
 
 import           Cardano.Server.Internal                  (AuxillaryEnvOf, ServerM, getAuxillaryEnv)
+import           Data.Text                                (Text)
 import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, encoinsSymbol, ledgerValidatorAddress)
 import           Encoins.Relay.Server.Config              (referenceScriptSalt)
 import           Plutus.V2.Ledger.Api                     (Address, CurrencySymbol, TokenName, TxOutRef)
@@ -13,6 +14,7 @@ import           PlutusAppsExtra.Types.Tx                 (UtxoRequirements)
 import           PlutusAppsExtra.Utils.ChainIndex         (MapUTXO)
 import           PlutusTx.Builtins                        (BuiltinByteString)
 import           Servant.Client                           (ClientEnv)
+import Cardano.Server.Config (HyperTextProtocol)
 
 data EncoinsRelayEnv = EncoinsRelayEnv
     { envRefStakeOwner            :: TxOutRef
@@ -23,6 +25,10 @@ data EncoinsRelayEnv = EncoinsRelayEnv
     , envDelegationTokenName      :: TokenName
     -- ^ We don't get cs and tokenName directly using encoins-core functions
     -- so that we can mock them in tests and quickly get the delegation result.
+    , envDelegationSeverHost      :: Text
+    , envDelegationServerPort     :: Int
+    , envDelegationServerProtocol :: HyperTextProtocol
+    , envDelegationIp             :: Text
     }
 
 getTrackedAddresses :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api [Address]

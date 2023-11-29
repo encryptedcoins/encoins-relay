@@ -23,7 +23,7 @@ import           Cardano.Server.Config          (Config (..))
 import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input           (InputContext (..))
 import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
-                                                 getAuxillaryEnv, mkServerClientEnv)
+                                                 getAuxillaryEnv, mkServerClientEnv, mkServantClientEnv)
 import           Cardano.Server.Main            (ServerApi)
 import           Cardano.Server.Tx              (mkTx)
 import           Control.Arrow                  ((&&&))
@@ -46,7 +46,7 @@ import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (..), getEncoin
 import           Encoins.Relay.Server.Status    (EncoinsStatusErrors, EncoinsStatusReqBody (MaxAdaWithdraw), EncoinsStatusResult,
                                                  encoinsStatusHandler)
 import           Encoins.Relay.Server.Version   (ServerVersion, versionHandler)
-import           Encoins.Relay.Verifier.Client  (mkVerifierClientEnv, verifierClient)
+import           Encoins.Relay.Verifier.Client  (verifierClient)
 import           Encoins.Relay.Verifier.Server  (VerifierApiError (..))
 import           GHC.Generics                   (Generic)
 import           Ledger                         (Address, TxId (TxId), TxOutRef (..))
@@ -58,10 +58,21 @@ import qualified Servant.Client                 as Servant
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
     EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
-    verifierClientEnv      <- mkVerifierClientEnv cVerifierHost cVerifierPort
+    verifierClientEnv      <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
     pure $ ServerHandle
         Kupo
-        (EncoinsRelayEnv cRefStakeOwner cRefBeacon cVerifierPkh verifierClientEnv cDelegationCurrencySymbol cDelegationTokenName)
+        (EncoinsRelayEnv
+            cRefStakeOwner
+            cRefBeacon
+            cVerifierPkh
+            verifierClientEnv
+            cDelegationCurrencySymbol
+            cDelegationTokenName
+            cDelegationServerHost
+            cDelegationServerPort
+            cDelegationServerProtocol
+            cDelegationIp
+        )
         getTrackedAddresses
         txBuilders
         (pure ())

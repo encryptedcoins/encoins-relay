@@ -1,5 +1,6 @@
 { "host"                        : "localhost"
 , "port"                        : 3001
+, "hyper_text_protocol"         : "HTTP"
 , "verifier_pkh"                : "AB39EFD01872F96A4CA2534EB5959D737F1939094BEA19069EE7FE76ECE3494A"
 , "verifier_prv_key_file_path"  : "encoins-relay-test/test/configuration/verifierPrvKey.json"
 , "bulletproof_setup_file_path" : "encoins-relay-test/test/configuration/bulletproof_setup.json"
