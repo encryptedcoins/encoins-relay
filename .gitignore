@@ -3,4 +3,8 @@ dist-newstyle
 secrets/*
 logs/*
 encoins-relay-test/test/configuration/wallets/*
+encoins-relay-test/test/configuration/maestro.token
+encoins-relay-test/test/configuration/blockfrost.token
 */poll*files/*
+certificate.pem
+key.pem

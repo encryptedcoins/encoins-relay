@@ -3,14 +3,13 @@
 
 module Encoins.Relay.Server.Config where
 
-import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile)
+import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile, HyperTextProtocol)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Maybe                    (fromJust)
 import           Data.Text                     (Text)
 import           GHC.Generics                  (Generic)
-import           Ledger                        (Slot)
 import           Plutus.V2.Ledger.Api          (Address, CurrencySymbol, TokenName, TxOutRef (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusTx.Builtins             (BuiltinByteString)
@@ -33,12 +32,14 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     , cVerifierPkh              :: BuiltinByteString
     , cVerifierHost             :: Text
     , cVerifierPort             :: Int
+    , cVerifierProtocol         :: HyperTextProtocol
     -- Delegation
-    , cDelegationFolder         :: FilePath
-    , cDelegationMinTokenAmt    :: Integer
-    , cDelegationStart          :: Slot
     , cDelegationCurrencySymbol :: CurrencySymbol
     , cDelegationTokenName      :: TokenName
+    , cDelegationServerHost     :: Text
+    , cDelegationServerPort     :: Int
+    , cDelegationServerProtocol :: HyperTextProtocol
+    , cDelegationIp             :: Text
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where
