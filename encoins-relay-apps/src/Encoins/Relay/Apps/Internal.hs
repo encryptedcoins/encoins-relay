@@ -9,7 +9,7 @@
 module Encoins.Relay.Apps.Internal where
 
 import           Cardano.Api                        (NetworkId, writeFileJSON)
-import           Control.Arrow                      ((>>>))
+import           Control.Arrow                      ((>>>), Arrow ((&&&)), (<<<))
 import           Control.Concurrent                 (threadDelay)
 import           Control.Exception                  (AsyncException (UserInterrupt), Exception (..), SomeException)
 import           Control.Monad                      (forM, join, (>=>))
@@ -19,7 +19,7 @@ import           Data.Aeson                         (FromJSON (parseJSON), ToJSO
 import           Data.Aeson.Types                   (parseMaybe)
 import           Data.Default                       (def)
 import           Data.Either.Extra                  (eitherToMaybe)
-import           Data.List                          (sort, stripPrefix)
+import           Data.List                          (sort, stripPrefix, isPrefixOf)
 import           Data.Maybe                         (catMaybes, listToMaybe, mapMaybe)
 import           Data.Text                          (Text)
 import qualified Data.Text.Lazy                     as TL
@@ -30,7 +30,7 @@ import           Plutus.V2.Ledger.Api               (CurrencySymbol, TokenName)
 import           PlutusAppsExtra.Api.Kupo           (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
 import           PlutusAppsExtra.IO.ChainIndex.Kupo ()
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
-import           System.Directory                   (createDirectoryIfMissing, listDirectory)
+import           System.Directory                   (createDirectoryIfMissing, listDirectory, removeFile)
 import           System.ProgressBar                 (Progress (..), ProgressBarWidth (..), Style (..), defStyle, exact,
                                                      incProgress, msg, ProgressBar)
 import qualified System.ProgressBar as PB
@@ -117,3 +117,14 @@ loadMostRecentFile dir prefix = do
         fp = (\t -> dir <> "/" <> prefix <> t <> ".json") . formatTime <$> time
     res <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
     pure $ (,) <$> time <*> res
+
+janitorFiles :: MonadIO m => FilePath -> String -> m ()
+janitorFiles  dir prefix = liftIO $ do
+        files <- listDirectory dir
+        let mbLastTime = listToMaybe . reverse . sort $ mapMaybe (stripPrefix prefix >=> takeWhile (/= '.') >>> readTime) files
+            mbLastFile = (\t -> dir <> "/" <> prefix <> t <> ".json") . formatTime <$> mbLastTime
+            toRemove = (`filterFiles` map addDirPrefix files) <$> mbLastFile
+        sequence_ $ mapM_ removeFile <$> toRemove
+    where
+        filterFiles lastFile = filter $ uncurry (&&) <<< (/= lastFile) &&& isPrefixOf (addDirPrefix prefix)
+        addDirPrefix f = dir <> "/" <> f

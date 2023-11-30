@@ -44,7 +44,7 @@ import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
                                                          Progress (..), delegAddress, getBalances, getIpsWithBalances,
                                                          loadPastProgress, runDelegationM, updateProgress, writeResultFile)
-import           Encoins.Relay.Apps.Internal            (formatTime)
+import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles)
 import qualified Network.Wai.Handler.Warp               as Warp
 import qualified Network.Wai.Handler.WarpTLS            as Warp
 import           PlutusAppsExtra.Utils.Address          (addressToBech32)
@@ -226,11 +226,17 @@ searchForDelegations = do
         delay             <- liftIO $ async $ waitTime dEnvFrequency
         pastProgress      <- liftIO $ snd <$> loadPastProgress dEnvDelegationFolder <|> initProgress
         newProgress       <- updateProgress pastProgress
-        void $ liftIO $ writeFileJSON (dEnvDelegationFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
+        writeDeleg dEnvDelegationFolder ct newProgress
         ipsWithBalances   <- getIpsWithBalances $ pDelgations newProgress
-        liftIO $ writeResultFile dEnvDelegationFolder ct ipsWithBalances
+        writeResult dEnvDelegationFolder ct ipsWithBalances
         liftIO $ wait delay
     where
         initProgress = do
             logMsg "No progress file found."
             pure $ Progress Nothing []
+        writeDeleg delegFolder ct newProgress = do
+            void $ liftIO $ writeFileJSON (delegFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
+            janitorFiles delegFolder "delegatorsV2_"
+        writeResult delegFolder ct ipsWithBalances = do
+            liftIO $ writeResultFile delegFolder ct ipsWithBalances
+            janitorFiles delegFolder "result_"
