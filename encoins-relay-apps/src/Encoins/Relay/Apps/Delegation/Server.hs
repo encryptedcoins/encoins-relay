@@ -147,8 +147,11 @@ getCurrentServersHandler :: DelegationM [Text]
 getCurrentServersHandler = delegationErrorH $ do
     env <- ask
     Progress _ delegs <- getMostRecentProgressFile
-    ipsWithBalances <- getIpsWithBalances delegs
-    pure $ Map.keys $ Map.filter (>= dEnvMinTokenNumber env) ipsWithBalances
+    ipsWithBalances   <- getIpsWithBalances delegs
+    -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
+    delegationMap     <- liftIO $ decodeOrErrorFromFile "delegationMap.json"
+
+    pure $ mapMaybe (`lookup` delegationMap) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber env) ipsWithBalances
 
 ------------------------------------------------------ Get server delegators endpoint ------------------------------------------------------
 
