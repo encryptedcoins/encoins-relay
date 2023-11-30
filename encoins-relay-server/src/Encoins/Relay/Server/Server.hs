@@ -23,7 +23,7 @@ import           Cardano.Server.Config          (Config (..))
 import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input           (InputContext (..))
 import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
-                                                 getAuxillaryEnv, mkServerClientEnv, mkServantClientEnv)
+                                                 getAuxillaryEnv, mkServantClientEnv, mkServerClientEnv)
 import           Cardano.Server.Main            (ServerApi)
 import           Cardano.Server.Tx              (mkTx)
 import           Control.Arrow                  ((&&&))
@@ -115,18 +115,19 @@ instance IsCardanoServerError EncoinsTxApiError where
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
     encoinsProtocolParams@(_, refBeacon, _) <- getEncoinsProtocolParams
+    addr <- getWalletAddr
     -- Mint the stake owner token
     utxos <- getWalletUtxos mempty
     let utxos' = Map.delete refBeacon utxos
-    mkTx [] (InputContextServer utxos') [stakeOwnerTx encoinsProtocolParams]
+    mkTx [] (InputContextClient utxos' utxos' (TxOutRef (TxId "") 1) addr) [stakeOwnerTx encoinsProtocolParams]
     -- Mint and send the beacon
-    utxos'' <- getWalletUtxos mempty
-    mkTx [] (InputContextServer utxos'') [beaconTx encoinsProtocolParams]
+    utxos'' <-  getWalletUtxos mempty
+    mkTx [] (InputContextClient utxos'' utxos'' (TxOutRef (TxId "") 1) addr) [beaconTx encoinsProtocolParams]
     -- Post the ENCOINS minting policy
-    mkTx [] def [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
+    mkTx [] (InputContextServer def) [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt]
     -- Post the staking validator policy
-    mkTx [] def [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
-    mkTx [] def [encoinsSendTx encoinsProtocolParams (ledgerValidatorAddress encoinsProtocolParams) minMaxTxOutValueInLedger]
+    mkTx [] (InputContextServer def) [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
+    mkTx [] (InputContextServer def) [encoinsSendTx encoinsProtocolParams (ledgerValidatorAddress encoinsProtocolParams) minMaxTxOutValueInLedger]
 
 processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
 processRequest req = sequence $ case req of

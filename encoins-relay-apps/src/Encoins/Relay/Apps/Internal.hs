@@ -124,7 +124,7 @@ janitorFiles  dir prefix = liftIO $ do
         files <- listDirectory dir
         let mbLastTime = listToMaybe . reverse . sort $ mapMaybe (stripPrefix prefix >=> takeWhile (/= '.') >>> readTime) files
             mbLastFile = (\t -> dir </> prefix <> t <> ".json") . formatTime <$> mbLastTime
-            toRemove = (`filterFiles` map (dir </>) files) <$> mbLastFile
+            toRemove = drop 10 . reverse . (`filterFiles` map (dir </>) files) <$> mbLastFile
         sequence_ $ mapM_ removeFile <$> toRemove
     where
         filterFiles lastFile = filter $ uncurry (&&) <<< (/= lastFile) &&& isPrefixOf (dir </> prefix)
