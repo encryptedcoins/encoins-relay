@@ -25,15 +25,16 @@ import           Control.Concurrent                     (forkIO)
 import           Control.Concurrent.Async               (async, wait)
 import           Control.Monad                          (forever, void, when, (>=>))
 import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
+import           Control.Monad.Extra                    (fromMaybeM)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
+import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..), asks)
 import           Data.ByteString                        (ByteString)
 import           Data.FileEmbed                         (embedFileIfExists)
 import           Data.Fixed                             (Pico)
 import           Data.Function                          (on)
 import           Data.Functor                           ((<&>))
 import           Data.List                              (sortBy)
-import           Data.Map                               (Map)
+import           Data.Map                               (Map, filterWithKey)
 import qualified Data.Map                               as Map
 import           Data.Maybe                             (mapMaybe)
 import           Data.Proxy                             (Proxy (..))
@@ -44,7 +45,7 @@ import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
                                                          Progress (..), delegAddress, getBalances, getIpsWithBalances,
                                                          loadPastProgress, runDelegationM, updateProgress, writeResultFile)
-import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles)
+import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile)
 import qualified Network.Wai.Handler.Warp               as Warp
 import qualified Network.Wai.Handler.WarpTLS            as Warp
 import           PlutusAppsExtra.Utils.Address          (addressToBech32)
@@ -143,7 +144,8 @@ type GetServers = "servers" :> Get '[JSON] (Map Text Integer)
 getServersHandler :: DelegationM (Map Text Integer)
 getServersHandler = delegationErrorH $ do
     Progress _ delegs <- getMostRecentProgressFile
-    getIpsWithBalances delegs
+    (retiredRelays :: [Text]) <- liftIO $ decodeOrErrorFromFile "retiredRelays.json"
+    filterWithKey (\k _ -> k `notElem` retiredRelays) <$> getResult delegs
 
 -------------------------------------- Get current (more than 100k(MinTokenNumber) delegated tokens) servers endpoint --------------------------------------
 
@@ -153,7 +155,7 @@ getCurrentServersHandler :: DelegationM [Text]
 getCurrentServersHandler = delegationErrorH $ do
     env <- ask
     Progress _ delegs <- getMostRecentProgressFile
-    ipsWithBalances   <- getIpsWithBalances delegs
+    ipsWithBalances   <- getResult delegs
     -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
     delegationMap     <- liftIO $ decodeOrErrorFromFile "delegationMap.json"
 
@@ -221,6 +223,11 @@ getMostRecentProgressFile = do
     let diff = Time.nominalDiffTimeToSeconds (Time.diffUTCTime ct progressTime)
     when (diff > fromIntegral dEnvMaxDelay) $ throwM $ StaleProgressFile diff (diff - fromIntegral dEnvMaxDelay)
     pure p
+
+getResult :: [Delegation] -> DelegationM (Map Text Integer)
+getResult delegs = do
+    delegFolder <- asks dEnvDelegationFolder
+    fromMaybeM (getIpsWithBalances delegs) $ liftIO (fmap snd <$> loadMostRecentFile delegFolder "result_")
 
 searchForDelegations :: DelegationM ()
 searchForDelegations = do
