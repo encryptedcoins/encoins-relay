@@ -64,6 +64,7 @@ library
       exceptions                             -any,
       extra                                  -any,
       file-embed                             -any,
+      filepath                               -any,
       http-client                            -any,
       lens                                   -any,
       lens-aeson                             -any,

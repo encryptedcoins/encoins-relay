@@ -1,15 +1,16 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE ImplicitParams     #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TemplateHaskell    #-}
-{-# LANGUAGE TupleSections      #-}
-{-# LANGUAGE TypeApplications   #-}
-{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE ImplicitParams      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Encoins.Relay.Apps.Delegation.Server where
 
@@ -17,13 +18,13 @@ import           Cardano.Api                            (writeFileJSON)
 import           Cardano.Server.Config                  (HasHyperTextProtocol, HyperTextProtocol (..), decodeOrErrorFromFile)
 import           Cardano.Server.Error                   (logCriticalExceptions)
 import           Cardano.Server.Main                    (corsWithContentType)
-import           Cardano.Server.Utils.Logger            (logMsg, logger, (.<))
+import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
 import           Control.Applicative                    ((<|>))
 import           Control.Concurrent                     (forkIO)
 import           Control.Concurrent.Async               (async, wait)
 import           Control.Monad                          (forever, void, when, (>=>))
-import           Control.Monad.Catch                    (Exception, MonadThrow (..), handle)
+import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
 import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
 import           Data.ByteString                        (ByteString)
@@ -43,7 +44,7 @@ import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
                                                          Progress (..), delegAddress, getBalances, getIpsWithBalances,
                                                          loadPastProgress, runDelegationM, updateProgress, writeResultFile)
-import           Encoins.Relay.Apps.Internal            (formatTime)
+import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles)
 import qualified Network.Wai.Handler.Warp               as Warp
 import qualified Network.Wai.Handler.WarpTLS            as Warp
 import           PlutusAppsExtra.Utils.Address          (addressToBech32)
@@ -103,9 +104,14 @@ runDelegationServer' env = do
                                           \If this error doesn't go away, try running `cabal clean` first."
     where
         runDelegationSerach
-            = runDelegationM env
+            = withRecovery
+            $ runDelegationM env
             $ local (const $ env {dEnvLoggerFp = Just "delegationSearch.log"})
             $ forever searchForDelegations
+        withRecovery ma = catch ma $ \(err :: SomeException) -> do
+            logSmth err
+            waitTime 10
+            withRecovery ma
         settings
             = Warp.setLogger logReceivedRequest
             $ Warp.setOnException (const logException)
@@ -223,11 +229,17 @@ searchForDelegations = do
         delay             <- liftIO $ async $ waitTime dEnvFrequency
         pastProgress      <- liftIO $ snd <$> loadPastProgress dEnvDelegationFolder <|> initProgress
         newProgress       <- updateProgress pastProgress
-        void $ liftIO $ writeFileJSON (dEnvDelegationFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
+        writeDeleg dEnvDelegationFolder ct newProgress
         ipsWithBalances   <- getIpsWithBalances $ pDelgations newProgress
-        liftIO $ writeResultFile dEnvDelegationFolder ct ipsWithBalances
+        writeResult dEnvDelegationFolder ct ipsWithBalances
         liftIO $ wait delay
     where
         initProgress = do
             logMsg "No progress file found."
             pure $ Progress Nothing []
+        writeDeleg delegFolder ct newProgress = do
+            void $ liftIO $ writeFileJSON (delegFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
+            janitorFiles delegFolder "delegatorsV2_"
+        writeResult delegFolder ct ipsWithBalances = do
+            liftIO $ writeResultFile delegFolder ct ipsWithBalances
+            janitorFiles delegFolder "result_"
