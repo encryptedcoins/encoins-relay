@@ -33,7 +33,7 @@ import           Data.Fixed                             (Pico)
 import           Data.Function                          (on)
 import           Data.Functor                           ((<&>))
 import           Data.List                              (sortBy)
-import           Data.Map                               (Map)
+import           Data.Map                               (Map, filterWithKey)
 import qualified Data.Map                               as Map
 import           Data.Maybe                             (mapMaybe)
 import           Data.Proxy                             (Proxy (..))
@@ -143,7 +143,8 @@ type GetServers = "servers" :> Get '[JSON] (Map Text Integer)
 getServersHandler :: DelegationM (Map Text Integer)
 getServersHandler = delegationErrorH $ do
     Progress _ delegs <- getMostRecentProgressFile
-    getIpsWithBalances delegs
+    (retiredRelays :: [Text]) <- liftIO $ decodeOrErrorFromFile "retiredRelays.json"
+    filterWithKey (\k _ -> k `notElem` retiredRelays) <$> getIpsWithBalances delegs
 
 -------------------------------------- Get current (more than 100k(MinTokenNumber) delegated tokens) servers endpoint --------------------------------------
 
