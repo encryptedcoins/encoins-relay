@@ -44,8 +44,9 @@ import qualified Data.Text                              as T
 import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
                                                          Progress (..), delegAddress, getBalances, getIpsWithBalances,
-                                                         loadPastProgress, runDelegationM, updateProgress, writeResultFile)
-import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile)
+                                                         loadPastProgress, readResultFile, runDelegationM, updateProgress,
+                                                         writeResultFile)
+import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles)
 import qualified Network.Wai.Handler.Warp               as Warp
 import qualified Network.Wai.Handler.WarpTLS            as Warp
 import           PlutusAppsExtra.Utils.Address          (addressToBech32)
@@ -227,7 +228,7 @@ getMostRecentProgressFile = do
 getResult :: [Delegation] -> DelegationM (Map Text Integer)
 getResult delegs = do
     delegFolder <- asks dEnvDelegationFolder
-    fromMaybeM (getIpsWithBalances delegs) $ liftIO (fmap snd <$> loadMostRecentFile delegFolder "result_")
+    fromMaybeM (getIpsWithBalances delegs) $ liftIO $ fmap snd <$> readResultFile delegFolder
 
 searchForDelegations :: DelegationM ()
 searchForDelegations = do
