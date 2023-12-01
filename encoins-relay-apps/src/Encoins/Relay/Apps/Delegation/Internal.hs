@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
 
 module Encoins.Relay.Apps.Delegation.Internal where
@@ -47,6 +48,7 @@ import           PlutusAppsExtra.Utils.Maestro (TxDetailsOutput (..), TxDetailsR
 import           PlutusTx.Builtins             (decodeUtf8)
 import           Servant                       (Handler, ServerError, runHandler)
 import           System.ProgressBar            (incProgress)
+import           Text.Read                     (readMaybe)
 
 newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
     deriving newtype
@@ -140,6 +142,11 @@ writeResultFile :: FilePath -> Time.UTCTime -> Map Text Integer -> IO ()
 writeResultFile delegFolder ct ipsWithBalances =
     let result = Map.map (T.pack . show) ipsWithBalances
     in  void $ writeFileJSON (delegFolder <> "/result_" <> formatTime ct <> ".json") result
+
+readResultFile :: FilePath -> IO (Maybe (Time.UTCTime, Map Text Integer))
+readResultFile delegFolder = do
+    resultText <- loadMostRecentFile delegFolder "result_"
+    pure $ resultText >>= mapM sequenceA . fmap (Map.map readMaybe)
 
 findDeleg :: TxId -> DelegationM (Maybe Delegation)
 findDeleg txId = runMaybeT $ do
