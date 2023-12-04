@@ -22,10 +22,10 @@ import           Cardano.Server.Utils.Wait              (waitTime)
 import           Control.Applicative                    ((<|>))
 import           Control.Concurrent                     (forkIO)
 import           Control.Concurrent.Async               (async, wait)
-import           Control.Monad                          (forM, forever, join, void, when, (>=>))
+import           Control.Monad                          (forM, forever, void, when, (>=>))
 import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..), asks)
+import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
 import           Data.ByteString                        (ByteString)
 import           Data.FileEmbed                         (embedFileIfExists)
 import           Data.Fixed                             (Pico)
@@ -206,18 +206,22 @@ delegationErrorH = handle $ \case
 
 askProgress :: DelegationM Progress
 askProgress = do
-    ct <- liftIO $ Time.getCurrentTime
+    ct <- liftIO Time.getCurrentTime
     DelegationEnv{..} <- ask
     (progress, progressTime) <- liftIO $ readIORef dEnvProgress
-    logMsg $ "Time of last prgress update:" .< progressTime
     let diff = Time.nominalDiffTimeToSeconds (Time.diffUTCTime ct progressTime)
-    when (diff > fromIntegral dEnvMaxDelay) $ throwM $ StaleProgressFile diff (diff - fromIntegral dEnvMaxDelay)
+    when (diff > fromIntegral dEnvMaxDelay) $ do
+        logMsg $ "Time of last prgress update:" .< progressTime
+        throwM $ StaleProgressFile diff (diff - fromIntegral dEnvMaxDelay)
     pure progress
 
 askTokenBalance :: DelegationM (Map PubKeyHash Integer)
 askTokenBalance = do
-    (balance, balanceTime) <- join $ asks (liftIO . readIORef . dEnvTokenBalance)
-    logMsg $ "Time of last token balance update:" .< balanceTime
+    ct <- liftIO Time.getCurrentTime
+    DelegationEnv{..} <- ask
+    (balance, balanceTime) <- liftIO $ readIORef dEnvTokenBalance
+    let diff = Time.nominalDiffTimeToSeconds (Time.diffUTCTime ct balanceTime)
+    when (diff > fromIntegral dEnvMaxDelay) $ logMsg $ "Time of last token balance update:" .< balanceTime
     pure balance
 
 askIpsWithBalances :: DelegationM (Map Text Integer)
@@ -253,7 +257,7 @@ updateProgress = do
     ct                <- liftIO Time.getCurrentTime
     txIds             <- liftIO $ Bf.getAllAssetTxsAfterTxId dEnvNetworkId dEnvCurrencySymbol dEnvTokenName pLastTxId
     if null txIds
-    then Progress{..} <$ logMsg "No new txs."
+    then pure Progress{..}
     else do
         pb        <- newProgressBar "Getting delegations" (length txIds)
         newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
