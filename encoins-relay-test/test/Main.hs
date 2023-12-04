@@ -72,7 +72,6 @@ main = do
         (C.forkIO $ runDelegationServer' env)
         (\threadId -> do
             C.killThread threadId
-            getCurrentDirectory >>= print
             removeFile "blockfrost.token"
             removeFile "maestro.token"
             removeDirectoryRecursive (Deleg.cDelegationFolder delegConfig)
