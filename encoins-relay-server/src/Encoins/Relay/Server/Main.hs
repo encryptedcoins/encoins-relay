@@ -4,7 +4,7 @@
 
 module Encoins.Relay.Server.Main where
 
-import           Cardano.Server.Config           (Config (cHyperTextProtocol), decodeOrErrorFromFile)
+import           Cardano.Server.Config           (decodeOrErrorFromFile)
 import           Cardano.Server.Internal         (loadEnv, runServerM)
 import           Cardano.Server.Main             (runServer)
 import           Encoins.Relay.Server.Delegation (distributeRewards)
