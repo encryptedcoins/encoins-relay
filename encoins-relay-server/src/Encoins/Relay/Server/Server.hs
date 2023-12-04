@@ -9,6 +9,7 @@
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -19,7 +20,7 @@ import           CSL                            (TransactionInputs)
 import qualified CSL
 import           CSL.Class                      (FromCSL (..))
 import           Cardano.Server.Client.Internal (statusC)
-import           Cardano.Server.Config          (Config (..))
+import           Cardano.Server.Config          (Config (..), Creds)
 import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input           (InputContext (..))
 import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
@@ -33,6 +34,7 @@ import           Control.Monad.Catch            (MonadThrow (..))
 import           Control.Monad.IO.Class         (MonadIO (..))
 import           Data.Aeson                     (FromJSON, ToJSON)
 import           Data.Default                   (def)
+import           Data.FileEmbed                 (embedFileIfExists)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
@@ -58,6 +60,7 @@ import qualified Servant.Client                 as Servant
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
     EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
+    let ?creds = embedCreds
     verifierClientEnv      <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
     pure $ ServerHandle
         Kupo
@@ -80,6 +83,13 @@ mkServerHandle c = do
         encoinsStatusHandler
         checkStatusEndpoint
         versionHandler
+
+-- Embed https cert and key files on compilation
+embedCreds :: Creds
+embedCreds =
+    let keyCred  = $(embedFileIfExists "../key.pem" )
+        certCred = $(embedFileIfExists "../certificate.pem")
+    in (,) <$> certCred <*> keyCred
 
 type EncoinsApi = ServerApi
     (InputOfEncoinsApi, TransactionInputs)

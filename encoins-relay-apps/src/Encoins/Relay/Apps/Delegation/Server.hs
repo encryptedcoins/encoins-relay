@@ -15,7 +15,7 @@
 module Encoins.Relay.Apps.Delegation.Server where
 
 import           Cardano.Api                            (writeFileJSON)
-import           Cardano.Server.Config                  (HasHyperTextProtocol, HyperTextProtocol (..), decodeOrErrorFromFile)
+import           Cardano.Server.Config                  (HyperTextProtocol (..), decodeOrErrorFromFile, HasCreds)
 import           Cardano.Server.Error                   (logCriticalExceptions)
 import           Cardano.Server.Main                    (corsWithContentType)
 import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
@@ -68,6 +68,7 @@ runDelegationServer delegConfigFp = do
             cNetworkId
             cHost
             cPort
+            cHyperTextProtocol
             cDelegationFolder
             cFrequency
             cMaxDelay
@@ -83,7 +84,7 @@ creds = let keyCred  = $(embedFileIfExists "../key.pem")
             certCred = $(embedFileIfExists "../certificate.pem")
         in (,) <$> certCred <*> keyCred
 
-runDelegationServer' :: HasHyperTextProtocol => DelegationEnv -> IO ()
+runDelegationServer' :: HasCreds => DelegationEnv -> IO ()
 runDelegationServer' env = do
         hSetBuffering stdout LineBuffering
         createDirectoryIfMissing True $ dEnvDelegationFolder env
@@ -97,7 +98,7 @@ runDelegationServer' env = do
                 $ hoistServer (Proxy @DelegApi)
                     ((`runReaderT` env) . unDelegationM)
                     delegApi
-        case ?protocol of
+        case dEnvHyperTextProtocol env of
             HTTP  -> Warp.runSettings settings app
             HTTPS -> case ?creds of
                 Just (cert, key) -> Warp.runTLS (Warp.tlsSettingsMemory cert key) settings app

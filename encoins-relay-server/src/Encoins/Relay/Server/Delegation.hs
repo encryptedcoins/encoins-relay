@@ -7,11 +7,12 @@ module Encoins.Relay.Server.Delegation where
 
 import           Cardano.Api                          (writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
-import           Cardano.Server.Internal              (ServerM, mkServantClientEnv, getAuxillaryEnv)
+import           Cardano.Server.Internal              (Env (..), ServerM, getAuxillaryEnv, mkServantClientEnv)
 import           Cardano.Server.Tx                    (mkTx)
 import           Control.Applicative                  ((<|>))
 import           Control.Monad                        (void, when)
 import           Control.Monad.IO.Class               (MonadIO (..))
+import           Control.Monad.Reader                 (asks)
 import           Control.Monad.State                  (modify)
 import           Data.Bifunctor                       (Bifunctor (..))
 import           Data.Default                         (Default (..))
@@ -54,6 +55,8 @@ getRewardsDistribution totalReward = calculateReward <$> getRecepients
     where
         getRecepients = mapMaybe (\(addrTxt, b) -> (, b) <$> bech32ToAddress addrTxt) <$> do
             EncoinsRelayEnv{..} <- getAuxillaryEnv
+            creds <- asks envCreds
+            let ?creds = creds
             clientEnv <- mkServantClientEnv envDelegationServerPort envDelegationSeverHost envDelegationServerProtocol
             let ?servantClientEnv = clientEnv
             either (error . show) Map.toList <$> liftIO (serverDelegatesClient envDelegationIp)

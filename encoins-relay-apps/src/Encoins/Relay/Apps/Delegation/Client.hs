@@ -23,7 +23,7 @@ import           Data.Text                              (Text)
 import           Data.Text.Encoding                     (decodeUtf8')
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..))
 import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError, GetCurrentServers, GetServerDelegators,
-                                                         GetServers, readDelegationServerError)
+                                                         GetServers, readDelegationServerError, creds)
 import           Servant.Client                         (ClientError (FailureResponse), ClientM, ResponseF (Response), client,
                                                          runClientM)
 import           System.Environment                     (getArgs)
@@ -31,6 +31,7 @@ import           System.Environment                     (getArgs)
 main :: FilePath -> IO ()
 main delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
+    let ?creds = creds
     clientEnv <- mkServantClientEnv cPort cHost cHyperTextProtocol
     let ?servantClientEnv = clientEnv
     getArgs >>= \case

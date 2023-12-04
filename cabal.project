@@ -28,7 +28,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: eae2d8293162bb399e8136bd5b4e54f8fd5488d3
+  tag: 7549bd8d408803e2fbda5809fda22765210a85be
   subdir:
     cardano-server
     cardano-server-client

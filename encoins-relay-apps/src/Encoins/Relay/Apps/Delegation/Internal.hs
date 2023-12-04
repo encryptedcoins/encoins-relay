@@ -75,6 +75,7 @@ data DelegationEnv = DelegationEnv
     , dEnvNetworkId            :: NetworkId
     , dEnvHost                 :: Text
     , dEnvPort                 :: Int
+    , dEnvHyperTextProtocol    :: HyperTextProtocol
     , dEnvDelegationFolder     :: FilePath
     , dEnvFrequency            :: Int
     -- ^ Frequency of search for new delegations in seconds

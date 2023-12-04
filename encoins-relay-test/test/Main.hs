@@ -32,6 +32,7 @@ main = do
     let configFp         = "encoins-relay-test/test/configuration/config.json"
         verifierConfigFp = "encoins-relay-test/test/configuration/verifierConfig.json"
         delegConfigFp    = "encoins-relay-test/test/configuration/delegConfig.json"
+    let ?creds            = embedCreds
     delegConfig <- decodeOrErrorFromFile delegConfigFp
     config      <- decodeOrErrorFromFile configFp
     relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
@@ -50,7 +51,6 @@ main = do
     -- Delegation server specs
     delegClientEnv <- mkServantClientEnv (Deleg.cPort delegConfig) (Deleg.cHost delegConfig) (Deleg.cHyperTextProtocol delegConfig)
     let ?protocol         = Deleg.cHyperTextProtocol delegConfig
-        ?creds            = embedCreds
         ?servantClientEnv = delegClientEnv
     copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"
     copyFile "encoins-relay-test/test/configuration/maestro.token" "maestro.token"
@@ -60,6 +60,7 @@ main = do
             (cNetworkId config)
             (Deleg.cHost delegConfig)
             (Deleg.cPort delegConfig)
+            (Deleg.cHyperTextProtocol delegConfig)
             (Deleg.cDelegationFolder delegConfig)
             (Deleg.cFrequency delegConfig)
             (Deleg.cMaxDelay delegConfig)
