@@ -11,7 +11,7 @@
 module Encoins.Relay.Apps.Delegation.Internal where
 
 import           Cardano.Api                   (NetworkId, writeFileJSON)
-import           Cardano.Server.Config         (HyperTextProtocol)
+import           Cardano.Server.Config         (HyperTextProtocol, CardanoServerConfig (..))
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger, logMsg, (.<))
 import           Control.Applicative           ((<|>))
 import           Control.Exception             (throw)
@@ -93,6 +93,12 @@ data DelegationEnv = DelegationEnv
     -- (They are still present outside of tests)
     }
 
+instance CardanoServerConfig DelegationEnv where
+    configHost              = dEnvHost
+    configPort              = dEnvPort
+    configHyperTextProtocol = dEnvHyperTextProtocol
+
+
 data DelegConfig = DelegConfig
     { cHost                     :: Text
     , cPort                     :: Int
@@ -113,6 +119,11 @@ data DelegConfig = DelegConfig
 
 instance FromJSON DelegConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance CardanoServerConfig DelegConfig where
+    configHost              = cHost
+    configPort              = cPort
+    configHyperTextProtocol = cHyperTextProtocol
 
 ------------------------------------------------------------------ Helpers ------------------------------------------------------------------
 

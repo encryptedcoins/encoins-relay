@@ -17,7 +17,6 @@ runEncoinsServer cardanoServerConfigFp = do
     putStrLn $ showRelayVersion relayVersion
     config           <- decodeOrErrorFromFile cardanoServerConfigFp
     let ?creds    = embedCreds
-        ?protocol = cHyperTextProtocol config
     runWithOpts >>= \case
         Run      -> mkServerHandle config >>= runServer config
         Setup    -> mkServerHandle config >>= loadEnv config >>= (`runServerM` serverSetup)

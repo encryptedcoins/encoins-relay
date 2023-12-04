@@ -50,8 +50,7 @@ main = do
 
     -- Delegation server specs
     delegClientEnv <- mkServantClientEnv (Deleg.cPort delegConfig) (Deleg.cHost delegConfig) (Deleg.cHyperTextProtocol delegConfig)
-    let ?protocol         = Deleg.cHyperTextProtocol delegConfig
-        ?servantClientEnv = delegClientEnv
+    let ?servantClientEnv = delegClientEnv
     copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"
     copyFile "encoins-relay-test/test/configuration/maestro.token" "maestro.token"
     let env = DelegationEnv

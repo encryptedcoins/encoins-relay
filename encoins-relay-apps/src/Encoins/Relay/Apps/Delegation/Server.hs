@@ -15,9 +15,8 @@
 module Encoins.Relay.Apps.Delegation.Server where
 
 import           Cardano.Api                            (writeFileJSON)
-import           Cardano.Server.Config                  (HyperTextProtocol (..), decodeOrErrorFromFile, HasCreds)
-import           Cardano.Server.Error                   (logCriticalExceptions)
-import           Cardano.Server.Main                    (corsWithContentType)
+import           Cardano.Server.Config                  (decodeOrErrorFromFile, HasCreds)
+import           Cardano.Server.Main                    (runCardanoServer)
 import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
 import           Control.Applicative                    ((<|>))
@@ -37,7 +36,6 @@ import           Data.List                              (sortBy)
 import           Data.Map                               (Map, filterWithKey)
 import qualified Data.Map                               as Map
 import           Data.Maybe                             (mapMaybe)
-import           Data.Proxy                             (Proxy (..))
 import           Data.String                            (IsString (..))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
@@ -47,21 +45,17 @@ import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Deleg
                                                          loadPastProgress, readResultFile, runDelegationM, updateProgress,
                                                          writeResultFile)
 import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles)
-import qualified Network.Wai.Handler.Warp               as Warp
-import qualified Network.Wai.Handler.WarpTLS            as Warp
 import           PlutusAppsExtra.Utils.Address          (addressToBech32)
-import           Servant                                (Get, JSON, ReqBody, err404, err500, hoistServer, serve, throwError,
-                                                         type (:<|>) ((:<|>)), (:>))
+import           Servant                                (Get, JSON, ReqBody, err404, err500, throwError, type (:<|>) ((:<|>)),
+                                                         (:>))
 import           Servant.Server.Internal.ServerError    (ServerError (..))
 import           System.Directory                       (createDirectoryIfMissing)
-import           System.IO                              (BufferMode (LineBuffering), hSetBuffering, stdout)
 import           Text.Read                              (readMaybe)
 
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
-    let ?protocol = cHyperTextProtocol
-        ?creds    = creds
+    let ?creds    = creds
     let env = DelegationEnv
             logger
             (Just "delegationServer.log")
@@ -79,33 +73,14 @@ runDelegationServer delegConfigFp = do
             True
     runDelegationServer' env
 
-creds :: Maybe (ByteString, ByteString)
-creds = let keyCred  = $(embedFileIfExists "../key.pem")
-            certCred = $(embedFileIfExists "../certificate.pem")
-        in (,) <$> certCred <*> keyCred
-
 runDelegationServer' :: HasCreds => DelegationEnv -> IO ()
 runDelegationServer' env = do
-        hSetBuffering stdout LineBuffering
-        createDirectoryIfMissing True $ dEnvDelegationFolder env
-
-        -- Launch the delegation search application
-        void $ forkIO runDelegationSerach
-
-        runDelegationM env $ logMsg "Starting delegation server..."
-        let app = corsWithContentType
-                $ serve (Proxy @DelegApi)
-                $ hoistServer (Proxy @DelegApi)
-                    ((`runReaderT` env) . unDelegationM)
-                    delegApi
-        case dEnvHyperTextProtocol env of
-            HTTP  -> Warp.runSettings settings app
-            HTTPS -> case ?creds of
-                Just (cert, key) -> Warp.runTLS (Warp.tlsSettingsMemory cert key) settings app
-                Nothing          -> error "No creds given to run with HTTPS. \
-                                          \Add key.pem and certificate.pem file before compilation. \
-                                          \If this error doesn't go away, try running `cabal clean` first."
+    createDirectoryIfMissing True $ dEnvDelegationFolder env
+    runCardanoServer @DelegApi env ((`runReaderT` env) . unDelegationM) delegApi beforeMainLoop
     where
+        beforeMainLoop = do
+            void $ liftIO $ forkIO runDelegationSerach
+            logMsg "Starting delegation server..."
         runDelegationSerach
             = withRecovery
             $ runDelegationM env
@@ -115,14 +90,11 @@ runDelegationServer' env = do
             logSmth err
             waitTime 10
             withRecovery ma
-        settings
-            = Warp.setLogger logReceivedRequest
-            $ Warp.setOnException (const logException)
-            $ Warp.setHost (fromString $ T.unpack $ dEnvHost env)
-            $ Warp.setPort (dEnvPort env) Warp.defaultSettings
-        logReceivedRequest req status _ = runDelegationM env $
-            logMsg $ "Received request:\n" .< req <> "\nStatus:" .< status
-        logException = runDelegationM env . logCriticalExceptions
+
+creds :: Maybe (ByteString, ByteString)
+creds = let keyCred  = $(embedFileIfExists "../key.pem")
+            certCred = $(embedFileIfExists "../certificate.pem")
+        in (,) <$> certCred <*> keyCred
 
 ------------------------------------------------------------------- API -------------------------------------------------------------------
 
