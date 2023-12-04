@@ -259,10 +259,14 @@ updateProgress = do
         newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
             liftIO $ incProgress pb 1
             findDeleg txId
-        when (notNull newDelegs) $ logMsg $ "New delegs:" .< newDelegs
+        when (notNull newDelegs) $ logMsg $ "New delegs:" <> foldr (prettyDeleg dEnvNetworkId) "" newDelegs
         let p = Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
         setProgress p ct
         pure p
+    where
+        prettyDeleg network d rest = case addressToBech32 network (delegAddress d) of
+            Just addr -> rest <> "\n" <> addr <> " : " <> delegIp d
+            Nothing   -> rest <> "\n" <> T.pack (show (delegCredential d) <> "<>" <> show (delegStakeKey d)) <> " : " <> delegIp d
 
 updateBalances :: DelegationM (Map PubKeyHash Integer)
 updateBalances = do
