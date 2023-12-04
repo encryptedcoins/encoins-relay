@@ -13,7 +13,7 @@ import           Data.Maybe                             (listToMaybe)
 import           Encoins.Relay.Apps.Delegation.Client   (DelegationClientError (DelegationServerError), currentServersClient,
                                                          serverDelegatesClient, serversClient)
 import           Encoins.Relay.Apps.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..),
-                                                         runDelegationM, updateProgress)
+                                                         runDelegationM)
 import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError (..), runDelegationServer)
 import           System.Directory                       (setCurrentDirectory)
 import           Test.Hspec                             (Expectation, Spec, context, describe, hspec, it, shouldBe)

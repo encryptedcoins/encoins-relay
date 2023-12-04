@@ -12,7 +12,9 @@ import qualified Control.Concurrent                     as C
 import           Control.Exception                      (bracket, bracket_, try)
 import           Control.Monad                          (void)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Encoins.Relay.Apps.Delegation.Internal (DelegationEnv (..))
+import           Data.IORef                             (newIORef)
+import qualified Data.Time                              as Time
+import           Encoins.Relay.Apps.Delegation.Internal (DelegationEnv (..), Progress (..))
 import qualified Encoins.Relay.Apps.Delegation.Internal as Deleg
 import           Encoins.Relay.Apps.Delegation.Server   (runDelegationServer, runDelegationServer')
 import qualified Encoins.Relay.DelegationSpec           as Delegation
@@ -20,7 +22,7 @@ import           Encoins.Relay.Server.Config            (EncoinsRelayConfig (..)
 import           Encoins.Relay.Server.Server            (mkServerHandle)
 import qualified Encoins.Relay.Server.ServerSpec        as Server
 import qualified Encoins.Relay.Server.StatusSpec        as Status
-import           Encoins.Relay.Verifier.Server          (runVerifierServer, VerifierConfig (cHyperTextProtocol))
+import           Encoins.Relay.Verifier.Server          (VerifierConfig (cHyperTextProtocol), runVerifierServer)
 import qualified Encoins.Relay.Verifier.ServerSpec      as Verifier
 import           System.Directory                       (copyFile, createDirectoryIfMissing, getCurrentDirectory, listDirectory,
                                                          removeDirectory, removeDirectoryRecursive, removeFile, renameDirectory,
@@ -53,6 +55,8 @@ main = do
     let ?servantClientEnv = delegClientEnv
     copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"
     copyFile "encoins-relay-test/test/configuration/maestro.token" "maestro.token"
+    resultRef  <- newIORef (Progress Nothing [], Time.UTCTime (toEnum 0) 0)
+    balanceRef <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
     let env = DelegationEnv
             mutedLogger
             Nothing
@@ -68,6 +72,8 @@ main = do
             (cDelegationCurrencySymbol relayConfig)
             (cDelegationTokenName relayConfig)
             False
+            resultRef
+            balanceRef
     bracket
         (C.forkIO $ runDelegationServer' env)
         (\threadId -> do
