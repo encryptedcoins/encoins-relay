@@ -34,17 +34,15 @@ spec = describe "Delegation server" $ do
 
 propServers :: HasServantClientEnv => Expectation
 propServers = serversClient >>= (`shouldBe` Right (Map.fromList
-    [ ("https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/", 5)
-    ]))
+    [("delegationTest12000",12000),("delegationTest8000",8000)]))
 
 propCurrent :: HasServantClientEnv => Expectation
-propCurrent = currentServersClient >>= (`shouldBe` Right ["https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/"])
+propCurrent = currentServersClient >>= (`shouldBe` Right ["1.2.3.4", "5.6.7.8"])
 
 propDelegatesOk :: HasServantClientEnv => Expectation
-propDelegatesOk = serverDelegatesClient "https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/" >>=
+propDelegatesOk = serverDelegatesClient "delegationTest12000" >>=
     (`shouldBe` Right (Map.fromList
-        [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 3)
-        ,("addr_test1qr8cdsle3chjufssrg9wujvseypyj8fgxj2xg005cclyk0wu66jsm534qu9p759fexv8h2lpsdja54yrzgmzv4z83wmstcscqv", 2)
+        [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 12000)
         ]))
 
 propDelegates404 :: HasServantClientEnv => Expectation

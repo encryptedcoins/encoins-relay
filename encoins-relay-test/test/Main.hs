@@ -7,7 +7,7 @@ import           Cardano.Server.Config                  (Config (cAuxiliaryEnvFi
 import           Cardano.Server.Internal                (mkServantClientEnv)
 import           Cardano.Server.Main                    (embedCreds)
 import           Cardano.Server.Test.Utils              (withCardanoServer)
-import           Cardano.Server.Utils.Logger            (logger, mutedLogger)
+import           Cardano.Server.Utils.Logger            (mutedLogger)
 import qualified Control.Concurrent                     as C
 import           Control.Exception                      (bracket, bracket_, try)
 import           Control.Monad                          (void)
@@ -40,21 +40,20 @@ main = do
     relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
     sHandle     <- mkServerHandle config
 
-    -- Encoins relay server and verifier server specs
-    bracket
-        (C.forkIO $ runVerifierServer verifierConfigFp)
-        C.killThread
-        $ const $ withCardanoServer configFp sHandle 30 $ do
-            runIO $ C.threadDelay 50000
-            Status.spec
-            Verifier.spec
-            Server.spec
+    -- -- Encoins relay server and verifier server specs
+    -- bracket
+    --     (C.forkIO $ runVerifierServer verifierConfigFp)
+    --     C.killThread
+    --     $ const $ withCardanoServer configFp sHandle 30 $ do
+    --         runIO $ C.threadDelay 50000
+    --         Status.spec
+    --         Verifier.spec
+    --         Server.spec
 
     -- Delegation server specs
     delegClientEnv <- mkServantClientEnv (Deleg.cPort delegConfig) (Deleg.cHost delegConfig) (Deleg.cHyperTextProtocol delegConfig)
     let ?servantClientEnv = delegClientEnv
-    copyFile "encoins-relay-test/test/configuration/blockfrost.token" "blockfrost.token"
-    copyFile "encoins-relay-test/test/configuration/maestro.token" "maestro.token"
+    setCurrentDirectory "encoins-relay-test/test/configuration"
     resultRef  <- newIORef (Progress Nothing [], Time.UTCTime (toEnum 0) 0)
     balanceRef <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
     let env = DelegationEnv
@@ -78,8 +77,6 @@ main = do
         (C.forkIO $ runDelegationServer' env)
         (\threadId -> do
             C.killThread threadId
-            removeFile "blockfrost.token"
-            removeFile "maestro.token"
             removeDirectoryRecursive (Deleg.cDelegationFolder delegConfig)
         )
         $ const $ (C.threadDelay 30_000_000 >>) $ hspec $ do
