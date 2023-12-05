@@ -154,7 +154,7 @@ getCurrentServersHandler = delegationErrorH $ do
     -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
     delegationMap     <- liftIO $ decodeOrErrorFromFile "delegationMap.json"
 
-    pure $ mapMaybe (`Map.lookup` delegationMap) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber env) ipsWithBalances
+    pure $ mapMaybe (`Map.lookup` delegationMap) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber) ipsWithBalances
 
 ------------------------------------------------------ Get server delegators endpoint ------------------------------------------------------
 

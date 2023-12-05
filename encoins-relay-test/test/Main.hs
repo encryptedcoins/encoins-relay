@@ -40,15 +40,15 @@ main = do
     relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
     sHandle     <- mkServerHandle config
 
-    -- -- Encoins relay server and verifier server specs
-    -- bracket
-    --     (C.forkIO $ runVerifierServer verifierConfigFp)
-    --     C.killThread
-    --     $ const $ withCardanoServer configFp sHandle 30 $ do
-    --         runIO $ C.threadDelay 50000
-    --         Status.spec
-    --         Verifier.spec
-    --         Server.spec
+    -- Encoins relay server and verifier server specs
+    bracket
+        (C.forkIO $ runVerifierServer verifierConfigFp)
+        C.killThread
+        $ const $ withCardanoServer configFp sHandle 30 $ do
+            runIO $ C.threadDelay 50000
+            Status.spec
+            Verifier.spec
+            Server.spec
 
     -- Delegation server specs
     delegClientEnv <- mkServantClientEnv (Deleg.cPort delegConfig) (Deleg.cHost delegConfig) (Deleg.cHyperTextProtocol delegConfig)
