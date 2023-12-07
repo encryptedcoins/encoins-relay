@@ -145,7 +145,7 @@ type GetServers = "servers" :> Get '[JSON] (Map Text Integer)
 getServersHandler :: DelegationM (Map Text Integer)
 getServersHandler = delegationErrorH $ do
     (retiredRelays :: [Text]) <- liftIO $ decodeOrErrorFromFile "retiredRelays.json"
-    filterWithKey (\k _ -> k `notElem` retiredRelays) <$> askIpsWithBalances
+    filterWithKey (\k _ -> k `notElem` retiredRelays) <$> askIpsWithBalances True
 
 -------------------------------------- Get current (more than 100k(MinTokenNumber) delegated tokens) servers endpoint --------------------------------------
 
@@ -154,7 +154,7 @@ type GetCurrentServers = "current" :> Get '[JSON] [Text]
 getCurrentServersHandler :: DelegationM [Text]
 getCurrentServersHandler = delegationErrorH $ do
     DelegationEnv{..} <- ask
-    ipsWithBalances   <- askIpsWithBalances
+    ipsWithBalances   <- askIpsWithBalances True
     mapM (toProxy dEnvNetworkId) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber) ipsWithBalances
     where
         -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
@@ -171,7 +171,7 @@ type GetServerDelegators = "delegates" :> ReqBody '[JSON] Text :> Get '[JSON] (M
 getServerDelegatesHandler :: Text -> DelegationM (Map Text Integer)
 getServerDelegatesHandler ip = delegationErrorH $ do
         DelegationEnv{..} <- ask
-        Progress _ delegs <- askProgress
+        Progress _ delegs <- askProgress True
         let delegs' = sortBy (compare `on` delegCreated) $ filter ((== ip) . delegIp) delegs
         when (null delegs') $ throwM UnknownIp
         balances <- askTokenBalance <&> Map.filterWithKey (\pkh _ -> pkh `elem` fmap delegStakeKey delegs')
@@ -194,7 +194,7 @@ type GetDelegationInfo = "info" :>  ReqBody '[JSON] Address :> Get '[JSON] (Text
 getDelegationInfoHandler :: Address -> DelegationM (Text, Integer)
 getDelegationInfoHandler addr = delegationErrorH $ do
     let pkh = fromMaybe (throw err404) $ getStakeKey addr
-    mbIp      <- fmap delegIp . find ((== pkh) . delegStakeKey) . pDelgations <$> askProgress
+    mbIp      <- fmap delegIp . find ((== pkh) . delegStakeKey) . pDelgations <$> askProgress True
     mbBalance <- Map.lookup pkh <$> askTokenBalance
     maybe (throwM UnknownAddress) pure $ liftA2 (,) mbIp mbBalance
 
@@ -227,14 +227,14 @@ delegationErrorH = handle $ \case
 
 ------------------------------------------------------------------ Helpers ------------------------------------------------------------------
 
-askProgress :: DelegationM Progress
-askProgress = do
+askProgress :: Bool -> DelegationM Progress
+askProgress checkProgress = do
     ct <- liftIO Time.getCurrentTime
     DelegationEnv{..} <- ask
     (progress, progressTime) <- liftIO $ readIORef dEnvProgress
     let diff = Time.nominalDiffTimeToSeconds (Time.diffUTCTime ct progressTime)
-    when (diff > fromIntegral dEnvMaxDelay) $ do
-        logMsg $ "Time of last prgress update:" .< progressTime
+    when (checkProgress && diff > fromIntegral dEnvMaxDelay) $ do
+        logMsg $ "Time of last progress update:" .< progressTime
         throwM $ StaleProgressFile diff (diff - fromIntegral dEnvMaxDelay)
     pure progress
 
@@ -247,9 +247,9 @@ askTokenBalance = do
     when (diff > fromIntegral dEnvMaxDelay) $ logMsg $ "Time of last token balance update:" .< balanceTime
     pure balance
 
-askIpsWithBalances :: DelegationM (Map Text Integer)
-askIpsWithBalances = concatIpsWithBalances <$> do
-    Progress _ delegs <- askProgress
+askIpsWithBalances :: Bool -> DelegationM (Map Text Integer)
+askIpsWithBalances checkProgress = concatIpsWithBalances <$> do
+    Progress _ delegs <- askProgress checkProgress
     balances          <- askTokenBalance
     pure $ mapMaybe (\Delegation{..} -> Map.lookup delegStakeKey balances <&> (delegIp,)) delegs
 
@@ -260,7 +260,7 @@ searchForDelegations = do
         delay             <- liftIO $ async $ waitTime dEnvFrequency
         newProgress       <- updateProgress
         _                 <- updateBalances
-        ipsWithBalances   <- askIpsWithBalances
+        ipsWithBalances   <- askIpsWithBalances False
         writeDeleg dEnvDelegationFolder ct newProgress
         writeResult dEnvDelegationFolder ct ipsWithBalances
         liftIO $ wait delay
@@ -280,13 +280,13 @@ updateProgress = do
     ct                <- liftIO Time.getCurrentTime
     txIds             <- liftIO $ Bf.getAllAssetTxsAfterTxId dEnvNetworkId dEnvCurrencySymbol dEnvTokenName pLastTxId
     if null txIds
-    then pure Progress{..}
+    then logMsg "No new delegations." >> pure Progress{..}
     else do
         pb        <- newProgressBar "Getting delegations" (length txIds)
         newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
             liftIO $ incProgress pb 1
             findDeleg txId
-        when (notNull newDelegs) $ logMsg $ "New delegs:" <> foldr (prettyDeleg dEnvNetworkId) "" newDelegs
+        when (notNull newDelegs) $ logMsg $ "New delegations:" <> foldr (prettyDeleg dEnvNetworkId) "" newDelegs
         let p = Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
         setProgress p ct
         pure p
