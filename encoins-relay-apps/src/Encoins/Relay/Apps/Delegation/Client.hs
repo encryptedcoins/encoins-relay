@@ -12,7 +12,6 @@ import           Cardano.Server.Client.Handle           (HasServantClientEnv)
 import           Cardano.Server.Config                  (decodeOrErrorFromFile)
 import           Cardano.Server.Internal                (mkServantClientEnv)
 import           Control.Exception                      (Exception)
-import           Data.Aeson                             (ToJSON (toJSON))
 import           Data.Bifunctor                         (Bifunctor (..))
 import qualified Data.ByteString.Lazy                   as BS
 import           Data.Either.Extra                      (eitherToMaybe)
@@ -27,6 +26,7 @@ import           Data.Text.Encoding                     (decodeUtf8')
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..))
 import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError, GetCurrentServers, GetDelegationInfo,
                                                          GetServerDelegators, GetServers, creds, readDelegationServerError)
+import           Ledger                                 (Address)
 import           PlutusAppsExtra.Utils.Address          (bech32ToAddress)
 import           Servant.Client                         (ClientError (FailureResponse), ClientM, ResponseF (Response), client,
                                                          runClientM)
@@ -41,7 +41,7 @@ main delegConfigFp = do
     getArgs >>= \case
         ["servers"]      -> serversClient >>= print
         ["current"]      -> currentServersClient >>= print
-        ["info", pkhTxt] -> delegationInfoClient (T.pack pkhTxt) >>= print
+        ["info", pkhTxt] -> delegationInfoClient (fromMaybe (error "Unparsable address.") $ bech32ToAddress $ T.pack pkhTxt) >>= print
         [ip]             -> serverDelegatesClient (fromString ip) >>= print
         args             -> error $ "unknown args:\n" <> show args
 
@@ -54,8 +54,8 @@ currentServersClient = runDelegationClient $ client (Proxy @GetCurrentServers)
 serverDelegatesClient :: HasServantClientEnv => Text -> IO (Either DelegationClientError (Map Text Integer))
 serverDelegatesClient ip = runDelegationClient $ client (Proxy @GetServerDelegators) ip
 
-delegationInfoClient :: HasServantClientEnv => Text -> IO (Either DelegationClientError (Text, Integer))
-delegationInfoClient = runDelegationClient . client (Proxy @GetDelegationInfo) . toJSON . fromMaybe (error "unparsable address.") . bech32ToAddress
+delegationInfoClient :: HasServantClientEnv => Address -> IO (Either DelegationClientError (Text, Integer))
+delegationInfoClient = runDelegationClient . client (Proxy @GetDelegationInfo)
 
 runDelegationClient :: HasServantClientEnv => ClientM a -> IO (Either DelegationClientError a)
 runDelegationClient c = (c `runClientM` ?servantClientEnv) <&> first fromClientError
