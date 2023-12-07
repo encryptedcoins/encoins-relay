@@ -60,7 +60,6 @@ library
       data-default                           -any,
       directory                              -any,
       encoins-core                           -any,
-    --   encoins-relay-server                   -any,
       exceptions                             -any,
       extra                                  -any,
       file-embed                             -any,

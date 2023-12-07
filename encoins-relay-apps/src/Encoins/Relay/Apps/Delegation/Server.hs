@@ -19,9 +19,10 @@ import           Cardano.Server.Config                  (HasCreds, decodeOrError
 import           Cardano.Server.Main                    (runCardanoServer)
 import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
-import           Control.Applicative                    ((<|>))
+import           Control.Applicative                    (liftA2, (<|>))
 import           Control.Concurrent                     (forkIO)
 import           Control.Concurrent.Async               (async, wait)
+import           Control.Exception                      (throw)
 import           Control.Monad                          (forM, forever, void, when, (>=>))
 import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
@@ -32,11 +33,11 @@ import           Data.Fixed                             (Pico)
 import           Data.Function                          (on)
 import           Data.Functor                           ((<&>))
 import           Data.IORef                             (newIORef, readIORef)
-import           Data.List                              (sortBy)
+import           Data.List                              (find, sortBy)
 import           Data.List.Extra                        (notNull)
 import           Data.Map                               (Map, filterWithKey)
 import qualified Data.Map                               as Map
-import           Data.Maybe                             (catMaybes, listToMaybe, mapMaybe)
+import           Data.Maybe                             (catMaybes, fromMaybe, listToMaybe, mapMaybe)
 import           Data.String                            (IsString (..))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
@@ -47,9 +48,9 @@ import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Deleg
                                                          getBalances, removeDuplicates, runDelegationM, setProgress,
                                                          setTokenBalance)
 import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
-import           Ledger                                 (PubKeyHash)
+import           Ledger                                 (PubKeyHash, Address)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
-import           PlutusAppsExtra.Utils.Address          (addressToBech32)
+import           PlutusAppsExtra.Utils.Address          (addressToBech32, getStakeKey)
 import           Servant                                (Get, JSON, ReqBody, err404, err500, throwError, type (:<|>) ((:<|>)),
                                                          (:>))
 import           Servant.Server.Internal.ServerError    (ServerError (..))
@@ -125,14 +126,17 @@ type DelegApi
     =    GetServers
     :<|> GetCurrentServers
     :<|> GetServerDelegators
+    :<|> GetDelegationInfo
 
 delegApi :: DelegationM (Map Text Integer)
        :<|> DelegationM [Text]
        :<|> (Text -> DelegationM (Map Text Integer))
+       :<|> (Address -> DelegationM (Text, Integer))
 delegApi
     =    getServersHandler
     :<|> getCurrentServersHandler
     :<|> getServerDelegatesHandler
+    :<|> getDelegationInfoHandler
 
 ----------------------------------------------- Get (all) servers ips with delegated tokens number endpoint -----------------------------------------------
 
@@ -179,26 +183,42 @@ getServerDelegatesHandler ip = delegationErrorH $ do
             | balance <= threshold = (del, balance) : filterWithThreshold (threshold - balance) ds
             | otherwise            = [(del, threshold)]
 
+------------------------------------------- Get specific delegation info by address endpoint -------------------------------------------
+
+type GetDelegationInfo = "info" :>  ReqBody '[JSON] Address :> Get '[JSON] (Text, Integer)
+
+-- Get ip of delegated server and number of tokens by address endpoint
+getDelegationInfoHandler :: Address -> DelegationM (Text, Integer)
+getDelegationInfoHandler addr = delegationErrorH $ do
+    let pkh = fromMaybe (throw err404) $ getStakeKey addr
+    mbIp      <- fmap delegIp . find ((== pkh) . delegStakeKey) . pDelgations <$> askProgress
+    mbBalance <- Map.lookup pkh <$> askTokenBalance
+    maybe (throwM UnknownAddress) pure $ liftA2 (,) mbIp mbBalance
+
 ------------------------------------------------------------------- Errors -------------------------------------------------------------------
 
 data DelegationServerError
     = StaleProgressFile Pico Pico
     -- ^ The maximum allowable difference and how much it was exceeded, in seconds
     | UnknownIp
+    | UnknownAddress
     deriving (Show, Read, Eq, Exception)
 
 readDelegationServerError :: Text -> Maybe DelegationServerError
-readDelegationServerError "Unknown IP." = Just UnknownIp
+readDelegationServerError "Unknown IP."  = Just UnknownIp
+readDelegationServerError "Unknown wallet address." = Just UnknownAddress
 readDelegationServerError txt = T.stripPrefix "The distribution of delegates is not yet ready - " >=> readMaybe . T.unpack $ txt
 
 showDelegationServerError :: DelegationServerError -> String
-showDelegationServerError UnknownIp = "Unknown IP."
+showDelegationServerError UnknownIp  = "Unknown IP."
+showDelegationServerError UnknownAddress = "Unknown wallet address."
 showDelegationServerError err = ("The distribution of delegates is not yet ready - " <>) $ show err
 
 delegationErrorH :: DelegationM a -> DelegationM a
 delegationErrorH = handle $ \case
         err@(StaleProgressFile _ _) -> throwServerError err500 err
         UnknownIp                   -> throwServerError err404 UnknownIp
+        UnknownAddress              -> throwServerError err404 UnknownAddress
     where
         throwServerError servantErr serverErr = throwError servantErr{errBody = fromString $ showDelegationServerError serverErr}
 
