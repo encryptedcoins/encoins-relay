@@ -14,7 +14,7 @@
 
 module Encoins.Relay.Apps.Delegation.Server where
 
-import           Cardano.Api                            (writeFileJSON, NetworkId (Mainnet))
+import           Cardano.Api                            (NetworkId (Mainnet), writeFileJSON)
 import           Cardano.Server.Config                  (HasCreds, decodeOrErrorFromFile)
 import           Cardano.Server.Main                    (runCardanoServer)
 import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
@@ -27,6 +27,7 @@ import           Control.Monad                          (forM, forever, void, wh
 import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
 import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
+import           Data.Aeson.Types                       (FromJSON (parseJSON), Value, parseEither)
 import           Data.ByteString                        (ByteString)
 import           Data.FileEmbed                         (embedFileIfExists)
 import           Data.Fixed                             (Pico)
@@ -48,7 +49,7 @@ import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Deleg
                                                          getBalances, removeDuplicates, runDelegationM, setProgress,
                                                          setTokenBalance)
 import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
-import           Ledger                                 (PubKeyHash, Address)
+import           Ledger                                 (PubKeyHash)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
 import           PlutusAppsExtra.Utils.Address          (addressToBech32, getStakeKey)
 import           Servant                                (Get, JSON, ReqBody, err404, err500, throwError, type (:<|>) ((:<|>)),
@@ -131,7 +132,7 @@ type DelegApi
 delegApi :: DelegationM (Map Text Integer)
        :<|> DelegationM [Text]
        :<|> (Text -> DelegationM (Map Text Integer))
-       :<|> (Address -> DelegationM (Text, Integer))
+       :<|> (Value -> DelegationM (Text, Integer))
 delegApi
     =    getServersHandler
     :<|> getCurrentServersHandler
@@ -188,11 +189,13 @@ getServerDelegatesHandler ip = delegationErrorH $ do
 
 ------------------------------------------- Get specific delegation info by address endpoint -------------------------------------------
 
-type GetDelegationInfo = "info" :>  ReqBody '[JSON] Address :> Get '[JSON] (Text, Integer)
+type GetDelegationInfo = "info" :>  ReqBody '[JSON] Value :> Get '[JSON] (Text, Integer)
 
 -- Get ip of delegated server and number of tokens by address endpoint
-getDelegationInfoHandler :: Address -> DelegationM (Text, Integer)
-getDelegationInfoHandler addr = delegationErrorH $ do
+getDelegationInfoHandler :: Value -> DelegationM (Text, Integer)
+getDelegationInfoHandler addrVal = delegationErrorH $ do
+    logSmth addrVal
+    let addr = either error id $ parseEither id $ parseJSON addrVal
     let pkh = fromMaybe (throw err404) $ getStakeKey addr
     mbIp      <- fmap delegIp . find ((== pkh) . delegStakeKey) . pDelgations <$> askProgress True
     mbBalance <- Map.lookup pkh <$> askTokenBalance

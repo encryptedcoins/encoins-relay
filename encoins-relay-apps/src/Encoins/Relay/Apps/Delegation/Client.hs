@@ -12,6 +12,7 @@ import           Cardano.Server.Client.Handle           (HasServantClientEnv)
 import           Cardano.Server.Config                  (decodeOrErrorFromFile)
 import           Cardano.Server.Internal                (mkServantClientEnv)
 import           Control.Exception                      (Exception)
+import           Data.Aeson                             (ToJSON (toJSON))
 import           Data.Bifunctor                         (Bifunctor (..))
 import qualified Data.ByteString.Lazy                   as BS
 import           Data.Either.Extra                      (eitherToMaybe)
@@ -54,7 +55,7 @@ serverDelegatesClient :: HasServantClientEnv => Text -> IO (Either DelegationCli
 serverDelegatesClient ip = runDelegationClient $ client (Proxy @GetServerDelegators) ip
 
 delegationInfoClient :: HasServantClientEnv => Text -> IO (Either DelegationClientError (Text, Integer))
-delegationInfoClient = runDelegationClient . client (Proxy @GetDelegationInfo) . fromMaybe (error "unparsable address.") . bech32ToAddress
+delegationInfoClient = runDelegationClient . client (Proxy @GetDelegationInfo) . toJSON . fromMaybe (error "unparsable address.") . bech32ToAddress
 
 runDelegationClient :: HasServantClientEnv => ClientM a -> IO (Either DelegationClientError a)
 runDelegationClient c = (c `runClientM` ?servantClientEnv) <&> first fromClientError
