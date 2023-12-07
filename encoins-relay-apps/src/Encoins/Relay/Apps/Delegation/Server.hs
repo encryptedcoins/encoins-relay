@@ -14,7 +14,7 @@
 
 module Encoins.Relay.Apps.Delegation.Server where
 
-import           Cardano.Api                            (writeFileJSON)
+import           Cardano.Api                            (writeFileJSON, NetworkId (Mainnet))
 import           Cardano.Server.Config                  (HasCreds, decodeOrErrorFromFile)
 import           Cardano.Server.Main                    (runCardanoServer)
 import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
@@ -155,10 +155,13 @@ getCurrentServersHandler :: DelegationM [Text]
 getCurrentServersHandler = delegationErrorH $ do
     DelegationEnv{..} <- ask
     ipsWithBalances   <- askIpsWithBalances
-    -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
-    delegationMap     <- liftIO $ decodeOrErrorFromFile "delegationMap.json"
-
-    pure $ mapMaybe (`Map.lookup` delegationMap) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber) ipsWithBalances
+    mapM (toProxy dEnvNetworkId) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber) ipsWithBalances
+    where
+        -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
+        toProxy :: NetworkId -> Text -> DelegationM Text
+        toProxy network ip = case network of
+            Mainnet -> fromMaybe ip . Map.lookup ip <$> liftIO (decodeOrErrorFromFile "delegationMap.json")
+            _       -> pure ip
 
 ------------------------------------------------------ Get server delegators endpoint ------------------------------------------------------
 
