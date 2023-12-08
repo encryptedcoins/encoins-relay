@@ -9,6 +9,7 @@
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -19,13 +20,14 @@ import           CSL                            (TransactionInputs)
 import qualified CSL
 import           CSL.Class                      (FromCSL (..))
 import           Cardano.Server.Client.Internal (statusC)
-import           Cardano.Server.Config          (Config (..))
+import           Cardano.Server.Config          (Config (..), Creds)
 import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input           (InputContext (..))
 import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
                                                  getAuxillaryEnv, mkServantClientEnv, mkServerClientEnv)
 import           Cardano.Server.Main            (ServerApi)
 import           Cardano.Server.Tx              (mkTx)
+import           Cardano.Server.Utils.Logger    ((.<))
 import           Control.Arrow                  ((&&&))
 import           Control.Exception              (Exception, throw)
 import           Control.Monad                  (void)
@@ -33,6 +35,7 @@ import           Control.Monad.Catch            (MonadThrow (..))
 import           Control.Monad.IO.Class         (MonadIO (..))
 import           Data.Aeson                     (FromJSON, ToJSON)
 import           Data.Default                   (def)
+import           Data.FileEmbed                 (embedFileIfExists)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
@@ -46,7 +49,7 @@ import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (..), getEncoin
 import           Encoins.Relay.Server.Status    (EncoinsStatusErrors, EncoinsStatusReqBody (MaxAdaWithdraw), EncoinsStatusResult,
                                                  encoinsStatusHandler)
 import           Encoins.Relay.Server.Version   (ServerVersion, versionHandler)
-import           Encoins.Relay.Verifier.Client  (verifierClient)
+import           Encoins.Relay.Verifier.Client  (VerifierClientError (..), verifierClient)
 import           Encoins.Relay.Verifier.Server  (VerifierApiError (..))
 import           GHC.Generics                   (Generic)
 import           Ledger                         (Address, TxId (TxId), TxOutRef (..))
@@ -58,6 +61,7 @@ import qualified Servant.Client                 as Servant
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
     EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
+    let ?creds = embedCreds
     verifierClientEnv      <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
     pure $ ServerHandle
         Kupo
@@ -81,6 +85,13 @@ mkServerHandle c = do
         checkStatusEndpoint
         versionHandler
 
+-- Embed https cert and key files on compilation
+embedCreds :: Creds
+embedCreds =
+    let keyCred  = $(embedFileIfExists "../key.pem" )
+        certCred = $(embedFileIfExists "../certificate.pem")
+    in (,) <$> certCred <*> keyCred
+
 type EncoinsApi = ServerApi
     (InputOfEncoinsApi, TransactionInputs)
     EncoinsTxApiError
@@ -102,15 +113,19 @@ data EncoinsTxApiError
     = CorruptedExternalInputs
     | CorruptedValue
     | VerifierError VerifierApiError
+    | UnavailableVerifier Servant.ClientError
     deriving (Show, Exception)
 
 instance IsCardanoServerError EncoinsTxApiError where
-    errStatus _ = toEnum 422
+    errStatus = \case
+        UnavailableVerifier{} -> toEnum 500
+        _                     -> toEnum 422
     errMsg = \case
         CorruptedExternalInputs      -> "The request contained corrupted external transaction inputs data."
         CorruptedValue               -> "The request contained corrupted value data."
         VerifierError IncorrectInput -> "The request contained incorrect public input."
         VerifierError IncorrectProof -> "The request contained incorrect proof."
+        UnavailableVerifier err      -> "The verifier is unavailable.\nDetails:" .< err
 
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
@@ -163,9 +178,13 @@ txBuilders (InputDelegation addr ipAddr) = do
 
 verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
 verifyRedeemer red = do
-    verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
-    let ?servantClientEnv = verifierClientEnv
-    liftIO (verifierClient red) >>= either throwM pure
+        verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
+        let ?servantClientEnv = verifierClientEnv
+        liftIO (verifierClient red) >>= either rethrow pure
+    where
+        rethrow = \case
+            VerifierApiError    verifierErr -> throw $ VerifierError verifierErr
+            VerifierClientError clientErr   -> throw $ UnavailableVerifier clientErr
 
 -- Check if status endpoint is alive
 checkStatusEndpoint :: ServerM EncoinsApi (Either Text ())

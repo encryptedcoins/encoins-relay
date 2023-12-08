@@ -22,7 +22,7 @@ import           Servant.Client                (BaseUrl (..), ClientEnv (..), Cl
                                                 defaultMakeClientRequest, foldMapUnion, runClientM)
 
 verifierClient :: HasServantClientEnv => EncoinsRedeemer -> IO (Either VerifierClientError EncoinsRedeemerOnChain)
-verifierClient red 
+verifierClient red
     = (`runClientM` ?servantClientEnv) (foldUnion <$> client (Proxy @VerifyEndpoint) red) >>= \case
         Right (Right red')  -> pure $ Right red'
         Right (Left apiErr) -> pure $ Left $ VerifierApiError apiErr
@@ -39,7 +39,7 @@ mkVerifierClientEnv host port = do
         Nothing
         defaultMakeClientRequest
 
-data VerifierClientError 
+data VerifierClientError
     = VerifierApiError VerifierApiError
     | VerifierClientError ClientError
     deriving (Show, Exception, Eq)

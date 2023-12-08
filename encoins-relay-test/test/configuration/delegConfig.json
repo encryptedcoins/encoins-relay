@@ -2,8 +2,8 @@
 , "port"                       : 3002
 , "hyper_text_protocol"        : "HTTP"
 , "network_id"                 : {"tag" : "Testnet", "contents" : 1}
-, "delegation_currency_symbol" : {"unCurrencySymbol" : "2912c4707b5695db33e60e89467125bda41fecd62c7f8e56cd854247"}
-, "delegation_token_name"      : {"unTokenName" : "ENCS"}
+, "delegation_currency_symbol" : {"unCurrencySymbol" : "f2cbed8817eee9bfa37e80a0a2f4e0dfcf661bb1298003a2e77cb237"}
+, "delegation_token_name"      : {"unTokenName" : "ENCSDelegationTest"}
 , "delegation_folder"          : "delegations"
 , "frequency"                  : 10
 , "max_delay"                  : 300
