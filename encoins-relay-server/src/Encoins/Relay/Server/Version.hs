@@ -8,11 +8,13 @@
 module Encoins.Relay.Server.Version where
 
 import           Data.Aeson                    (FromJSON (..), ToJSON (..))
+import           Data.Maybe                    (fromMaybe)
 import           Data.Text                     (Text, pack)
 import qualified Data.Text                     as T
 import           Cardano.Server.Internal       (ServerM)
 import           Data.Time                     (UTCTime, defaultTimeLocale,
-                                                formatTime, parseTimeOrError)
+                                                formatTime, parseTimeM)
+import           Data.Time.Clock.POSIX         (posixSecondsToUTCTime)
 import           Data.Version                  (Version, showVersion)
 import           Development.GitRev            (gitCommitDate, gitHash)
 import           GHC.Generics                  (Generic)
@@ -35,7 +37,7 @@ relayVersion :: ServerVersion
 relayVersion = ServerVersion
   { svVersion = version
   , svCommit = $(gitHash)
-  , svDate = parseTimeOrError
+  , svDate = fromMaybe (posixSecondsToUTCTime $ toEnum 0) $ parseTimeM
       False
       defaultTimeLocale
       "%a %b %e %T %Y %Z"
