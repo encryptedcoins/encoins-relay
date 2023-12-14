@@ -11,6 +11,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Encoins.Relay.Apps.Delegation.Server where
 
@@ -46,7 +47,7 @@ import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
                                                          Progress (..), concatIpsWithBalances, delegAddress, findDeleg,
                                                          getBalances, removeDuplicates, runDelegationM, setProgress,
-                                                         setTokenBalance)
+                                                         setTokenBalance, trimIp)
 import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
 import           Ledger                                 (PubKeyHash, Address)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
@@ -169,10 +170,10 @@ type GetServerDelegators = "delegates" :> ReqBody '[JSON] Text :> Get '[JSON] (M
                                                                                 -- ^ Address
 -- Get a threshold-limited list of delegate addresses with number of their tokens
 getServerDelegatesHandler :: Text -> DelegationM (Map Text Integer)
-getServerDelegatesHandler ip = delegationErrorH $ do
+getServerDelegatesHandler (trimIp -> ip) = delegationErrorH $ do
         DelegationEnv{..} <- ask
         Progress _ delegs <- askProgress True
-        let delegs' = sortBy (compare `on` delegCreated) $ filter ((== ip) . delegIp) delegs
+        let delegs' = sortBy (compare `on` delegCreated) $ filter ((== ip) . trimIp . delegIp) delegs
         when (null delegs') $ throwM UnknownIp
         balances <- askTokenBalance <&> Map.filterWithKey (\pkh _ -> pkh `elem` fmap delegStakeKey delegs')
         let delegsWithBalances = filterWithThreshold dEnvRewardTokenThreshold $ addBalance balances delegs'
@@ -194,7 +195,7 @@ type GetDelegationInfo = "info" :> ReqBody '[JSON] Address :> Post '[JSON] (Text
 getDelegationInfoHandler :: Address -> DelegationM (Text, Integer)
 getDelegationInfoHandler addr = delegationErrorH $ do
     let pkh = fromMaybe (throw err404) $ getStakeKey addr
-    mbIp      <- fmap delegIp . find ((== pkh) . delegStakeKey) . pDelgations <$> askProgress True
+    mbIp      <- fmap (trimIp . delegIp) . find ((== pkh) . delegStakeKey) . pDelgations <$> askProgress True
     mbBalance <- Map.lookup pkh <$> askTokenBalance
     maybe (throwM UnknownAddress) pure $ liftA2 (,) mbIp mbBalance
 
@@ -251,7 +252,7 @@ askIpsWithBalances :: Bool -> DelegationM (Map Text Integer)
 askIpsWithBalances checkProgress = concatIpsWithBalances <$> do
     Progress _ delegs <- askProgress checkProgress
     balances          <- askTokenBalance
-    pure $ mapMaybe (\Delegation{..} -> Map.lookup delegStakeKey balances <&> (delegIp,)) delegs
+    pure $ mapMaybe (\Delegation{..} -> Map.lookup delegStakeKey balances <&> (trimIp delegIp,)) delegs
 
 searchForDelegations :: DelegationM ()
 searchForDelegations = do
@@ -292,8 +293,8 @@ updateProgress = do
         pure p
     where
         prettyDeleg network d rest = case addressToBech32 network (delegAddress d) of
-            Just addr -> rest <> "\n" <> addr <> " : " <> delegIp d
-            Nothing   -> rest <> "\n" <> T.pack (show (delegCredential d) <> "<>" <> show (delegStakeKey d)) <> " : " <> delegIp d
+            Just addr -> rest <> "\n" <> addr <> " : " <> trimIp (delegIp d)
+            Nothing   -> rest <> "\n" <> T.pack (show (delegCredential d) <> "<>" <> show (delegStakeKey d)) <> " : " <> trimIp (delegIp d)
 
 updateBalances :: DelegationM (Map PubKeyHash Integer)
 updateBalances = do

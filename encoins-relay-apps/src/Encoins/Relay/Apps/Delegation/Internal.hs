@@ -12,6 +12,7 @@ module Encoins.Relay.Apps.Delegation.Internal where
 import           Cardano.Api                   (NetworkId)
 import           Cardano.Server.Config         (CardanoServerConfig (..), HyperTextProtocol)
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger)
+import           Control.Applicative           ((<|>))
 import           Control.Exception             (throw)
 import           Control.Monad                 (forM, guard, when)
 import           Control.Monad.Catch           (MonadCatch, MonadThrow (..))
@@ -21,6 +22,7 @@ import           Control.Monad.Reader          (MonadReader (ask), ReaderT (..),
 import           Control.Monad.Trans.Maybe     (MaybeT (..))
 import           Data.Aeson                    (FromJSON (..), ToJSON, genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
+import           Data.Char                     (isNumber)
 import           Data.Function                 (on)
 import           Data.Functor                  ((<&>))
 import           Data.IORef                    (IORef, atomicWriteIORef)
@@ -165,19 +167,38 @@ isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
         isSimpleURI "" = False
         isSimpleURI _  = case T.splitOn "." txt of [_, _] -> True; _ -> False
 
+-- Remove end slash, protocol prefix and port from URL address
+trimIp :: Text -> Text
+trimIp = tripPort . trimProtocol . trimEndSlash
+    where
+        trimEndSlash txt
+            | T.last txt == '/' && T.length txt > 1 = T.init txt
+            | otherwise = txt
+        trimProtocol txt
+            | Just txt' <- T.stripPrefix "http://" txt <|> T.stripPrefix "https://" txt = txt'
+            | otherwise = txt
+        tripPort txt
+            | Just txt' <- T.stripSuffix ":" $ T.dropWhileEnd isNumber txt = txt'
+            | otherwise = txt
+
 -- Make map with ips and sum of delegated tokens from list with each delegation ip and token amount
 concatIpsWithBalances :: [(Text, Integer)] -> Map Text Integer
 concatIpsWithBalances = Map.fromList
                       . map (\xs -> (fst $ NonEmpty.head xs, sum $ snd <$> xs))
-                      . NonEmpty.groupBy ((==) `on` fst)
-                      . sortBy (compare `on` fst)
+                      . NonEmpty.groupBy ((==) `on` trimIp . fst)
+                      . sortBy (compare `on` trimIp . fst)
 
 data Delegation = Delegation
     { delegCredential :: Credential
+    -- ^ Credential of address which makes delegation tx
     , delegStakeKey   :: PubKeyHash
+    -- ^ Stake key of address which makes delegation tx
     , delegTxOutRef   :: TxOutRef
+    -- ^ TxOutRef of delegation tx
     , delegCreated    :: Slot
+    -- ^ Slot of delegation tx
     , delegIp         :: Text
+    -- ^ Address of delegated server, possibly specified with port, protocol and backslash
     } deriving (Show, Eq, Ord, Generic, FromJSON, ToJSON)
 
 delegAddress :: Delegation -> Address
