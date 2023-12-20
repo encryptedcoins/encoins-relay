@@ -1,21 +1,23 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE DerivingStrategies  #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE ImplicitParams      #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams             #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Encoins.Relay.Apps.Delegation.Server where
 
-import           Cardano.Api                            (writeFileJSON, NetworkId (Mainnet))
+import           Cardano.Api                            (NetworkId (Mainnet), writeFileJSON)
 import           Cardano.Server.Config                  (HasCreds, decodeOrErrorFromFile)
 import           Cardano.Server.Main                    (runCardanoServer)
 import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
@@ -28,6 +30,7 @@ import           Control.Monad                          (forM, forever, void, wh
 import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
 import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
+import           Data.Aeson                             (FromJSON, ToJSON)
 import           Data.ByteString                        (ByteString)
 import           Data.FileEmbed                         (embedFileIfExists)
 import           Data.Fixed                             (Pico)
@@ -35,7 +38,7 @@ import           Data.Function                          (on)
 import           Data.Functor                           ((<&>))
 import           Data.IORef                             (newIORef, readIORef)
 import           Data.List                              (find, sortBy)
-import           Data.List.Extra                        (notNull)
+import           Data.List.Extra                        (notNull, stripSuffix)
 import           Data.Map                               (Map, filterWithKey)
 import qualified Data.Map                               as Map
 import           Data.Maybe                             (catMaybes, fromMaybe, listToMaybe, mapMaybe)
@@ -46,16 +49,17 @@ import qualified Data.Text.IO                           as T
 import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
                                                          Progress (..), concatIpsWithBalances, delegAddress, findDeleg,
-                                                         getBalances, removeDuplicates, runDelegationM, setProgress,
-                                                         setTokenBalance, trimIp)
+                                                         fromRelayAddress, getBalances, removeDuplicates, runDelegationM,
+                                                         setProgress, setTokenBalance, toRelayAddress, trimIp, RelayAddress)
 import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
-import           Ledger                                 (PubKeyHash, Address)
+import           Ledger                                 (Address, PubKeyHash)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
 import           PlutusAppsExtra.Utils.Address          (addressToBech32, getStakeKey)
-import           Servant                                (Get, JSON, ReqBody, err404, err500, throwError, type (:<|>) ((:<|>)),
-                                                         (:>), Post)
+import           Servant                                (Get, JSON, Post, ReqBody, err404, err500, throwError,
+                                                         type (:<|>) ((:<|>)), (:>))
 import           Servant.Server.Internal.ServerError    (ServerError (..))
 import           System.Directory                       (createDirectoryIfMissing)
+import qualified System.Process                         as Process
 import           System.ProgressBar                     (incProgress)
 import           Text.Read                              (readMaybe)
 
@@ -145,7 +149,7 @@ type GetServers = "servers" :> Get '[JSON] (Map Text Integer)
                                              -- ^ IP
 getServersHandler :: DelegationM (Map Text Integer)
 getServersHandler = delegationErrorH $ do
-    (retiredRelays :: [Text]) <- liftIO $ decodeOrErrorFromFile "retiredRelays.json"
+    !(retiredRelays :: [Text]) <- liftIO $ decodeOrErrorFromFile "retiredRelays.json"
     filterWithKey (\k _ -> k `notElem` retiredRelays) <$> askIpsWithBalances True
 
 -------------------------------------- Get current (more than 100k(MinTokenNumber) delegated tokens) servers endpoint --------------------------------------
@@ -156,13 +160,16 @@ getCurrentServersHandler :: DelegationM [Text]
 getCurrentServersHandler = delegationErrorH $ do
     DelegationEnv{..} <- ask
     ipsWithBalances   <- askIpsWithBalances True
-    mapM (toProxy dEnvNetworkId) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber) ipsWithBalances
+    !delegationMap    <- case dEnvNetworkId of
+        Mainnet -> liftIO $ decodeOrErrorFromFile "delegationMap.json"
+        _       -> pure Map.empty
+    pure $ fmap (toProxy delegationMap dEnvNetworkId) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber) ipsWithBalances
     where
         -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
-        toProxy :: NetworkId -> Text -> DelegationM Text
-        toProxy network ip = case network of
-            Mainnet -> fromMaybe ip . Map.lookup ip <$> liftIO (decodeOrErrorFromFile "delegationMap.json")
-            _       -> pure ip
+        toProxy :: Map Text Text -> NetworkId -> Text -> Text
+        toProxy delegationMap network ip = case network of
+            Mainnet -> fromMaybe ip $ Map.lookup ip delegationMap
+            _       -> ip
 
 ------------------------------------------------------ Get server delegators endpoint ------------------------------------------------------
 
@@ -249,21 +256,22 @@ askTokenBalance = do
     pure balance
 
 askIpsWithBalances :: Bool -> DelegationM (Map Text Integer)
-askIpsWithBalances checkProgress = concatIpsWithBalances <$> do
+askIpsWithBalances checkProgress = do
     Progress _ delegs <- askProgress checkProgress
     balances          <- askTokenBalance
-    pure $ mapMaybe (\Delegation{..} -> Map.lookup delegStakeKey balances <&> (trimIp delegIp,)) delegs
+    pure $ concatIpsWithBalances $ mapMaybe (\Delegation{..} -> Map.lookup delegStakeKey balances <&> (trimIp delegIp,)) delegs
 
 searchForDelegations :: DelegationM ()
 searchForDelegations = do
-        DelegationEnv{..} <- ask
-        ct                <- liftIO Time.getCurrentTime
-        delay             <- liftIO $ async $ waitTime dEnvFrequency
-        newProgress       <- updateProgress
-        _                 <- updateBalances
-        ipsWithBalances   <- askIpsWithBalances False
+        DelegationEnv{..}  <- ask
+        ct                 <- liftIO Time.getCurrentTime
+        delay              <- liftIO $ async $ waitTime dEnvFrequency
+        newProgress        <- updateProgress
+        _                  <- updateBalances
+        newIpsWithBalances <- askIpsWithBalances False
+        _ <- updateDelegationMap $ Map.mapKeys toRelayAddress newIpsWithBalances
         writeDeleg dEnvDelegationFolder ct newProgress
-        writeResult dEnvDelegationFolder ct ipsWithBalances
+        writeResult dEnvDelegationFolder ct newIpsWithBalances
         liftIO $ wait delay
     where
         writeDeleg delegFolder ct newProgress = do
@@ -273,6 +281,33 @@ searchForDelegations = do
             let result = Map.map (T.pack . show) ipsWithBalances
             liftIO $ void $ writeFileJSON (delegFolder <> "/result_" <> formatTime ct <> ".json") result
             janitorFiles delegFolder "result_"
+
+updateDelegationMap :: Map RelayAddress Integer -> DelegationM ()
+updateDelegationMap relaysWithBalances = do
+        !delegationMap <- liftIO $ decodeOrErrorFromFile "delegationMap.json"
+        !retiredRelays <- liftIO $ decodeOrErrorFromFile "retiredRelays.json" <&> map toRelayAddress
+        DelegationEnv{..} <- ask
+        let activeRelays = filter (`notElem` retiredRelays) $ Map.keys $ Map.filter (>= dEnvMinTokenNumber) relaysWithBalances
+            relaysToAdd = filter (`notElem` Map.keys delegationMap) activeRelays
+            proxiesToRemove = Map.elems $ Map.filterWithKey (\r _ -> r `notElem` activeRelays) delegationMap
+        proxiesToAdd <- mapM createAmazonProxy relaysToAdd
+        mapM_ removeAmazonProxy proxiesToRemove
+        let delegationMap' = Map.fromList (zip relaysToAdd proxiesToAdd) <> Map.filterWithKey (\k _ -> k `elem` activeRelays) delegationMap
+        void $ liftIO $ writeFileJSON "delegationMap.json" delegationMap'
+    where
+        createAmazonProxy relay = do
+            amazonID <- fmap trimAmazonID $ liftIO $ execute $ "./api-create.sh --" <> T.unpack (fromRelayAddress relay)
+            logMsg $ "New amazon id " <> T.pack amazonID <> " for address " <> fromRelayAddress relay
+            pure $ ProxyAddress $ "https://" <> T.pack amazonID <> ".execute-api.eu-central-1.amazonaws.com/"
+        trimAmazonID amazonID = fromMaybe amazonID $ stripSuffix "\n" amazonID
+        amazonIDfromAddress = (\a -> fromMaybe a $ T.stripSuffix ".execute-api.eu-central-1.amazonaws.com/" a)
+                            . (\a -> fromMaybe a $ T.stripPrefix "https://" a)
+                            . unProxyAddress
+        removeAmazonProxy addr = liftIO $ execute $ "./api-delete.sh " <> T.unpack (amazonIDfromAddress addr)
+        execute cmd = Process.readCreateProcess ((Process.shell cmd) {Process.cwd = Just "delegationProxy"}) ""
+
+newtype ProxyAddress = ProxyAddress {unProxyAddress :: Text}
+    deriving newtype (Show, FromJSON, ToJSON)
 
 updateProgress :: DelegationM Progress
 updateProgress = do
