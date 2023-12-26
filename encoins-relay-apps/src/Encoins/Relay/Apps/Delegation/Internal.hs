@@ -12,6 +12,7 @@ module Encoins.Relay.Apps.Delegation.Internal where
 import           Cardano.Api                   (NetworkId)
 import           Cardano.Server.Config         (CardanoServerConfig (..), HyperTextProtocol (..))
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger)
+import           Control.Applicative           ((<|>))
 import           Control.Exception             (throw)
 import           Control.Monad                 (forM, guard, when)
 import           Control.Monad.Catch           (MonadCatch, MonadThrow (..))
@@ -169,16 +170,14 @@ isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
         isSimpleURI _  = case T.splitOn "." txt of [_, _] -> True; _ -> False
 
 data RelayAddress = RelayAddress
-    { raProtocol :: Maybe HyperTextProtocol
-    , raAddress  :: Text
+    { raAddress  :: Text
     , raPort     :: Maybe Int
     } deriving (Show, Ord)
 
 instance Eq RelayAddress where
-    r1 == r2 = eqAddresses && eqProtocols && eqPorts
+    r1 == r2 = eqAddresses && eqPorts
         where
             eqAddresses = raAddress r1 == raAddress r2
-            eqProtocols = fromMaybe HTTP (raProtocol r1) == fromMaybe HTTP (raProtocol r2)
             eqPorts     = any isNothing (raPort <$> [r1, r2]) || raPort r1 == raPort r2
 
 instance FromJSON RelayAddress where
@@ -195,28 +194,19 @@ instance ToJSONKey RelayAddress where
 
 toRelayAddress :: Text -> RelayAddress
 toRelayAddress addr =
-        let addr' = trimEndSlash addr
-            (raProtocol, addr'') = splitProtocol addr'
-            (raAddress, raPort)  = splitPort addr''
+        let addr' = trimProtocol $ trimEndSlash addr
+            (raAddress, raPort)  = splitPort addr'
         in RelayAddress{..}
     where
         trimEndSlash txt
             | T.last txt == '/' && T.length txt > 1 = T.init txt
             | otherwise = txt
-        splitProtocol txt
-            | Just rest <- T.stripPrefix "http://"  txt = (Just HTTP , rest)
-            | Just rest <- T.stripPrefix "https://" txt = (Just HTTPS, rest)
-            | otherwise = (Nothing, txt)
+        trimProtocol txt = fromMaybe txt $ T.stripPrefix "http://" txt <|> T.stripPrefix "https://" txt
         splitPort txt = let (txt', mbPort) = readMaybe . T.unpack <$> T.breakOnEnd ":" txt in
             if isJust mbPort then (T.init txt', mbPort) else (txt, mbPort)
 
 fromRelayAddress :: RelayAddress -> Text
-fromRelayAddress RelayAddress{..} = protocol <> raAddress <> maybe "" ((":" <>) . T.pack . show) raPort
-    where
-        protocol = case raProtocol of
-            Nothing    -> ""
-            Just HTTP  -> "http://"
-            Just HTTPS -> "https://"
+fromRelayAddress RelayAddress{..} = "http://" <> raAddress <> maybe "" ((":" <>) . T.pack . show) raPort
 
 -- Remove end slash, protocol prefix and port from URL address
 trimIp :: Text -> Text

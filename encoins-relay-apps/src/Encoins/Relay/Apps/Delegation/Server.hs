@@ -303,7 +303,9 @@ updateDelegationMap relaysWithBalances = do
         amazonIDfromAddress = (\a -> fromMaybe a $ T.stripSuffix ".execute-api.eu-central-1.amazonaws.com/" a)
                             . (\a -> fromMaybe a $ T.stripPrefix "https://" a)
                             . unProxyAddress
-        removeAmazonProxy addr = liftIO $ execute $ "./api-delete.sh " <> T.unpack (amazonIDfromAddress addr)
+        removeAmazonProxy addr = do
+            logMsg $ "Removing proxy " .< show addr
+            liftIO $ execute $ "./api-delete.sh " <> T.unpack (amazonIDfromAddress addr)
         execute cmd = Process.readCreateProcess ((Process.shell cmd) {Process.cwd = Just "../../scripts/delegationProxy"}) ""
 
 newtype ProxyAddress = ProxyAddress {unProxyAddress :: Text}
