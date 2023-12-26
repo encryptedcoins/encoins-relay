@@ -296,7 +296,7 @@ updateDelegationMap relaysWithBalances = do
         void $ liftIO $ writeFileJSON "delegationMap.json" delegationMap'
     where
         createAmazonProxy relay = do
-            amazonID <- fmap trimAmazonID $ liftIO $ execute $ "./api-create.sh --" <> T.unpack (fromRelayAddress relay)
+            amazonID <- fmap trimAmazonID $ liftIO $ execute $ "./api-create.sh " <> T.unpack (fromRelayAddress relay)
             logMsg $ "New amazon id " <> T.pack amazonID <> " for address " <> fromRelayAddress relay
             pure $ ProxyAddress $ "https://" <> T.pack amazonID <> ".execute-api.eu-central-1.amazonaws.com/"
         trimAmazonID amazonID = fromMaybe amazonID $ stripSuffix "\n" amazonID
