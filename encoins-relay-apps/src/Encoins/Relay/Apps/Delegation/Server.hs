@@ -168,7 +168,7 @@ getCurrentServersHandler = delegationErrorH $ do
         -- We are currently using proxies for each server. DelegationMap is a map of server IPs to their proxy IPs.
         toProxy :: Map Text Text -> NetworkId -> Text -> Text
         toProxy delegationMap network ip = case network of
-            Mainnet -> fromMaybe ip $ Map.lookup ip delegationMap
+            Mainnet -> fromMaybe ip $ Map.lookup ("http://" <> ip) delegationMap
             _       -> ip
 
 ------------------------------------------------------ Get server delegators endpoint ------------------------------------------------------
