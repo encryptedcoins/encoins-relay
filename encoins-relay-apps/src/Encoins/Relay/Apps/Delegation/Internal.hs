@@ -10,7 +10,7 @@
 module Encoins.Relay.Apps.Delegation.Internal where
 
 import           Cardano.Api                   (NetworkId)
-import           Cardano.Server.Config         (CardanoServerConfig (..), HyperTextProtocol)
+import           Cardano.Server.Config         (CardanoServerConfig (..), HyperTextProtocol (..))
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger)
 import           Control.Applicative           ((<|>))
 import           Control.Exception             (throw)
@@ -20,9 +20,10 @@ import           Control.Monad.Except          (MonadError)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Control.Monad.Reader          (MonadReader (ask), ReaderT (..), asks)
 import           Control.Monad.Trans.Maybe     (MaybeT (..))
-import           Data.Aeson                    (FromJSON (..), ToJSON, genericParseJSON)
+import           Data.Aeson                    (FromJSON (..), FromJSONKey (..), FromJSONKeyFunction (..), ToJSON (..),
+                                                ToJSONKey (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
-import           Data.Char                     (isNumber)
+import           Data.Aeson.Types              (toJSONKeyText)
 import           Data.Function                 (on)
 import           Data.Functor                  ((<&>))
 import           Data.IORef                    (IORef, atomicWriteIORef)
@@ -30,7 +31,7 @@ import           Data.List                     (sortBy)
 import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
-import           Data.Maybe                    (catMaybes, listToMaybe)
+import           Data.Maybe                    (catMaybes, fromMaybe, isJust, isNothing, listToMaybe)
 import           Data.Ord                      (Down (..))
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
@@ -47,6 +48,7 @@ import           PlutusAppsExtra.Utils.Address (getStakeKey)
 import           PlutusAppsExtra.Utils.Maestro (TxDetailsOutput (..), TxDetailsResponse (..))
 import           PlutusTx.Builtins             (decodeUtf8)
 import           Servant                       (Handler, ServerError, runHandler)
+import           Text.Read                     (readMaybe)
 
 newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
     deriving newtype
@@ -167,19 +169,48 @@ isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
         isSimpleURI "" = False
         isSimpleURI _  = case T.splitOn "." txt of [_, _] -> True; _ -> False
 
--- Remove end slash, protocol prefix and port from URL address
-trimIp :: Text -> Text
-trimIp = tripPort . trimProtocol . trimEndSlash
+data RelayAddress = RelayAddress
+    { raAddress  :: Text
+    , raPort     :: Maybe Int
+    } deriving (Show, Ord)
+
+instance Eq RelayAddress where
+    r1 == r2 = eqAddresses && eqPorts
+        where
+            eqAddresses = raAddress r1 == raAddress r2
+            eqPorts     = any isNothing (raPort <$> [r1, r2]) || raPort r1 == raPort r2
+
+instance FromJSON RelayAddress where
+    parseJSON = fmap toRelayAddress . parseJSON
+
+instance FromJSONKey RelayAddress where
+    fromJSONKey = FromJSONKeyText toRelayAddress
+
+instance ToJSON RelayAddress where
+    toJSON = toJSON . fromRelayAddress
+
+instance ToJSONKey RelayAddress where
+    toJSONKey = toJSONKeyText fromRelayAddress
+
+toRelayAddress :: Text -> RelayAddress
+toRelayAddress addr =
+        let addr' = trimProtocol $ trimEndSlash addr
+            (raAddress, raPort)  = splitPort addr'
+        in RelayAddress{..}
     where
         trimEndSlash txt
             | T.last txt == '/' && T.length txt > 1 = T.init txt
             | otherwise = txt
-        trimProtocol txt
-            | Just txt' <- T.stripPrefix "http://" txt <|> T.stripPrefix "https://" txt = txt'
-            | otherwise = txt
-        tripPort txt
-            | Just txt' <- T.stripSuffix ":" $ T.dropWhileEnd isNumber txt = txt'
-            | otherwise = txt
+        trimProtocol txt = fromMaybe txt $ T.stripPrefix "http://" txt <|> T.stripPrefix "https://" txt
+        splitPort txt = let (txt', mbPort) = readMaybe . T.unpack <$> T.breakOnEnd ":" txt in
+            if isJust mbPort then (T.init txt', mbPort) else (txt, mbPort)
+
+fromRelayAddress :: RelayAddress -> Text
+fromRelayAddress RelayAddress{..} = "http://" <> raAddress <> maybe "" ((":" <>) . T.pack . show) raPort
+
+-- Remove end slash, protocol prefix and port from URL address
+trimIp :: Text -> Text
+trimIp = raAddress . toRelayAddress
 
 -- Make map with ips and sum of delegated tokens from list with each delegation ip and token amount
 concatIpsWithBalances :: [(Text, Integer)] -> Map Text Integer
