@@ -20,8 +20,6 @@ import           GHC.Generics   (Generic)
 import           Servant.API
 import           Servant.Client
 
-
-
 type IpfsAPI =
        "pinning" :> "pinJSONToIPFS"
                  :> Auth
@@ -136,24 +134,3 @@ data Files = MkFiles
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON)
-
-{-
-curl --request POST \
-     --url https://api.pinata.cloud/pinning/pinJSONToIPFS \
-     --header 'accept: application/json' \
-     --header 'content-type: application/json' \
-     --data '
-{
-  "pinataContent": {
-    "keyHello": "valueWorld",
-    "keyHola": "valueMundo"
-  },
-  "pinataMetadata": {
-    "keyvalues": {
-      "optionKey": "optionValue"
-    },
-    "name": "token"
-  }
-}
-'
--}

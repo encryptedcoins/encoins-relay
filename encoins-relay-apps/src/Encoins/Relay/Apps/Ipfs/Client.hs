@@ -9,6 +9,9 @@
 
 module Encoins.Relay.Apps.Ipfs.Client where
 
+import           Control.Monad.IO.Class            (MonadIO (liftIO))
+import           Control.Monad.Reader              (MonadReader (ask),
+                                                    ReaderT (..))
 import qualified Data.ByteString                   as BS
 import           Data.Text                         (Text)
 import qualified Data.Text                         as Text
@@ -18,49 +21,85 @@ import           Network.HTTP.Client               hiding (Proxy)
 import           Network.HTTP.Client.TLS
 import           Servant.Client
 
-import Text.Pretty.Simple
+import           Text.Pretty.Simple
 
 
 ipfsClient :: IO ()
 ipfsClient = do
   key <- auth <$> pinataKey "pinata_jwt_token.txt"
   manager <- newManager tlsManagerSettings
-  res <- pinJsonRequest manager key token
-  pPrint res
-  -- pPrint =<< fetchMetaAllRequest manager key
-  case res of
-    Left err -> pPrint err
-    Right r -> do
-      let cip = ipfsHash r
-      pPrint =<< fetchByCipRequest manager cip
-      -- pPrint =<< unpinByCipRequest manager key cip
-  pPrint =<< fetchMetaPinnedRequest manager key "pinned"
+  let env = MkIpfsEnv pinUrl fetchUrl key manager
+  flip runReaderT env $ do
+    res <- pinJsonRequest token
+    pPrint res
+    -- pPrint =<< fetchMetaAllRequest manager key
+    -- case res of
+    --   Left err -> pPrint err
+    --   Right r -> do
+    --     let cip = ipfsHash r
+    --     pPrint =<< fetchByCipRequest manager cip
+    --     -- pPrint =<< unpinByCipRequest manager key cip
+    -- pPrint =<< fetchMetaPinnedRequest manager key "pinned"
+
+data IpfsEnv = MkIpfsEnv
+  { envPinUrl   :: BaseUrl
+  , envFetchUrl :: BaseUrl
+  , envAuthKey  :: Text
+  , envManager  :: Manager
+  }
+
+type IpfsMonad a = ReaderT IpfsEnv IO a
 
 -- Requests to Pinata API
 
-pinJsonRequest :: Manager -> Text -> Token -> IO (Either ClientError PinJsonResponse)
-pinJsonRequest manager authHeader p = do
-  runClientM (pinJson (Just authHeader) p) (mkClientEnv manager pinUrl)
+-- runClientInReaderT :: IpfsEnv -> ClientM a -> IpfsMonad a
+-- runClientInReaderT env action = do
+--     let clientReader = hoistClient ipfsApi (flip runReaderT env) action
+--     liftIO $ runClientM clientReader
 
-fetchByCipRequest :: Manager -> Text -> IO (Either ClientError TokenKey)
-fetchByCipRequest manager cip = do
-  runClientM (fetchByCip cip) (mkClientEnv manager fetchUrl)
+pinJsonRequest :: Token -> IpfsMonad (Either ClientError PinJsonResponse)
+pinJsonRequest p = do
+  env <- ask
+  liftIO $ runClientM
+    (pinJson (Just $ envAuthKey env) p)
+    (mkClientEnv (envManager env) (envPinUrl env))
 
-fetchMetaAllRequest :: Manager -> Text -> IO (Either ClientError Files)
-fetchMetaAllRequest manager authHeader = do
-  runClientM (fetchMetaAll $ Just authHeader) (mkClientEnv manager pinUrl)
+fetchByCipRequest :: Text -> IpfsMonad (Either ClientError TokenKey)
+fetchByCipRequest cip = do
+  env <- ask
+  liftIO $ runClientM
+    (fetchByCip cip)
+    (mkClientEnv (envManager env) (envFetchUrl env))
 
-unpinByCipRequest :: Manager -> Text -> Text -> IO (Either ClientError Text)
-unpinByCipRequest manager authHeader cip = do
-  runClientM (unpinByCip (Just authHeader) cip) (mkClientEnv manager pinUrl)
+fetchMetaAllRequest :: IpfsMonad (Either ClientError Files)
+fetchMetaAllRequest = do
+  env <- ask
+  liftIO $ runClientM
+    (fetchMetaAll $ Just $ envAuthKey env)
+    (mkClientEnv (envManager env) (envPinUrl env))
 
-fetchMetaPinnedRequest :: Manager -> Text -> Text -> IO (Either ClientError Files)
-fetchMetaPinnedRequest manager authHeader status = do
-  runClientM (fetchMetaByStatus (Just authHeader) (Just status)) (mkClientEnv manager pinUrl)
+unpinByCipRequest :: Text -> IpfsMonad (Either ClientError Text)
+unpinByCipRequest cip = do
+  env <- ask
+  liftIO $ runClientM
+    (unpinByCip (Just $ envAuthKey env) cip)
+    (mkClientEnv (envManager env) (envPinUrl env))
 
-fetchMetaByStatusAndNameRequest :: Manager -> Text -> Text -> Text -> IO (Either ClientError Files)
-fetchMetaByStatusAndNameRequest manager authHeader status name = do
-  runClientM (fetchMetaByStatusAndName (Just authHeader) (Just status) (Just name)) (mkClientEnv manager pinUrl)
+fetchMetaPinnedRequest :: Text -> IpfsMonad (Either ClientError Files)
+fetchMetaPinnedRequest status = do
+  env <- ask
+  liftIO $ runClientM
+    (fetchMetaByStatus (Just $ envAuthKey env) (Just status))
+    (mkClientEnv (envManager env) (envPinUrl env))
+
+fetchMetaByStatusAndNameRequest :: Text
+  -> Text
+  -> IpfsMonad (Either ClientError Files)
+fetchMetaByStatusAndNameRequest status name = do
+  env <- ask
+  liftIO $ runClientM
+    (fetchMetaByStatusAndName (Just $ envAuthKey env) (Just status) (Just name))
+    (mkClientEnv (envManager env) (envPinUrl env))
 
 -- Utils
 
