@@ -41,9 +41,13 @@ library
       Encoins.Relay.Apps.Delegation.Client
       Encoins.Relay.Apps.Delegation.Internal
       Encoins.Relay.Apps.Delegation.Server
+      Encoins.Relay.Apps.Ipfs.Client
+      Encoins.Relay.Apps.Ipfs.ClientApi
+      Encoins.Relay.Apps.Ipfs.Server
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
       Encoins.Relay.Apps.Poll.Main
+
     other-modules:
     build-depends:
       base                          >= 4.9 && < 5,
@@ -65,6 +69,7 @@ library
       file-embed                             -any,
       filepath                               -any,
       http-client                            -any,
+      http-client-tls                        -any,
       lens                                   -any,
       lens-aeson                             -any,
       mtl                                    -any,
@@ -77,7 +82,9 @@ library
       plutus-script-utils                    -any,
       plutus-tx                              -any,
       plutus-tx-constraints                  -any,
+      pretty-simple                          -any,
       process                                -any,
+      servant                                -any,
       servant-client                         -any,
       servant-server                         -any,
       terminal-progress-bar                  -any,
@@ -108,6 +115,14 @@ executable encoins-relay-delegation
 executable encoins-relay-delegation-client
   default-language: Haskell2010
   hs-source-dirs: app_deleg_client
+  main-is: Main.hs
+  build-depends:
+    base                          >= 4.9 && < 5,
+    encoins-relay-apps                     -any,
+
+executable encoins-ipfs
+  default-language: Haskell2010
+  hs-source-dirs: app_ipfs
   main-is: Main.hs
   build-depends:
     base                          >= 4.9 && < 5,
