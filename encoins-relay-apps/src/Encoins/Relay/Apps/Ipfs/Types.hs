@@ -1,23 +1,35 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TypeOperators      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving      #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TypeOperators              #-}
 
 module Encoins.Relay.Apps.Ipfs.Types where
 
-import           Data.Aeson                    (FromJSON (..),
-                                                Options (fieldLabelModifier),
-                                                ToJSON (..), camelTo2,
-                                                defaultOptions,
-                                                genericParseJSON, withObject,
-                                                (.:), (.:?))
-import           Data.Text                     (Text)
-import           Data.Time                     (UTCTime)
-import           GHC.Generics                  (Generic)
+import           Control.Monad.Reader (MonadReader (ask), ReaderT (..))
+import           Data.Aeson           (FromJSON (..),
+                                       Options (fieldLabelModifier),
+                                       ToJSON (..), camelTo2, defaultOptions,
+                                       genericParseJSON, withObject, (.:),
+                                       (.:?))
+import           Data.Text            (Text)
+import           Data.Time            (UTCTime)
+import           GHC.Generics         (Generic)
+import           Network.HTTP.Client  (Manager)
+import           Servant.Client       (BaseUrl)
+
+
+data IpfsEnv = MkIpfsEnv
+  { envPinataPinUrl   :: BaseUrl
+  , envPinataFetchUrl :: BaseUrl
+  , envAuthKey        :: Text
+  , envManager        :: Manager
+  }
+
+type IpfsMonad = ReaderT IpfsEnv IO
 
 -- Request / Response types
 

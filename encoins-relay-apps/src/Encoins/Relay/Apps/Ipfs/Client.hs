@@ -43,14 +43,6 @@ ipfsClient = do
     --     -- pPrint =<< unpinByCipRequest manager key cip
     -- pPrint =<< fetchMetaPinnedRequest manager key "pinned"
 
-data IpfsEnv = MkIpfsEnv
-  { envPinUrl   :: BaseUrl
-  , envFetchUrl :: BaseUrl
-  , envAuthKey  :: Text
-  , envManager  :: Manager
-  }
-
-type IpfsMonad a = ReaderT IpfsEnv IO a
 
 -- Requests to Pinata API
 
@@ -59,35 +51,35 @@ pinJsonRequest p = do
   env <- ask
   liftIO $ runClientM
     (pinJson (Just $ envAuthKey env) p)
-    (mkClientEnv (envManager env) (envPinUrl env))
+    (mkClientEnv (envManager env) (envPinataPinUrl env))
 
 fetchByCipRequest :: Text -> IpfsMonad (Either ClientError TokenKey)
 fetchByCipRequest cip = do
   env <- ask
   liftIO $ runClientM
     (fetchByCip cip)
-    (mkClientEnv (envManager env) (envFetchUrl env))
+    (mkClientEnv (envManager env) (envPinataFetchUrl env))
 
 fetchMetaAllRequest :: IpfsMonad (Either ClientError Files)
 fetchMetaAllRequest = do
   env <- ask
   liftIO $ runClientM
     (fetchMetaAll $ Just $ envAuthKey env)
-    (mkClientEnv (envManager env) (envPinUrl env))
+    (mkClientEnv (envManager env) (envPinataPinUrl env))
 
 unpinByCipRequest :: Text -> IpfsMonad (Either ClientError Text)
 unpinByCipRequest cip = do
   env <- ask
   liftIO $ runClientM
     (unpinByCip (Just $ envAuthKey env) cip)
-    (mkClientEnv (envManager env) (envPinUrl env))
+    (mkClientEnv (envManager env) (envPinataPinUrl env))
 
 fetchMetaPinnedRequest :: Text -> IpfsMonad (Either ClientError Files)
 fetchMetaPinnedRequest status = do
   env <- ask
   liftIO $ runClientM
     (fetchMetaByStatus (Just $ envAuthKey env) (Just status))
-    (mkClientEnv (envManager env) (envPinUrl env))
+    (mkClientEnv (envManager env) (envPinataPinUrl env))
 
 fetchMetaByStatusAndNameRequest :: Text
   -> Text
@@ -96,7 +88,7 @@ fetchMetaByStatusAndNameRequest status name = do
   env <- ask
   liftIO $ runClientM
     (fetchMetaByStatusAndName (Just $ envAuthKey env) (Just status) (Just name))
-    (mkClientEnv (envManager env) (envPinUrl env))
+    (mkClientEnv (envManager env) (envPinataPinUrl env))
 
 -- Utils
 

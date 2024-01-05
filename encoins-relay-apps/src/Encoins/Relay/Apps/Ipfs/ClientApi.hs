@@ -12,20 +12,12 @@ module Encoins.Relay.Apps.Ipfs.ClientApi where
 
 import           Encoins.Relay.Apps.Ipfs.Types
 
-import           Data.Aeson                    (FromJSON (..),
-                                                Options (fieldLabelModifier),
-                                                ToJSON (..), camelTo2,
-                                                defaultOptions,
-                                                genericParseJSON, withObject,
-                                                (.:), (.:?))
 import           Data.Proxy                    (Proxy (..))
 import           Data.Text                     (Text)
-import           Data.Time                     (UTCTime)
-import           GHC.Generics                  (Generic)
 import           Servant.API
 import           Servant.Client
 
-type IpfsAPI =
+type ClientIpfsAPI =
        "pinning" :> "pinJSONToIPFS"
                  :> Auth
                  :> ReqBody '[JSON] Token
@@ -44,8 +36,8 @@ type IpfsAPI =
 
 type Auth = Header "Authorization" Text
 
-ipfsApi :: Proxy IpfsAPI
-ipfsApi = Proxy
+clientIpfsApi :: Proxy ClientIpfsAPI
+clientIpfsApi = Proxy
 
 pinJson           :: Maybe Text -> Token -> ClientM PinJsonResponse
 fetchByCip        :: Text -> ClientM TokenKey
@@ -54,4 +46,4 @@ unpinByCip        :: Maybe Text -> Text -> ClientM Text
 fetchMetaByStatus :: Maybe Text -> Maybe Text -> ClientM Files
 fetchMetaByStatusAndName :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
 pinJson :<|> fetchByCip :<|> fetchMetaAll :<|> unpinByCip :<|>
-  fetchMetaByStatus :<|> fetchMetaByStatusAndName = client ipfsApi
+  fetchMetaByStatus :<|> fetchMetaByStatusAndName = client clientIpfsApi
