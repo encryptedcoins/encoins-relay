@@ -9,6 +9,9 @@
 
 module Encoins.Relay.Apps.Ipfs.Client where
 
+import           Encoins.Relay.Apps.Ipfs.ClientApi
+import           Encoins.Relay.Apps.Ipfs.Types
+
 import           Control.Monad.IO.Class            (MonadIO (liftIO))
 import           Control.Monad.Reader              (MonadReader (ask),
                                                     ReaderT (..))
@@ -16,7 +19,6 @@ import qualified Data.ByteString                   as BS
 import           Data.Text                         (Text)
 import qualified Data.Text                         as Text
 import qualified Data.Text.Encoding                as TE
-import           Encoins.Relay.Apps.Ipfs.ClientApi
 import           Network.HTTP.Client               hiding (Proxy)
 import           Network.HTTP.Client.TLS
 import           Servant.Client
@@ -51,11 +53,6 @@ data IpfsEnv = MkIpfsEnv
 type IpfsMonad a = ReaderT IpfsEnv IO a
 
 -- Requests to Pinata API
-
--- runClientInReaderT :: IpfsEnv -> ClientM a -> IpfsMonad a
--- runClientInReaderT env action = do
---     let clientReader = hoistClient ipfsApi (flip runReaderT env) action
---     liftIO $ runClientM clientReader
 
 pinJsonRequest :: Token -> IpfsMonad (Either ClientError PinJsonResponse)
 pinJsonRequest p = do

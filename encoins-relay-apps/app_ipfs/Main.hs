@@ -1,6 +1,9 @@
 module Main where
 
 import Encoins.Relay.Apps.Ipfs.Client
+import Encoins.Relay.Apps.Ipfs.Server
 
 main :: IO ()
-main = ipfsClient
+main = do
+  putStrLn "ipfs proxy server is running"
+  ipfsServer
