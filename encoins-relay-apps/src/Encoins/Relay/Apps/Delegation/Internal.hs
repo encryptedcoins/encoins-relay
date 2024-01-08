@@ -166,8 +166,7 @@ getBalances network cs tokenName = liftIO $ Maestro.getAccountAddressesHoldingAs
 isValidIp :: Text -> Bool
 isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
     where
-        isSimpleURI "" = False
-        isSimpleURI _  = case T.splitOn "." txt of [_, _] -> True; _ -> False
+        isSimpleURI  = isURI . ("http://" <>)
 
 data RelayAddress = RelayAddress
     { raAddress  :: Text
