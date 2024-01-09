@@ -12,12 +12,12 @@ module Encoins.Relay.Apps.Ipfs.Client where
 import           Encoins.Relay.Apps.Ipfs.ClientApi
 import           Encoins.Relay.Apps.Ipfs.Types
 
+import           Cardano.Server.Config             (decodeOrErrorFromFile)
 import           Control.Monad.IO.Class            (MonadIO (liftIO))
 import           Control.Monad.Reader              (MonadReader (ask),
                                                     ReaderT (..))
 import qualified Data.ByteString                   as BS
 import           Data.Text                         (Text)
-import qualified Data.Text                         as Text
 import qualified Data.Text.Encoding                as TE
 import           Network.HTTP.Client               hiding (Proxy)
 import           Network.HTTP.Client.TLS
@@ -28,9 +28,10 @@ import           Text.Pretty.Simple
 
 ipfsClient :: IO ()
 ipfsClient = do
-  key <- auth <$> pinataKey "pinata_jwt_token.txt"
+  key <- pinataKey "pinata_jwt_token.txt"
   manager <- newManager tlsManagerSettings
-  let env = MkIpfsEnv pinUrl fetchUrl key manager "scheduleDir"
+  ipfsConfig <- decodeOrErrorFromFile "ipfs_config.json"
+  let env = mkIpfsEnv manager key ipfsConfig
   flip runReaderT env $ do
     res <- pinJsonRequest token
     pPrint res
@@ -50,36 +51,36 @@ pinJsonRequest :: Token -> IpfsMonad (Either ClientError PinJsonResponse)
 pinJsonRequest p = do
   env <- ask
   liftIO $ runClientM
-    (pinJson (Just $ envAuthKey env) p)
-    (mkClientEnv (envManager env) (envPinataPinUrl env))
+    (pinJson (Just $ envPinataAuthToken env) p)
+    (mkClientEnv (envManager env) (envPinataPinHost env))
 
 fetchByCipRequest :: Text -> IpfsMonad (Either ClientError TokenKey)
 fetchByCipRequest cip = do
   env <- ask
   liftIO $ runClientM
     (fetchByCip cip)
-    (mkClientEnv (envManager env) (envPinataFetchUrl env))
+    (mkClientEnv (envManager env) (envPinataFetchHost env))
 
 fetchMetaAllRequest :: IpfsMonad (Either ClientError Files)
 fetchMetaAllRequest = do
   env <- ask
   liftIO $ runClientM
-    (fetchMetaAll $ Just $ envAuthKey env)
-    (mkClientEnv (envManager env) (envPinataPinUrl env))
+    (fetchMetaAll $ Just $ envPinataAuthToken env)
+    (mkClientEnv (envManager env) (envPinataPinHost env))
 
 unpinByCipRequest :: Text -> IpfsMonad (Either ClientError Text)
 unpinByCipRequest cip = do
   env <- ask
   liftIO $ runClientM
-    (unpinByCip (Just $ envAuthKey env) cip)
-    (mkClientEnv (envManager env) (envPinataPinUrl env))
+    (unpinByCip (Just $ envPinataAuthToken env) cip)
+    (mkClientEnv (envManager env) (envPinataPinHost env))
 
 fetchMetaPinnedRequest :: Text -> IpfsMonad (Either ClientError Files)
 fetchMetaPinnedRequest status = do
   env <- ask
   liftIO $ runClientM
-    (fetchMetaByStatus (Just $ envAuthKey env) (Just status))
-    (mkClientEnv (envManager env) (envPinataPinUrl env))
+    (fetchMetaByStatus (Just $ envPinataAuthToken env) (Just status))
+    (mkClientEnv (envManager env) (envPinataPinHost env))
 
 fetchMetaByStatusAndNameRequest :: Text
   -> Text
@@ -87,21 +88,10 @@ fetchMetaByStatusAndNameRequest :: Text
 fetchMetaByStatusAndNameRequest status name = do
   env <- ask
   liftIO $ runClientM
-    (fetchMetaByStatusAndName (Just $ envAuthKey env) (Just status) (Just name))
-    (mkClientEnv (envManager env) (envPinataPinUrl env))
+    (fetchMetaByStatusAndName (Just $ envPinataAuthToken env) (Just status) (Just name))
+    (mkClientEnv (envManager env) (envPinataPinHost env))
 
 -- Utils
-
--- Used only to fetch value (files) itself through dedicated gateway
-fetchUrl :: BaseUrl
-fetchUrl = BaseUrl Https "coral-holy-gibbon-767.mypinata.cloud" 443 ""
-
--- Used for everything
-pinUrl :: BaseUrl
-pinUrl = BaseUrl Https "api.pinata.cloud" 443 ""
-
-auth :: Text -> Text
-auth jwtToken = "Bearer " <> jwtToken
 
 pinataKey :: FilePath -> IO Text
 pinataKey path = TE.decodeUtf8 <$> BS.readFile path

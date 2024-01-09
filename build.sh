@@ -12,3 +12,5 @@ cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/
 cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-delegation/encoins-relay-delegation ~/.local/bin/encoins-delegation
 
 cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-delegation-client/encoins-relay-delegation-client ~/.local/bin/encoins-delegation-client
+
+cp /home/metaxis/sources/organisations/encoins/encoins-relay/dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-ipfs/encoins-ipfs ~/.local/bin/encoins-ipfs

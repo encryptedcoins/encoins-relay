@@ -9,5 +9,4 @@ encoins-relay-test/test/configuration/blockfrost.token
 certificate.pem
 key.pem
 
-pinata_jwt_token.txt
 cabal.project.local

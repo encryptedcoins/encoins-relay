@@ -9,26 +9,70 @@
 
 module Encoins.Relay.Apps.Ipfs.Types where
 
-import           Control.Monad.Reader (MonadReader (ask), ReaderT (..))
-import           Data.Aeson           (FromJSON (..),
-                                       Options (fieldLabelModifier),
-                                       ToJSON (..), camelTo2, defaultOptions,
-                                       genericParseJSON, withObject, (.:),
-                                       (.:?))
-import           Data.Text            (Text)
-import           Data.Time            (UTCTime)
-import           GHC.Generics         (Generic)
-import           Network.HTTP.Client  (Manager)
-import           Servant.Client       (BaseUrl)
-
+import           Cardano.Api           (NetworkId)
+import           Cardano.Server.Config (HyperTextProtocol (..))
+import           Control.Monad.Reader  (ReaderT (..))
+import           Data.Aeson            (FromJSON (..),
+                                        Options (fieldLabelModifier),
+                                        ToJSON (..), camelTo2, defaultOptions,
+                                        genericParseJSON, withObject, (.:),
+                                        (.:?))
+import           Data.Aeson.Casing     (aesonPrefix, snakeCase)
+import           Data.Text             (Text)
+import qualified Data.Text             as T
+import           Data.Time             (UTCTime)
+import           GHC.Generics          (Generic)
+import           Network.HTTP.Client   (Manager)
+import           Plutus.V1.Ledger.Api  (CurrencySymbol)
+import           Servant.Client        (BaseUrl (..), Scheme (..))
 
 data IpfsEnv = MkIpfsEnv
-  { envPinataPinUrl   :: BaseUrl
-  , envPinataFetchUrl :: BaseUrl
-  , envAuthKey        :: Text
-  , envManager        :: Manager
-  , envScheduleDir    :: FilePath
+  { envHyperTextProtocol  :: HyperTextProtocol
+  , envHost               :: Text
+  , envPort               :: Int
+  , envNetworkId          :: NetworkId
+  , envIpfsCurrencySymbol :: CurrencySymbol
+  , envPinataFetchHost    :: BaseUrl
+  , envPinataPinHost      :: BaseUrl
+  , envScheduleDirectory  :: FilePath
+  , envPinataAuthToken    :: Text
+  , envManager            :: Manager
   }
+
+data IpfsConfig = MkIpfsConfig
+  {
+    icHyperTextProtocol  :: HyperTextProtocol
+  , icHost               :: Text
+  , icPort               :: Int
+  , icNetworkId          :: NetworkId
+  , icIpfsCurrencySymbol :: CurrencySymbol
+  , icPinataFetchHost    :: Text
+  , icPinataPinHost      :: Text
+  , icScheduleDirectory  :: FilePath
+  }
+  deriving stock (Eq,Show, Generic)
+
+instance FromJSON IpfsConfig where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+mkIpfsEnv :: Manager -> Text -> IpfsConfig -> IpfsEnv
+mkIpfsEnv manager pinataToken ipfsConfig = MkIpfsEnv
+  { envHyperTextProtocol  = icHyperTextProtocol ipfsConfig
+  , envHost               = icHost ipfsConfig
+  , envPort               = icPort ipfsConfig
+  , envNetworkId          = icNetworkId ipfsConfig
+  , envIpfsCurrencySymbol = icIpfsCurrencySymbol ipfsConfig
+  , envPinataFetchHost    = mkUrl $ icPinataFetchHost ipfsConfig
+  , envPinataPinHost      = mkUrl $ icPinataPinHost ipfsConfig
+  , envScheduleDirectory  = icScheduleDirectory ipfsConfig
+  , envPinataAuthToken    = mkBearer pinataToken
+  , envManager            = manager
+  }
+  where
+    mkBearer :: Text -> Text
+    mkBearer jwtToken = "Bearer " <> jwtToken
+    mkUrl :: Text -> BaseUrl
+    mkUrl host = BaseUrl Https (T.unpack host) 443 ""
 
 type IpfsMonad = ReaderT IpfsEnv IO
 

@@ -15,6 +15,7 @@ import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
 
 import           Cardano.Api                    (NetworkId (..),
                                                  NetworkMagic (..))
+import           Cardano.Server.Config          (decodeOrErrorFromFile)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
                                                  ReaderT (..))
@@ -23,7 +24,6 @@ import qualified Data.ByteString.Char8          as BSC8
 import           Data.List.Extra                (unsnoc)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text, unpack)
-import qualified Data.Text.Encoding             as TE
 import           Data.Time.Clock.POSIX          (getPOSIXTime, posixDayLength)
 import           Network.HTTP.Client            hiding (Proxy)
 import           Network.HTTP.Client.TLS
@@ -107,7 +107,7 @@ burned t = do
         Just x
           | x < 0 -> do
               env <- ask
-              liftIO $ putInQueue (envScheduleDir env <> "/" <> unpack aName)
+              liftIO $ putInQueue (envScheduleDirectory env <> "/" <> unpack aName)
               liftIO $ putStrLn "Burned token put into the queue for unpinning"
               pure "Burned token unpinned from ipfs"
           | otherwise -> do
@@ -134,9 +134,11 @@ corsWithContentType = cors (const $ Just policy)
 app :: IpfsEnv -> Application
 app = corsWithContentType . serve serverIpfsApiProxy . handlerServer
 
-ipfsServer :: IO ()
-ipfsServer = do
-  key <- auth <$> pinataKey "pinata_jwt_token.txt"
+ipfsServer :: FilePath -> FilePath -> IO ()
+ipfsServer ipfsConfPath pinataToken = do
+  key <- pinataKey pinataToken
   manager <- newManager tlsManagerSettings
-  let env = MkIpfsEnv pinUrl fetchUrl key manager "schedule"
-  run 7000 $ app env
+  ipfsConfig <- decodeOrErrorFromFile ipfsConfPath
+  let env = mkIpfsEnv manager key ipfsConfig
+
+  run (envPort env) $ app env
