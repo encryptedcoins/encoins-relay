@@ -42,7 +42,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 0cbc7f4ae053765ad006c178132820df9e3c4f06
+  tag: 7e875f15f3dcba5f8556ce308300cbdfea482f59
   subdir:
     plutus-apps-extra
 
@@ -59,7 +59,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-core.git
-  tag: 8d78e51223a8cc387edd88ad90dc8c893aff9902
+  tag: 3d0f9747793a5113d92799437fb191d44ce903fa
 
 source-repository-package
   type: git
@@ -68,7 +68,6 @@ source-repository-package
   subdir:
     cardano-node-emulator
     cardano-streaming
-    doc
     freer-extras
     marconi-chain-index
     marconi-core
@@ -79,13 +78,10 @@ source-repository-package
     plutus-contract
     plutus-contract-certification
     plutus-e2e-tests
-    plutus-example
     plutus-ledger
     plutus-pab
-    plutus-pab-executables
     plutus-script-utils
     plutus-tx-constraints
-    plutus-use-cases
 
 -- We never, ever, want this.
 write-ghc-environment-files: never
