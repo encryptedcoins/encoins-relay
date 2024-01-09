@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 
 
@@ -16,6 +17,7 @@ import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
 import           Cardano.Api                    (NetworkId (..),
                                                  NetworkMagic (..))
 import           Cardano.Server.Config          (decodeOrErrorFromFile)
+import           Control.Monad.Extra            (whenM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
                                                  ReaderT (..))
@@ -33,6 +35,10 @@ import           Network.Wai.Middleware.Cors    (CorsResourcePolicy (..), cors,
                                                  simpleCorsResourcePolicy)
 import           Plutus.V2.Ledger.Api           (CurrencySymbol, TokenName)
 import           Servant
+import           System.Directory
+import           System.FilePath.Posix
+
+
 
 type ServerIpfsApi =
          "minted" :> ReqBody '[JSON] Token :> Post '[JSON] Text
@@ -104,22 +110,31 @@ burned t = do
         Nothing -> do
           liftIO $ putStrLn $ "Unexpected data"
           pure "Unexpected data"
-        Just x
-          | x < 0 -> do
-              env <- ask
-              liftIO $ putInQueue (envScheduleDirectory env <> "/" <> unpack aName)
-              liftIO $ putStrLn "Burned token put into the queue for unpinning"
-              pure "Burned token unpinned from ipfs"
-          | otherwise -> do
-              liftIO $ putStrLn "Token found on the blockchain. Thus it is should not be unpinned"
-              pure "Not saved"
+        -- TODO: remove after debug
+        Just x -> do
+          env <- ask
+          liftIO $ putInQueue (envScheduleDirectory env) (unpack aName)
+          liftIO $ putStrLn "Burned token put into the queue for unpinning"
+          pure "Burned token unpinned from ipfs"
 
-putInQueue :: FilePath -> IO ()
-putInQueue schedulePath = do
+        -- Just x
+        --   | x < 0 -> do
+        --       env <- ask
+        --       liftIO $ putInQueue (envScheduleDirectory env <> "/" <> unpack aName)
+        --       liftIO $ putStrLn "Burned token put into the queue for unpinning"
+        --       pure "Burned token unpinned from ipfs"
+        --   | otherwise -> do
+        --       liftIO $ putStrLn "Token found on the blockchain. Thus it is should not be unpinned"
+        --       pure "Not saved"
+
+putInQueue :: FilePath -> FilePath -> IO ()
+putInQueue scheduleDir aName = do
   time <- getPOSIXTime
   let halfDay = posixDayLength / 2
-  let timeBytes = BSC8.pack $ show $ time + halfDay
-  BS.writeFile schedulePath timeBytes
+  let timeBytes = BSC8.pack $ show @Integer $ floor $ time + halfDay
+  createDirectoryIfMissing False scheduleDir
+  let pathQueue = scheduleDir </> aName
+  BS.writeFile pathQueue timeBytes
 
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
