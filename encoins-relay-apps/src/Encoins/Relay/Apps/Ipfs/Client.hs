@@ -30,7 +30,7 @@ ipfsClient :: IO ()
 ipfsClient = do
   key <- auth <$> pinataKey "pinata_jwt_token.txt"
   manager <- newManager tlsManagerSettings
-  let env = MkIpfsEnv pinUrl fetchUrl key manager
+  let env = MkIpfsEnv pinUrl fetchUrl key manager "scheduleDir"
   flip runReaderT env $ do
     res <- pinJsonRequest token
     pPrint res

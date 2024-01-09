@@ -27,6 +27,7 @@ data IpfsEnv = MkIpfsEnv
   , envPinataFetchUrl :: BaseUrl
   , envAuthKey        :: Text
   , envManager        :: Manager
+  , envScheduleDir    :: FilePath
   }
 
 type IpfsMonad = ReaderT IpfsEnv IO
@@ -49,7 +50,7 @@ data MetaOptions = MkMetaOptions
   deriving anyclass (ToJSON, FromJSON)
 
 data Metadata = MkMetadata
-  { name      :: Maybe Text
+  { name      :: Maybe Text -- Asset Name
   , keyvalues :: Maybe MetaOptions
   }
   deriving stock (Show, Eq, Generic)
