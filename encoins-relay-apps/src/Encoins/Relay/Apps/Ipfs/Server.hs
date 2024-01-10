@@ -92,7 +92,7 @@ minted t = do
         "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
         (fromString $ T.unpack aName)
       liftIO $ print assets
-      case getAssetAmount assets of
+      case ambrAmount <$> getAsset assets of
         Nothing -> do
           liftIO $ putStrLn $ "Unexpected data"
           pure "Unexpected data"
@@ -106,20 +106,12 @@ minted t = do
               liftIO $ putStrLn "Token not found in blockchain. Thus it is not saved to ipfs"
               pure "Not saved"
 
-getAssetAmount :: [AssetMintsAndBurnsResponse] -> Maybe Integer
-getAssetAmount res =
+getAsset :: [AssetMintsAndBurnsResponse] -> Maybe AssetMintsAndBurnsData
+getAsset res =
   let resUniq = if length res == 1
         then snd <$> unsnoc res
         else Nothing
-  in ambrAmount . snd <$> (unsnoc . ambrData =<< resUniq)
-
-getAssetTime :: [AssetMintsAndBurnsResponse] -> Maybe UTCTime
-getAssetTime res =
-  let resUniq = if length res == 1
-        then snd <$> unsnoc res
-        else Nothing
-  in ambrTimestamp . snd <$> (unsnoc . ambrData =<< resUniq)
-
+  in snd <$> (unsnoc . ambrData =<< resUniq)
 
 burned :: Token -> IpfsMonad Text
 burned t = do
@@ -136,30 +128,27 @@ burned t = do
         (Testnet $ NetworkMagic 1)
         "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
         (fromString $ T.unpack aName)
-      case getAssetTime res of
+      case getAsset res of
         Nothing -> do
-          liftIO $ putStrLn $ "Unexpected data"
-          pure "Unexpected data"
+          liftIO $ putStrLn $ "Unexpected asset data"
+          pure "Unexpected asset data"
+        Just asset
+          | ambrAmount asset < 0 -> do
+              -- env <- ask
+              -- liftIO $ putInQueue (envScheduleDirectory env <> "/" <> T.unpack aName)
+              let burnedTime = ambrTimestamp asset
+              env <- ask
+              let burnDir = envScheduleDirectory env
+              liftIO $ putInQueue burnDir (T.unpack aName) burnedTime
+              rottenTokens <- liftIO $ getRottenTokens burnDir
+              rottenTokenFiles <- traverse (fetchMetaByStatusAndNameRequest "pinned") rottenTokens
+              removeRottenTokens rottenTokenFiles
+              pure "Burned token unpinned from ipfs"
+          | otherwise -> do
+                  liftIO $ putStrLn "Token found on the blockchain. Thus it is should not be unpinned"
+                  pure "Not unpinned"
 
-        -- TODO: remove after debug
-        Just burnedTime -> do
-          env <- ask
-          let burnDir = envScheduleDirectory env
-          liftIO $ putInQueue burnDir (T.unpack aName) burnedTime
-          rottenTokens <- liftIO $ getRottenTokens burnDir
-          rottenTokenFiles <- traverse (fetchMetaByStatusAndNameRequest "pinned") rottenTokens
-          removeRottenTokens rottenTokenFiles
-          pure "Burned token unpinned from ipfs"
 
-        -- Just x
-        --   | x < 0 -> do
-        --       env <- ask
-        --       liftIO $ putInQueue (envScheduleDirectory env <> "/" <> T.unpack aName)
-        --       liftIO $ putStrLn "Burned token put into the queue for unpinning"
-        --       pure "Burned token unpinned from ipfs"
-        --   | otherwise -> do
-        --       liftIO $ putStrLn "Token found on the blockchain. Thus it is should not be unpinned"
-        --       pure "Not saved"
 
 putInQueue :: FilePath -> FilePath -> UTCTime -> IO ()
 putInQueue scheduleDir aName burnedTime = do
