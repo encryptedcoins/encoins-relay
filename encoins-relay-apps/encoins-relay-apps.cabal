@@ -43,6 +43,7 @@ library
       Encoins.Relay.Apps.Delegation.Server
       Encoins.Relay.Apps.Ipfs.Client
       Encoins.Relay.Apps.Ipfs.ClientApi
+      Encoins.Relay.Apps.Ipfs.Config
       Encoins.Relay.Apps.Ipfs.Server
       Encoins.Relay.Apps.Ipfs.Types
       Encoins.Relay.Apps.Internal

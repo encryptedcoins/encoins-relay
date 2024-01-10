@@ -10,28 +10,20 @@
 module Encoins.Relay.Apps.Ipfs.Client where
 
 import           Encoins.Relay.Apps.Ipfs.ClientApi
+import           Encoins.Relay.Apps.Ipfs.Config
 import           Encoins.Relay.Apps.Ipfs.Types
 
-import           Cardano.Server.Config             (decodeOrErrorFromFile)
 import           Control.Monad.IO.Class            (MonadIO (liftIO))
 import           Control.Monad.Reader              (MonadReader (ask),
                                                     ReaderT (..))
-import qualified Data.ByteString                   as BS
 import           Data.Text                         (Text)
-import qualified Data.Text.Encoding                as TE
-import           Network.HTTP.Client               hiding (Proxy)
-import           Network.HTTP.Client.TLS
 import           Servant.Client
 
 import           Text.Pretty.Simple
 
-
 ipfsClient :: IO ()
 ipfsClient = do
-  key <- pinataKey "pinata_jwt_token.txt"
-  manager <- newManager tlsManagerSettings
-  ipfsConfig <- decodeOrErrorFromFile "ipfs_config.json"
-  let env = mkIpfsEnv manager key ipfsConfig
+  env <- getIpfsEnv
   flip runReaderT env $ do
     res <- pinJsonRequest token
     pPrint res
@@ -46,6 +38,8 @@ ipfsClient = do
 
 
 -- Requests to Pinata API
+
+-- TODO: Handle ClientError inside of requests
 
 pinJsonRequest :: Token -> IpfsMonad (Either ClientError PinJsonResponse)
 pinJsonRequest p = do
@@ -92,9 +86,6 @@ fetchMetaByStatusAndNameRequest status name = do
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
 -- Utils
-
-pinataKey :: FilePath -> IO Text
-pinataKey path = TE.decodeUtf8 <$> BS.readFile path
 
 -- TODO: remove after debug
 token :: Token
