@@ -23,6 +23,8 @@ import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
                                                  ReaderT (..))
+import           Data.Aeson                     (eitherDecodeFileStrict',
+                                                 encodeFile)
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString                as BS
 import qualified Data.ByteString.Char8          as BSC8
@@ -43,7 +45,7 @@ import           Servant
 import           Servant.Client
 import           System.Directory               (createDirectoryIfMissing)
 import           System.Directory.Extra         (listFiles)
-import           System.FilePath.Posix          (takeFileName, (</>))
+import           System.FilePath.Posix          (takeFileName, (<.>), (</>))
 
 
 type ServerIpfsApi =
@@ -85,12 +87,12 @@ minted t = do
     Nothing -> do
       liftIO $ print "No assetName received"
       pure "No assetName received"
-    Just aName -> do
-      liftIO $ print aName
+    Just assetName -> do
+      liftIO $ print assetName
       assets <- liftIO $ getAssetMintsAndBurns
         (Testnet $ NetworkMagic 1)
         "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
-        (fromString $ T.unpack aName)
+        (fromString $ T.unpack assetName)
       liftIO $ print assets
       case ambrAmount <$> getAsset assets of
         Nothing -> do
@@ -101,6 +103,8 @@ minted t = do
               res <- pinJsonRequest t
               liftIO $ putStrLn "Minted token saved"
               liftIO $ print res
+              file <- fetchMetaByStatusAndNameRequest "pinned" assetName
+              liftIO $ print file
               pure "Minted token saved to ipfs"
           | otherwise -> do
               liftIO $ putStrLn "Token not found in blockchain. Thus it is not saved to ipfs"
@@ -122,77 +126,68 @@ burned t = do
     Nothing -> do
       liftIO $ print "No assetName received"
       pure "No assetName received"
-    Just aName -> do
-      -- liftIO $ print aName
+    Just assetName -> do
+      -- liftIO $ print assetName
       res <- liftIO $ getAssetMintsAndBurns
         (Testnet $ NetworkMagic 1)
         "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
-        (fromString $ T.unpack aName)
+        (fromString $ T.unpack assetName)
       case getAsset res of
         Nothing -> do
           liftIO $ putStrLn $ "Unexpected asset data"
           pure "Unexpected asset data"
         Just asset
           | ambrAmount asset < 0 -> do
-              -- env <- ask
-              -- liftIO $ putInQueue (envScheduleDirectory env <> "/" <> T.unpack aName)
-              let burnedTime = ambrTimestamp asset
               env <- ask
               let burnDir = envScheduleDirectory env
-              liftIO $ putInQueue burnDir (T.unpack aName) burnedTime
-              rottenTokens <- liftIO $ getRottenTokens burnDir
-              rottenTokenFiles <- traverse (fetchMetaByStatusAndNameRequest "pinned") rottenTokens
-              removeRottenTokens rottenTokenFiles
-              pure "Burned token unpinned from ipfs"
+              cips <- getBurnedCips assetName
+              liftIO $ print cips
+              liftIO $ putInQueue burnDir assetName (ambrTimestamp asset) cips
+              pure "Burned token put in queue for unpinning from ipfs"
           | otherwise -> do
-                  liftIO $ putStrLn "Token found on the blockchain. Thus it is should not be unpinned"
-                  pure "Not unpinned"
+              liftIO $ putStrLn "Token found on the blockchain. Thus it is should not be unpinned"
+              pure "Not unpinned"
 
 
 
-putInQueue :: FilePath -> FilePath -> UTCTime -> IO ()
-putInQueue scheduleDir aName burnedTime = do
+putInQueue :: FilePath -> Text -> UTCTime -> [Text] -> IO ()
+putInQueue scheduleDir assetName burnedTime cips = do
   let burnedTimePosix = utcTimeToPOSIXSeconds burnedTime
   let halfDay = posixDayLength / 2
-  let timeBytes
-        = BSC8.pack
-        $ show @Integer
-        $ floor
-        $ burnedTimePosix + halfDay
+  let removeTime = burnedTimePosix + halfDay
   createDirectoryIfMissing False scheduleDir
-  let pathQueue = scheduleDir </> aName
-  BS.writeFile pathQueue timeBytes
+  mapM_ (\cip -> encodeFile (scheduleDir </> T.unpack cip <.> "json") $ MkRottenToken assetName removeTime cip) cips
 
-
-getRottenTokens :: FilePath -> IO [Text]
-getRottenTokens path = do
-  tokens <- listFiles path
-  now <- getPOSIXTime
-  mapMaybeM (\t -> selectRottenToken t now <$> BS.readFile t) tokens
-
-selectRottenToken :: FilePath
-  -> POSIXTime
-  -> ByteString
-  -> Maybe Text
-selectRottenToken tokenPath now (BSC8.unpack -> burnTime) =
-  let mPosixTime =
-        parseTimeM @Maybe @POSIXTime True defaultTimeLocale "%s" burnTime
-  in case mPosixTime of
-    Nothing -> Nothing
-    Just pTime
-      | pTime <= now -> Just (T.pack $ takeFileName tokenPath)
-      | otherwise -> Nothing
-
-removeRottenTokens :: [Either ClientError Files] -> IpfsMonad ()
-removeRottenTokens rottenTokenFiles =
-  forM_ rottenTokenFiles $ \fToken -> do
-    case fToken of
-      Left err -> liftIO
+getBurnedCips :: Text -> IpfsMonad [Text]
+getBurnedCips assetName = do
+  eFiles <- fetchMetaByStatusAndNameRequest "pinned" assetName
+  case eFiles of
+    Left err -> do
+      liftIO
         $ putStrLn
         $ "fetchMetaByStatusAndNameRequest error: " <> show err
-      Right (rows -> fs) -> do
-        liftIO $ print fs
-        forM_ fs $ \(ipfsPinHash -> cip) -> do
-          eUnpined <- unpinByCipRequest cip
-          liftIO $ print eUnpined
-          liftIO $ putStrLn "Burned token put into the queue for unpinning"
+      pure []
+    Right ((map ipfsPinHash . rows) -> cips) -> pure cips
+
+
+removeRottenTokens :: FilePath -> IpfsMonad ()
+removeRottenTokens burnedDirectory = do
+  queueFiles <- liftIO $ listFiles burnedDirectory
+  now <- liftIO $ getPOSIXTime
+  cips <- liftIO $ mapMaybeM (selectRottenCip now) queueFiles
+  liftIO $ print cips
+  forM_ cips $ \cip-> do
+    eUnpined <- unpinByCipRequest cip
+    liftIO $ print eUnpined
+    liftIO $ putStrLn "Burned token put into the queue for unpinning"
+
+selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe Text)
+selectRottenCip now tokenPath = do
+  eRotten <- eitherDecodeFileStrict' tokenPath
+  case eRotten of
+    Left err -> do
+      putStrLn err
+      pure Nothing
+    Right rotten
+      | rtRemoveTime rotten <= now -> pure $ Just $ rtCip rotten
+      | otherwise -> pure Nothing

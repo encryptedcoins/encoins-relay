@@ -15,12 +15,13 @@ import           Control.Monad.Reader  (ReaderT (..))
 import           Data.Aeson            (FromJSON (..),
                                         Options (fieldLabelModifier),
                                         ToJSON (..), camelTo2, defaultOptions,
-                                        genericParseJSON, withObject, (.:),
-                                        (.:?))
+                                        genericParseJSON, genericToJSON,
+                                        withObject, (.:), (.:?))
 import           Data.Aeson.Casing     (aesonPrefix, snakeCase)
 import           Data.Text             (Text)
 import qualified Data.Text             as T
 import           Data.Time             (UTCTime)
+import           Data.Time.Clock.POSIX (POSIXTime)
 import           GHC.Generics          (Generic)
 import           Network.HTTP.Client   (Manager)
 import           Plutus.V1.Ledger.Api  (CurrencySymbol)
@@ -159,3 +160,16 @@ data Files = MkFiles
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON)
+
+data RottenToken = MkRottenToken
+  { rtAssetName  :: Text
+  , rtRemoveTime :: POSIXTime
+  , rtCip        :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON RottenToken where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON RottenToken where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
