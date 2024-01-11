@@ -207,9 +207,13 @@ toRelayAddress addr =
 fromRelayAddress :: RelayAddress -> Text
 fromRelayAddress RelayAddress{..} = "http://" <> raAddress <> maybe "" ((":" <>) . T.pack . show) raPort
 
--- Remove end slash, protocol prefix and port from URL address
+-- Remove end slash, protocol prefix and port from URL address. Doesn't remove port from localhost
 trimIp :: Text -> Text
-trimIp = raAddress . toRelayAddress
+trimIp txt
+    | raAddress == "localhost" = "localhost" <> maybe "" ((":" <>) . T.pack . show) raPort
+    | otherwise = raAddress
+    where
+        RelayAddress{..} = toRelayAddress txt
 
 -- Make map with ips and sum of delegated tokens from list with each delegation ip and token amount
 concatIpsWithBalances :: [(Text, Integer)] -> Map Text Integer
