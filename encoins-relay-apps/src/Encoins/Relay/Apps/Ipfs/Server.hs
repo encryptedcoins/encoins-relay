@@ -19,6 +19,9 @@ import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
 
 import           Cardano.Api                    (NetworkId (..),
                                                  NetworkMagic (..))
+import           Control.Concurrent             (threadDelay)
+import           Control.Concurrent.Async       (withAsync)
+import           Control.Monad                  (forever)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
@@ -47,7 +50,6 @@ import           System.Directory               (createDirectoryIfMissing)
 import           System.Directory.Extra         (listFiles)
 import           System.FilePath.Posix          (takeFileName, (<.>), (</>))
 
-
 type ServerIpfsApi =
          "minted" :> ReqBody '[JSON] Token :> Post '[JSON] Text
     :<|> "burned" :> ReqBody '[JSON] Token :> Post '[JSON] Text
@@ -74,7 +76,8 @@ app = corsWithContentType . serve serverIpfsApiProxy . handlerServer
 ipfsServer :: IO ()
 ipfsServer = do
   env <- getIpfsEnv
-  run (envPort env) $ app env
+  withAsync (rottenTokenHandler env) $ \_ ->
+    run (envPort env) $ app env
 
 -- TODO: get rid of liftIO
 
@@ -191,3 +194,10 @@ selectRottenCip now tokenPath = do
     Right rotten
       | rtRemoveTime rotten <= now -> pure $ Just $ rtCip rotten
       | otherwise -> pure Nothing
+
+
+rottenTokenHandler :: IpfsEnv -> IO ()
+rottenTokenHandler env = flip runReaderT env $ forever $ do
+  removeRottenTokens (envScheduleDirectory env)
+  -- Sleep for 12 hours (in microseconds)
+  liftIO $ threadDelay $ 12 * 60 * 60 * 1000000
