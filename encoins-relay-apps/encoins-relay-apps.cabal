@@ -86,6 +86,7 @@ library
       plutus-tx-constraints                  -any,
       pretty-simple                          -any,
       process                                -any,
+      safe-exceptions                        -any,
       servant                                -any,
       servant-client                         -any,
       servant-server                         -any,

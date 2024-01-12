@@ -21,7 +21,7 @@ import           Cardano.Api                    (NetworkId (..),
                                                  NetworkMagic (..))
 import           Control.Concurrent             (threadDelay)
 import           Control.Concurrent.Async       (withAsync)
-import           Control.Monad                  (forever)
+import           Control.Monad                  (forever, void)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
@@ -49,6 +49,7 @@ import           Servant.Client
 import           System.Directory               (createDirectoryIfMissing)
 import           System.Directory.Extra         (listFiles)
 import           System.FilePath.Posix          (takeFileName, (<.>), (</>))
+import Control.Exception.Safe (throwM, tryAny, toException, Exception, catchAny, SomeException)
 
 type ServerIpfsApi =
          "minted" :> ReqBody '[JSON] Token :> Post '[JSON] Text
@@ -76,8 +77,13 @@ app = corsWithContentType . serve serverIpfsApiProxy . handlerServer
 ipfsServer :: IO ()
 ipfsServer = do
   env <- getIpfsEnv
-  withAsync (rottenTokenHandler env) $ \_ ->
+  withRecovery "server" $ withAsync (rottenTokenHandler env) $ \_ -> do
     run (envPort env) $ app env
+    -- TODO: remove it below
+    -- threadDelay $ 1 * 1000000
+    -- throwM ThatException
+    -- threadDelay $ 11 * 1000000
+
 
 -- TODO: get rid of liftIO
 
@@ -183,6 +189,8 @@ removeRottenTokens burnedDirectory = do
     eUnpined <- unpinByCipRequest cip
     liftIO $ print eUnpined
     liftIO $ putStrLn "Burned token put into the queue for unpinning"
+  throwM ThisException
+  pure ()
 
 selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe Text)
 selectRottenCip now tokenPath = do
@@ -197,7 +205,24 @@ selectRottenCip now tokenPath = do
 
 
 rottenTokenHandler :: IpfsEnv -> IO ()
-rottenTokenHandler env = flip runReaderT env $ forever $ do
-  removeRottenTokens (envScheduleDirectory env)
-  -- Sleep for 12 hours (in microseconds)
-  liftIO $ threadDelay $ 12 * 60 * 60 * 1000000
+rottenTokenHandler env = withRecovery "removeRottenTokens" $ flip runReaderT env $ forever $ do
+      liftIO $ print "new cycle"
+      removeRottenTokens (envScheduleDirectory env)
+      -- Sleep for 12 hours (in microseconds)
+      -- liftIO $ threadDelay $ 12 * 60 * 60 * 1000000
+      liftIO $ threadDelay $ 10 * 1000000
+
+withRecovery :: String -> IO () -> IO ()
+withRecovery name action = action `catchAny` handleException
+  where
+    handleException :: SomeException -> IO ()
+    handleException e = do
+      putStrLn $ "Exception caught in " <> name <> ": " <> show e
+      threadDelay $ 5 * 1000000
+      withRecovery name action
+
+
+data MyException = ThisException | ThatException
+    deriving Show
+
+instance Exception MyException
