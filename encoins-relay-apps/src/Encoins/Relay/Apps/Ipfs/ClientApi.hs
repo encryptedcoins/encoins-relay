@@ -20,7 +20,7 @@ import           Servant.Client
 type ClientIpfsAPI =
        "pinning" :> "pinJSONToIPFS"
                  :> Auth
-                 :> ReqBody '[JSON] Token
+                 :> ReqBody '[JSON] TokenToIpfs
                  :> Post '[JSON] PinJsonResponse
   :<|> "ipfs" :> Capture "cip" Text :> Get '[JSON] TokenKey
   :<|> "data" :> Auth :> "pinList" :> Get '[JSON] Files
@@ -39,7 +39,7 @@ type Auth = Header "Authorization" Text
 clientIpfsApi :: Proxy ClientIpfsAPI
 clientIpfsApi = Proxy
 
-pinJson           :: Maybe Text -> Token -> ClientM PinJsonResponse
+pinJson           :: Maybe Text -> TokenToIpfs -> ClientM PinJsonResponse
 fetchByCip        :: Text -> ClientM TokenKey
 fetchMetaAll      :: Maybe Text -> ClientM Files
 unpinByCip        :: Maybe Text -> Text -> ClientM Text

@@ -14,8 +14,7 @@ import           Encoins.Relay.Apps.Ipfs.Config
 import           Encoins.Relay.Apps.Ipfs.Types
 
 import           Control.Monad.IO.Class            (MonadIO (liftIO))
-import           Control.Monad.Reader              (MonadReader (ask),
-                                                    ReaderT (..))
+import           Control.Monad.Reader              (MonadReader (ask))
 import           Data.Text                         (Text)
 import           Servant.Client
 
@@ -24,7 +23,7 @@ import           Text.Pretty.Simple
 ipfsClient :: IO ()
 ipfsClient = do
   env <- getIpfsEnv
-  flip runReaderT env $ do
+  runIpfsMonad env $ do
     res <- pinJsonRequest token
     pPrint res
     -- pPrint =<< fetchMetaAllRequest manager key
@@ -41,7 +40,7 @@ ipfsClient = do
 
 -- TODO: Handle ClientError inside of requests
 
-pinJsonRequest :: Token -> IpfsMonad (Either ClientError PinJsonResponse)
+pinJsonRequest :: TokenToIpfs -> IpfsMonad (Either ClientError PinJsonResponse)
 pinJsonRequest p = do
   env <- ask
   liftIO $ runClientM
@@ -88,11 +87,11 @@ fetchMetaByStatusAndNameRequest status name = do
 -- Utils
 
 -- TODO: remove after debug
-token :: Token
-token = Token
+token :: TokenToIpfs
+token = MkTokenToIpfs
   { pinataContent = MkTokenKey "super secret key"
   , pinataMetadata = MkMetadata
-      { name = Just "tokenName"
-      , keyvalues = Just $ MkMetaOptions Minted
+      { mName = "tokenName"
+      , mKeyvalues = MkMetaOptions "client_id_hash"
       }
   }

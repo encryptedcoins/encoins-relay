@@ -9,23 +9,27 @@
 
 module Encoins.Relay.Apps.Ipfs.Types where
 
-import           Cardano.Api           (NetworkId)
-import           Cardano.Server.Config (HyperTextProtocol (..))
-import           Control.Monad.Reader  (ReaderT (..))
-import           Data.Aeson            (FromJSON (..),
-                                        Options (fieldLabelModifier),
-                                        ToJSON (..), camelTo2, defaultOptions,
-                                        genericParseJSON, genericToJSON,
-                                        withObject, (.:), (.:?))
-import           Data.Aeson.Casing     (aesonPrefix, snakeCase)
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import           Data.Time             (UTCTime)
-import           Data.Time.Clock.POSIX (POSIXTime)
-import           GHC.Generics          (Generic)
-import           Network.HTTP.Client   (Manager)
-import           Plutus.V1.Ledger.Api  (CurrencySymbol)
-import           Servant.Client        (BaseUrl (..), Scheme (..))
+import           Cardano.Api            (NetworkId)
+import           Cardano.Server.Config  (HyperTextProtocol (..))
+import           Control.Exception.Safe (MonadCatch, MonadThrow)
+import           Control.Monad.IO.Class (MonadIO)
+import           Control.Monad.Reader   (MonadReader, ReaderT (..))
+import           Data.Aeson             (FromJSON (..),
+                                         Options (fieldLabelModifier),
+                                         ToJSON (..), camelTo2, defaultOptions,
+                                         genericParseJSON, genericToJSON,
+                                         withObject, (.:), (.:?))
+import           Data.Aeson.Casing      (aesonPrefix, snakeCase)
+import           Data.Text              (Text)
+import qualified Data.Text              as T
+import           Data.Time              (UTCTime)
+import           Data.Time.Clock.POSIX  (POSIXTime)
+import           GHC.Generics           (Generic)
+import           Network.HTTP.Client    (Manager)
+import           Plutus.V1.Ledger.Api   (CurrencySymbol)
+import           Servant.Client         (BaseUrl (..), Scheme (..))
+
+-- General types
 
 data IpfsEnv = MkIpfsEnv
   { envHyperTextProtocol  :: HyperTextProtocol
@@ -75,13 +79,26 @@ mkIpfsEnv manager pinataToken ipfsConfig = MkIpfsEnv
     mkUrl :: Text -> BaseUrl
     mkUrl host = BaseUrl Https (T.unpack host) 443 ""
 
-type IpfsMonad = ReaderT IpfsEnv IO
+-- type IpfsMonad = ReaderT IpfsEnv IO
+newtype IpfsMonad a = IpfsMonad {unIpfsMonad :: ReaderT IpfsEnv IO a}
+    deriving newtype
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadIO
+        , MonadThrow
+        , MonadCatch
+        , MonadReader IpfsEnv
+        )
 
--- Request / Response types
+runIpfsMonad :: IpfsEnv -> IpfsMonad a -> IO a
+runIpfsMonad env = (`runReaderT` env) . unIpfsMonad
 
-data TokenStatus = Minted | Burned
-  deriving stock (Show, Eq, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+-- IPFS Request/Response types
+
+-- data TokenStatus = Minted | Burned
+--   deriving stock (Show, Eq, Generic)
+--   deriving anyclass (ToJSON, FromJSON)
 
 newtype TokenKey = MkTokenKey { tokenKey :: Text }
   deriving newtype (Show, Eq)
@@ -89,19 +106,28 @@ newtype TokenKey = MkTokenKey { tokenKey :: Text }
   deriving anyclass (ToJSON, FromJSON)
 
 data MetaOptions = MkMetaOptions
-  { status :: TokenStatus
+  { moClientId :: Text
+  -- , status   :: TokenStatus
   }
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (ToJSON, FromJSON)
 
-data Metadata = MkMetadata
-  { name      :: Maybe Text -- Asset Name
-  , keyvalues :: Maybe MetaOptions
+instance FromJSON MetaOptions where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON MetaOptions where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
+
+data MetadataLoose = MkMetadataLoose
+  { mrName      :: Maybe Text -- Asset Name
+  , mrKeyvalues :: Maybe MetaOptions
   }
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (ToJSON, FromJSON)
 
-data Token = Token
+instance FromJSON MetadataLoose where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+-- Request body from backend to IPFS
+data TokenToIpfs = MkTokenToIpfs
   { pinataContent  :: TokenKey
   , pinataMetadata :: Metadata
   }
@@ -131,7 +157,7 @@ data File = MkFile
   , userId        :: Text
   , datePinned    :: Maybe UTCTime
   , dateUnpinned  :: Maybe UTCTime
-  , metadata      :: Metadata
+  , metadata      :: MetadataLoose
   , regions       :: [Regions]
   , mimeType      :: Text
   , numberOfFiles :: Int
@@ -160,6 +186,43 @@ data Files = MkFiles
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (FromJSON)
+
+-- Backend Request/Response types
+
+data Metadata = MkMetadata
+  { mName      :: Text -- Asset Name
+  , mKeyvalues :: MetaOptions
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON Metadata where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON Metadata where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
+
+-- Request body from frontend to backend
+data TokenToCloud = MkTokenCloud
+  { tcClientId  :: Text -- Unique identification of the user
+  , tcAssetName :: Text
+  , tcTokenKey  :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON TokenToCloud where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+mkTokentoIpfs :: TokenToCloud -> TokenToIpfs
+mkTokentoIpfs tokenToCloud = MkTokenToIpfs
+  { pinataContent = MkTokenKey $ tcTokenKey tokenToCloud
+  , pinataMetadata = MkMetadata
+      (tcAssetName tokenToCloud)
+      (MkMetaOptions $ tcClientId tokenToCloud)
+  }
+
+data CloudResponse = TokenPinned | TokenBurned | PinError Text
+  deriving stock (Show, Eq, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 data RottenToken = MkRottenToken
   { rtAssetName  :: Text

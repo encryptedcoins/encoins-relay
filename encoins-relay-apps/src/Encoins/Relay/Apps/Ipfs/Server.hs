@@ -20,50 +20,56 @@ import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
 import           Cardano.Api                    (NetworkId (..),
                                                  NetworkMagic (..))
 import           Control.Concurrent             (threadDelay)
-import           Control.Concurrent.Async       (withAsync)
+-- import           Control.Concurrent.Async       (withAsync)
+import           Control.Exception.Safe         (Exception, SomeException,
+                                                 catchAny, throwM, toException,
+                                                 tryAny)
 import           Control.Monad                  (forever, void)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
-                                                 ReaderT (..))
+                                                 ReaderT (..), asks)
 import           Data.Aeson                     (eitherDecodeFileStrict',
                                                  encodeFile)
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString                as BS
 import qualified Data.ByteString.Char8          as BSC8
+import           Data.List                      (sortOn)
 import           Data.List.Extra                (unsnoc)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
-import           Data.Time                      (UTCTime)
+import           Data.Time                      (UTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
                                                  posixDayLength,
                                                  utcTimeToPOSIXSeconds)
-import           Data.Time.Format
+-- import           Data.Time.Format
 import qualified Network.Wai                    as Wai
 import           Network.Wai.Handler.Warp
 import           Network.Wai.Middleware.Cors    (CorsResourcePolicy (..), cors,
                                                  simpleCorsResourcePolicy)
+import           Say
 import           Servant
-import           Servant.Client
-import           System.Directory               (createDirectoryIfMissing)
+-- import           Servant.Client
+import           System.Directory               (createDirectoryIfMissing,
+                                                 removeFile)
 import           System.Directory.Extra         (listFiles)
 import           System.FilePath.Posix          (takeFileName, (<.>), (</>))
-import Control.Exception.Safe (throwM, tryAny, toException, Exception, catchAny, SomeException)
 
 type ServerIpfsApi =
-         "minted" :> ReqBody '[JSON] Token :> Post '[JSON] Text
-    :<|> "burned" :> ReqBody '[JSON] Token :> Post '[JSON] Text
+         "minted" :> ReqBody '[JSON] TokenToCloud
+                  :> Post '[JSON] CloudResponse
+    -- :<|> "burned" :> ReqBody '[JSON] TokenToCloud :> Post '[JSON] Text
 
 serverIpfsApiProxy :: Proxy ServerIpfsApi
 serverIpfsApiProxy = Proxy
 
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
 serverIpfsApi = minted
-           :<|> burned
+          --  :<|> burned
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
-handlerServer env = hoistServer serverIpfsApiProxy (liftIO . flip runReaderT env) serverIpfsApi
+handlerServer env = hoistServer serverIpfsApiProxy (liftIO . runIpfsMonad env) serverIpfsApi
 
 corsWithContentType :: Wai.Middleware
 corsWithContentType = cors (const $ Just policy)
@@ -77,95 +83,86 @@ app = corsWithContentType . serve serverIpfsApiProxy . handlerServer
 ipfsServer :: IO ()
 ipfsServer = do
   env <- getIpfsEnv
-  withRecovery "server" $ withAsync (rottenTokenHandler env) $ \_ -> do
-    run (envPort env) $ app env
-    -- TODO: remove it below
-    -- threadDelay $ 1 * 1000000
-    -- throwM ThatException
-    -- threadDelay $ 11 * 1000000
-
+  -- withAsync (rottenTokenHandler env) $ \_ -> do
+  withRecovery "server" $
+      run (envPort env) $ app env
 
 -- TODO: get rid of liftIO
 
-minted :: Token -> IpfsMonad Text
+minted :: TokenToCloud -> IpfsMonad CloudResponse
 minted t = do
-  liftIO $ putStrLn "Minted token received"
-  liftIO $ print t
-  let mAssetName = name $ pinataMetadata t
-  case mAssetName of
-    Nothing -> do
-      liftIO $ print "No assetName received"
-      pure "No assetName received"
-    Just assetName -> do
-      liftIO $ print assetName
-      assets <- liftIO $ getAssetMintsAndBurns
-        (Testnet $ NetworkMagic 1)
-        "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
-        (fromString $ T.unpack assetName)
-      liftIO $ print assets
-      case ambrAmount <$> getAsset assets of
-        Nothing -> do
-          liftIO $ putStrLn $ "Unexpected data"
-          pure "Unexpected data"
-        Just x
-          | x > 0 -> do
-              res <- pinJsonRequest t
-              liftIO $ putStrLn "Minted token saved"
-              liftIO $ print res
-              file <- fetchMetaByStatusAndNameRequest "pinned" assetName
-              liftIO $ print file
-              pure "Minted token saved to ipfs"
-          | otherwise -> do
-              liftIO $ putStrLn "Token not found in blockchain. Thus it is not saved to ipfs"
-              pure "Not saved"
+  say "Minted token received"
+  sayShow t
+  -- print t
+  eAssets <- liftIO $ tryAny $ getAssetMintsAndBurns
+    (Testnet $ NetworkMagic 1)
+    "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
+    (fromString $ T.unpack $ tcAssetName t)
+  sayShow eAssets
+  case eAssets of
+    Left err -> do
+      sayShow err
+      pure $ PinError $ T.pack $ show err
+    Right assets -> case ambrAmount <$> getAsset assets of
+      Left err -> do
+        say err
+        pure $ PinError err
+      Right x
+        | x > 0 -> do
+            res <- pinJsonRequest $ mkTokentoIpfs t
+            liftIO $ print res
+            pure TokenPinned
+        | otherwise -> do
+            say "Token not found in blockchain. Thus it is not saved to ipfs"
+            pure TokenBurned
 
-getAsset :: [AssetMintsAndBurnsResponse] -> Maybe AssetMintsAndBurnsData
-getAsset res =
-  let resUniq = if length res == 1
-        then snd <$> unsnoc res
-        else Nothing
-  in snd <$> (unsnoc . ambrData =<< resUniq)
+getAsset :: [AssetMintsAndBurnsResponse] -> Either Text AssetMintsAndBurnsData
+getAsset res = do
+  resUniq <- if length res == 1
+        then Right $ head res
+        else Left "getAssetMintsAndBurns returned more than one asset."
+  -- Sorting by slot is just in case
+  let asset = sortOn ambrSlot $ ambrData resUniq
+  let assetSorted = snd <$> (unsnoc asset)
+  case assetSorted of
+    Nothing -> Left "AssetMintsAndBurnsResponse has more than one data (page)"
+    Just a  -> Right a
 
-burned :: Token -> IpfsMonad Text
+burned :: TokenToCloud -> IpfsMonad Text
 burned t = do
-  liftIO $ putStrLn "Burned token received"
-  -- liftIO $ print t
-  let mAssetName = name $ pinataMetadata t
-  case mAssetName of
-    Nothing -> do
-      liftIO $ print "No assetName received"
-      pure "No assetName received"
-    Just assetName -> do
-      -- liftIO $ print assetName
-      res <- liftIO $ getAssetMintsAndBurns
-        (Testnet $ NetworkMagic 1)
-        "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
-        (fromString $ T.unpack assetName)
-      case getAsset res of
-        Nothing -> do
-          liftIO $ putStrLn $ "Unexpected asset data"
-          pure "Unexpected asset data"
-        Just asset
-          | ambrAmount asset < 0 -> do
-              env <- ask
-              let burnDir = envScheduleDirectory env
-              cips <- getBurnedCips assetName
-              liftIO $ print cips
-              liftIO $ putInQueue burnDir assetName (ambrTimestamp asset) cips
-              pure "Burned token put in queue for unpinning from ipfs"
-          | otherwise -> do
-              liftIO $ putStrLn "Token found on the blockchain. Thus it is should not be unpinned"
-              pure "Not unpinned"
+  say "Burned token received"
+  -- sayShow t
+  let assetName = tcAssetName t
+  res <- liftIO $ getAssetMintsAndBurns
+    (Testnet $ NetworkMagic 1)
+    "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
+    (fromString $ T.unpack assetName)
+  case getAsset res of
+    Left err -> do
+      say err
+      pure err
+    Right asset
+      | ambrAmount asset < 0 -> do
+      -- | True -> do -- TODO: remove the debug
+          env <- ask
+          let burnDir = envScheduleDirectory env
+          cips <- getBurnedCips assetName
+          liftIO $ print cips
+          putInQueue burnDir assetName (ambrTimestamp asset) cips
+          pure "Burned token put in queue for unpinning from ipfs"
+      | otherwise -> do
+          say "Token found on the blockchain. Thus it is should not be unpinned"
+          pure "Not unpinned"
 
 
 
-putInQueue :: FilePath -> Text -> UTCTime -> [Text] -> IO ()
+putInQueue :: FilePath -> Text -> UTCTime -> [Text] -> IpfsMonad ()
 putInQueue scheduleDir assetName burnedTime cips = do
   let burnedTimePosix = utcTimeToPOSIXSeconds burnedTime
   let halfDay = posixDayLength / 2
   let removeTime = burnedTimePosix + halfDay
-  createDirectoryIfMissing False scheduleDir
-  mapM_ (\cip -> encodeFile (scheduleDir </> T.unpack cip <.> "json") $ MkRottenToken assetName removeTime cip) cips
+  liftIO $ createDirectoryIfMissing False scheduleDir
+  mapM_ (\cip -> liftIO $ encodeFile (scheduleDir </> T.unpack cip <.> "json") $ MkRottenToken assetName removeTime cip) cips
 
 getBurnedCips :: Text -> IpfsMonad [Text]
 getBurnedCips assetName = do
@@ -179,47 +176,62 @@ getBurnedCips assetName = do
     Right ((map ipfsPinHash . rows) -> cips) -> pure cips
 
 
-removeRottenTokens :: FilePath -> IpfsMonad ()
-removeRottenTokens burnedDirectory = do
+removeRottenTokens :: IpfsMonad ()
+removeRottenTokens  = do
+  burnedDirectory <- asks envScheduleDirectory
   queueFiles <- liftIO $ listFiles burnedDirectory
   now <- liftIO $ getPOSIXTime
   cips <- liftIO $ mapMaybeM (selectRottenCip now) queueFiles
-  liftIO $ print cips
-  forM_ cips $ \cip-> do
+  sayShow cips
+  res <- throwM ThisException
+  sayShow @_ @MyException res
+  forM_ cips $ \(cip, path)-> do
     eUnpined <- unpinByCipRequest cip
-    liftIO $ print eUnpined
-    liftIO $ putStrLn "Burned token put into the queue for unpinning"
-  throwM ThisException
+    sayShow eUnpined
+    case eUnpined of
+      Left err ->
+        sayShow err
+      Right _ -> do
+        say "Burned token unpinned"
+        eRemoved <- liftIO $ tryAny $ removeFile path
+        case eRemoved of
+          Left err -> do
+            say "Fail to remove file"
+            sayErrShow err
+          Right _ -> say "Burned filed removed from queue"
   pure ()
 
-selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe Text)
+selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe (Text, FilePath))
 selectRottenCip now tokenPath = do
-  eRotten <- eitherDecodeFileStrict' tokenPath
+  eRotten <- liftIO $ eitherDecodeFileStrict' tokenPath
   case eRotten of
     Left err -> do
-      putStrLn err
+      sayString err
       pure Nothing
     Right rotten
-      | rtRemoveTime rotten <= now -> pure $ Just $ rtCip rotten
+      | rtRemoveTime rotten <= now -> pure $ Just $ (rtCip rotten, tokenPath)
       | otherwise -> pure Nothing
 
 
 rottenTokenHandler :: IpfsEnv -> IO ()
-rottenTokenHandler env = withRecovery "removeRottenTokens" $ flip runReaderT env $ forever $ do
-      liftIO $ print "new cycle"
-      removeRottenTokens (envScheduleDirectory env)
-      -- Sleep for 12 hours (in microseconds)
-      -- liftIO $ threadDelay $ 12 * 60 * 60 * 1000000
-      liftIO $ threadDelay $ 10 * 1000000
+-- rottenTokenHandler env = withRecovery "removeRottenTokens" $ forever $ do
+rottenTokenHandler env = forever $ do
+      say "run removeRottenTokens"
+      sayShow =<< getCurrentTime
+      sayShow =<< getPOSIXTime
+      runReaderT (unIpfsMonad removeRottenTokens) env
+      -- Sleep for 1 hour (in microseconds)
+      -- liftIO $ threadDelay $ 60 * 60 * 1000000
+      threadDelay $ 60 * 1000000
 
 withRecovery :: String -> IO () -> IO ()
-withRecovery name action = action `catchAny` handleException
+withRecovery nameOfAction action = action `catchAny` handleException
   where
     handleException :: SomeException -> IO ()
     handleException e = do
-      putStrLn $ "Exception caught in " <> name <> ": " <> show e
-      threadDelay $ 5 * 1000000
-      withRecovery name action
+      sayString $ "Exception caught in " <> nameOfAction <> ": " <> show e
+      liftIO $ threadDelay $ 5 * 1000000
+      withRecovery nameOfAction action
 
 
 data MyException = ThisException | ThatException
