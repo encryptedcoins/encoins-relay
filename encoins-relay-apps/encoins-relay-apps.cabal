@@ -91,6 +91,7 @@ library
       servant                                -any,
       servant-client                         -any,
       servant-server                         -any,
+      stm                                    -any,
       terminal-progress-bar                  -any,
       text                                   -any,
       time                                   -any,

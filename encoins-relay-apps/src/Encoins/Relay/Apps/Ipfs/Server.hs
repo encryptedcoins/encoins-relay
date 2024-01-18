@@ -20,7 +20,7 @@ import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
 import           Cardano.Api                    (NetworkId (..),
                                                  NetworkMagic (..))
 import           Control.Concurrent             (threadDelay)
--- import           Control.Concurrent.Async       (withAsync)
+import           Control.Concurrent.STM
 import           Control.Exception.Safe         (Exception, SomeException,
                                                  catchAny, throwM, toException,
                                                  tryAny)
@@ -31,11 +31,10 @@ import           Control.Monad.Reader           (MonadReader (ask),
                                                  ReaderT (..), asks)
 import           Data.Aeson                     (eitherDecodeFileStrict',
                                                  encodeFile)
-import           Data.ByteString                (ByteString)
-import qualified Data.ByteString                as BS
-import qualified Data.ByteString.Char8          as BSC8
 import           Data.List                      (sortOn)
 import           Data.List.Extra                (unsnoc)
+import           Data.Map                       (Map)
+import qualified Data.Map                       as Map
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
@@ -43,33 +42,43 @@ import           Data.Time                      (UTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
                                                  posixDayLength,
                                                  utcTimeToPOSIXSeconds)
--- import           Data.Time.Format
 import qualified Network.Wai                    as Wai
 import           Network.Wai.Handler.Warp
 import           Network.Wai.Middleware.Cors    (CorsResourcePolicy (..), cors,
                                                  simpleCorsResourcePolicy)
 import           Say
 import           Servant
--- import           Servant.Client
 import           System.Directory               (createDirectoryIfMissing,
                                                  removeFile)
 import           System.Directory.Extra         (listFiles)
 import           System.FilePath.Posix          (takeFileName, (<.>), (</>))
 
+-- import           Data.ByteString                (ByteString)
+-- import qualified Data.ByteString                as BS
+-- import qualified Data.ByteString.Char8          as BSC8
+-- import           Data.Time.Format
+-- import           Servant.Client
+-- import           Control.Concurrent.Async       (withAsync)
+
 type ServerIpfsApi =
-         "minted" :> ReqBody '[JSON] TokenToCloud
-                  :> Post '[JSON] CloudResponse
+         "cache" :> ReqBody '[JSON] (Text, [CloudRequest])
+                  :> Post '[JSON] (Map Text CloudResponse )
+    -- :<|> "minted" :> ReqBody '[JSON] CloudRequest
+    --               :> Post '[JSON] CloudResponse
     -- :<|> "burned" :> ReqBody '[JSON] TokenToCloud :> Post '[JSON] Text
 
 serverIpfsApiProxy :: Proxy ServerIpfsApi
 serverIpfsApiProxy = Proxy
 
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
-serverIpfsApi = minted
+serverIpfsApi = cache
+           :<|> minted
           --  :<|> burned
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
 handlerServer env = hoistServer serverIpfsApiProxy (liftIO . runIpfsMonad env) serverIpfsApi
+
+minted = undefined
 
 corsWithContentType :: Wai.Middleware
 corsWithContentType = cors (const $ Just policy)
@@ -89,32 +98,100 @@ ipfsServer = do
 
 -- TODO: get rid of liftIO
 
-minted :: TokenToCloud -> IpfsMonad CloudResponse
-minted t = do
+cache :: (Text, [CloudRequest]) -> IpfsMonad (Map Text CloudResponse)
+cache (clientId, reqs) = do
+  responseTVar <- liftIO $ newTVarIO Map.empty
+  mapM_ (cacheToken clientId responseTVar) reqs
+  liftIO $ readTVarIO responseTVar
+
+cacheToken :: Text
+  -> TVar (Map Text CloudResponse)
+  -> CloudRequest
+  -> IpfsMonad ()
+cacheToken clientId tVar req = do
   say "Minted token received"
-  sayShow t
-  -- print t
+  sayShow req
+  let assetName = reqAssetName req
   eAssets <- liftIO $ tryAny $ getAssetMintsAndBurns
     (Testnet $ NetworkMagic 1)
     "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
-    (fromString $ T.unpack $ tcAssetName t)
+    (fromString $ T.unpack assetName)
   sayShow eAssets
   case eAssets of
     Left err -> do
       sayShow err
-      pure $ PinError $ T.pack $ show err
+      modifyCacheResponse tVar assetName
+        $ MkCloudResponse Nothing
+        $ Just
+        $ CoinError
+        $ T.pack
+        $ show err
     Right assets -> case ambrAmount <$> getAsset assets of
       Left err -> do
         say err
-        pure $ PinError err
+        modifyCacheResponse tVar assetName
+          $ MkCloudResponse Nothing
+          $ Just
+          $ CoinError
+          $ T.pack
+          $ show err
       Right x
         | x > 0 -> do
-            res <- pinJsonRequest $ mkTokentoIpfs t
-            liftIO $ print res
-            pure TokenPinned
+            res <- pinJsonRequest $ mkTokentoIpfs clientId req
+            case res of
+              Left err -> do
+                sayShow err
+                modifyCacheResponse tVar assetName $ MkCloudResponse
+                  (Just $ FileError $ T.pack $ show err) Nothing
+              Right r -> do
+                sayShow r
+                modifyCacheResponse tVar assetName
+                  (MkCloudResponse (Just Pinned) (Just Minted))
         | otherwise -> do
-            say "Token not found in blockchain. Thus it is not saved to ipfs"
-            pure TokenBurned
+            say "Token found in blockchain and it burned"
+            modifyCacheResponse tVar assetName
+              (MkCloudResponse Nothing (Just Burned))
+
+modifyCacheResponse :: TVar (Map Text CloudResponse)
+  -> Text
+  -> CloudResponse
+  -> IpfsMonad ()
+modifyCacheResponse tVar assetName resp
+  = liftIO
+  $ atomically
+  $ modifyTVar' tVar (Map.insert assetName resp)
+
+-- minted :: CloudRequest -> IpfsMonad CloudResponse
+-- minted t = do
+--   say "Minted token received"
+--   sayShow t
+--   let assetName = reqAssetName t
+--   eAssets <- liftIO $ tryAny $ getAssetMintsAndBurns
+--     (Testnet $ NetworkMagic 1)
+--     "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
+--     (fromString $ T.unpack assetName)
+--   sayShow eAssets
+--   case eAssets of
+--     Left err -> do
+--       sayShow err
+--       pure $ MkCloudResponse assetName Nothing $ Just $ CoinError $ T.pack $ show err
+--     Right assets -> case ambrAmount <$> getAsset assets of
+--       Left err -> do
+--         say err
+--         pure $ MkCloudResponse assetName Nothing $ Just $ CoinError $ T.pack $ show err
+--       Right x
+--         | x > 0 -> do
+--             res <- pinJsonRequest $ mkTokentoIpfs t
+--             case res of
+--               Left err -> do
+--                 sayShow err
+--                 pure $ MkCloudResponse assetName (Just $ FileError $ T.pack $ show err) Nothing
+--               Right r -> do
+--                 sayShow r
+--                 pure $ MkCloudResponse assetName (Just Pinned) (Just Minted)
+--         | otherwise -> do
+--             say "Token found in blockchain and it burned"
+--             pure $ MkCloudResponse assetName Nothing (Just Burned)
 
 getAsset :: [AssetMintsAndBurnsResponse] -> Either Text AssetMintsAndBurnsData
 getAsset res = do
@@ -125,14 +202,14 @@ getAsset res = do
   let asset = sortOn ambrSlot $ ambrData resUniq
   let assetSorted = snd <$> (unsnoc asset)
   case assetSorted of
-    Nothing -> Left "AssetMintsAndBurnsResponse has more than one data (page)"
+    Nothing -> Left "ambrData is empty"
     Just a  -> Right a
 
-burned :: TokenToCloud -> IpfsMonad Text
+burned :: CloudRequest -> IpfsMonad Text
 burned t = do
   say "Burned token received"
   -- sayShow t
-  let assetName = tcAssetName t
+  let assetName = reqAssetName t
   res <- liftIO $ getAssetMintsAndBurns
     (Testnet $ NetworkMagic 1)
     "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"

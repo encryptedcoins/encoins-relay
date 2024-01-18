@@ -202,27 +202,39 @@ instance ToJSON Metadata where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
 -- Request body from frontend to backend
-data TokenToCloud = MkTokenCloud
-  { tcClientId  :: Text -- Unique identification of the user
-  , tcAssetName :: Text
-  , tcTokenKey  :: Text
+data CloudRequest = MkCloudRequest
+  { reqAssetName :: Text
+  , reqSecretKey  :: Text
   }
   deriving stock (Show, Eq, Generic)
 
-instance FromJSON TokenToCloud where
+instance FromJSON CloudRequest where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-mkTokentoIpfs :: TokenToCloud -> TokenToIpfs
-mkTokentoIpfs tokenToCloud = MkTokenToIpfs
-  { pinataContent = MkTokenKey $ tcTokenKey tokenToCloud
+mkTokentoIpfs :: Text -> CloudRequest -> TokenToIpfs
+mkTokentoIpfs clientId req = MkTokenToIpfs
+  { pinataContent = MkTokenKey $ reqSecretKey req
   , pinataMetadata = MkMetadata
-      (tcAssetName tokenToCloud)
-      (MkMetaOptions $ tcClientId tokenToCloud)
+      (reqAssetName req)
+      (MkMetaOptions clientId)
   }
 
-data CloudResponse = TokenPinned | TokenBurned | PinError Text
+data IpfsStatus = Pinned | Unpinned | FileError Text
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON)
+
+data CoinStatus = Minted | Burned | CoinError Text
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON)
+
+data CloudResponse = MkCloudResponse
+  { resIpfsStatus :: Maybe IpfsStatus
+  , resCoinStatus :: Maybe CoinStatus
+  }
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+
+instance ToJSON CloudResponse where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
 
 data RottenToken = MkRottenToken
   { rtAssetName  :: Text
