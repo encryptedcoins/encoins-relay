@@ -100,10 +100,15 @@ runIpfsMonad env = (`runReaderT` env) . unIpfsMonad
 --   deriving stock (Show, Eq, Generic)
 --   deriving anyclass (ToJSON, FromJSON)
 
-newtype TokenKey = MkTokenKey { tokenKey :: Text }
+newtype TokenKey = MkTokenKey { tkTokenKey :: Text }
   deriving newtype (Show, Eq)
   deriving stock (Generic)
-  deriving anyclass (ToJSON, FromJSON)
+
+instance FromJSON TokenKey where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON TokenKey where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
 
 data MetaOptions = MkMetaOptions
   { moClientId :: Text
