@@ -72,16 +72,25 @@ fetchMetaPinnedRequest :: Text -> IpfsMonad (Either ClientError Files)
 fetchMetaPinnedRequest status = do
   env <- ask
   liftIO $ runClientM
-    (fetchMetaByStatus (Just $ envPinataAuthToken env) (Just status))
+    (fetchByStatus (Just $ envPinataAuthToken env) (Just status))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
-fetchMetaByStatusAndNameRequest :: Text
+fetchByStatusNameRequest :: Text
   -> Text
   -> IpfsMonad (Either ClientError Files)
-fetchMetaByStatusAndNameRequest status name = do
+fetchByStatusNameRequest status name = do
   env <- ask
   liftIO $ runClientM
-    (fetchMetaByStatusAndName (Just $ envPinataAuthToken env) (Just status) (Just name))
+    (fetchByStatusName (Just $ envPinataAuthToken env) (Just status) (Just name))
+    (mkClientEnv (envManager env) (envPinataPinHost env))
+
+fetchByStatusKeyvalueRequest :: Text
+  -> Text
+  -> IpfsMonad (Either ClientError Files)
+fetchByStatusKeyvalueRequest status clientId = do
+  env <- ask
+  liftIO $ runClientM
+    (fetchByStatusName (Just $ envPinataAuthToken env) (Just status) (Just clientId))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
 -- Utils

@@ -33,6 +33,11 @@ type ClientIpfsAPI =
               :> QueryParam "status" Text
               :> QueryParam "metadata[name]" Text
               :> Get '[JSON] Files
+  :<|> "data" :> "pinList"
+              :> Auth
+              :> QueryParam "status" Text
+              :> QueryParam "metadata[keyvalues][client_id]" Text
+              :> Get '[JSON] Files
 
 type Auth = Header "Authorization" Text
 
@@ -43,7 +48,8 @@ pinJson           :: Maybe Text -> TokenToIpfs -> ClientM PinJsonResponse
 fetchByCip        :: Text -> ClientM TokenKey
 fetchMetaAll      :: Maybe Text -> ClientM Files
 unpinByCip        :: Maybe Text -> Text -> ClientM Text
-fetchMetaByStatus :: Maybe Text -> Maybe Text -> ClientM Files
-fetchMetaByStatusAndName :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
+fetchByStatus :: Maybe Text -> Maybe Text -> ClientM Files
+fetchByStatusName :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
+fetchByStatusKeyvalue :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
 pinJson :<|> fetchByCip :<|> fetchMetaAll :<|> unpinByCip :<|>
-  fetchMetaByStatus :<|> fetchMetaByStatusAndName = client clientIpfsApi
+  fetchByStatus :<|> fetchByStatusName :<|> fetchByStatusKeyvalue = client clientIpfsApi

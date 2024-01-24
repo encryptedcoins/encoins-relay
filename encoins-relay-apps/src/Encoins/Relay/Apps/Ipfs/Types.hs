@@ -107,7 +107,6 @@ newtype TokenKey = MkTokenKey { tokenKey :: Text }
 
 data MetaOptions = MkMetaOptions
   { moClientId :: Text
-  -- , status   :: TokenStatus
   }
   deriving stock (Show, Eq, Generic)
 
@@ -204,7 +203,7 @@ instance ToJSON Metadata where
 -- Request body from frontend to backend
 data CloudRequest = MkCloudRequest
   { reqAssetName :: Text
-  , reqSecretKey  :: Text
+  , reqSecretKey :: Text
   }
   deriving stock (Show, Eq, Generic)
 
@@ -247,4 +246,13 @@ instance FromJSON RottenToken where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 instance ToJSON RottenToken where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
+
+data RestoreResponse = MkRestoreResponse
+  { rrAssetName :: Text
+  , rrSecretKey :: TokenKey
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance ToJSON RestoreResponse where
    toJSON = genericToJSON $ aesonPrefix snakeCase

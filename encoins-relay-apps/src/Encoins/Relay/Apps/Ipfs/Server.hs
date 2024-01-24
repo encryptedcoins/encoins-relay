@@ -24,17 +24,19 @@ import           Control.Concurrent.STM
 import           Control.Exception.Safe         (Exception, SomeException,
                                                  catchAny, throwM, toException,
                                                  tryAny)
-import           Control.Monad                  (forever, void)
+import           Control.Monad                  (forM, forever, void)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
                                                  ReaderT (..), asks)
 import           Data.Aeson                     (eitherDecodeFileStrict',
                                                  encodeFile)
+import           Data.Either                    (partitionEithers)
 import           Data.List                      (sortOn)
 import           Data.List.Extra                (unsnoc)
 import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
+import           Data.Maybe                     (fromMaybe)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
@@ -61,8 +63,13 @@ import           System.FilePath.Posix          (takeFileName, (<.>), (</>))
 -- import           Control.Concurrent.Async       (withAsync)
 
 type ServerIpfsApi =
-         "cache" :> ReqBody '[JSON] (Text, [CloudRequest])
-                  :> Post '[JSON] (Map Text CloudResponse )
+          "cache"
+              :> ReqBody '[JSON] (Text, [CloudRequest])
+              :> Post '[JSON] (Map Text CloudResponse )
+     :<|> "restore"
+              :> ReqBody '[JSON] Text
+              :> Get '[JSON] [RestoreResponse]
+
     -- :<|> "minted" :> ReqBody '[JSON] CloudRequest
     --               :> Post '[JSON] CloudResponse
     -- :<|> "burned" :> ReqBody '[JSON] TokenToCloud :> Post '[JSON] Text
@@ -72,13 +79,10 @@ serverIpfsApiProxy = Proxy
 
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
 serverIpfsApi = cache
-           :<|> minted
-          --  :<|> burned
+           :<|> restore
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
 handlerServer env = hoistServer serverIpfsApiProxy (liftIO . runIpfsMonad env) serverIpfsApi
-
-minted = undefined
 
 corsWithContentType :: Wai.Middleware
 corsWithContentType = cors (const $ Just policy)
@@ -160,6 +164,26 @@ modifyCacheResponse tVar assetName resp
   = liftIO
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
+
+
+restore :: Text -> IpfsMonad [RestoreResponse]
+restore clientId = do
+  eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
+  case eFiles of
+    Left err -> do
+      sayShow err
+      pure []
+    Right (rows -> files) -> do
+      (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
+        eTokenKey <- fetchByCipRequest (ipfsPinHash file)
+        let name = fromMaybe "absentAssetName" $ mrName $ metadata file
+        pure $ MkRestoreResponse name <$> eTokenKey
+      case errors of
+        [] -> pure rRes
+        _ -> do
+          mapM_ sayShow errors
+          pure []
+
 
 -- minted :: CloudRequest -> IpfsMonad CloudResponse
 -- minted t = do
@@ -243,12 +267,12 @@ putInQueue scheduleDir assetName burnedTime cips = do
 
 getBurnedCips :: Text -> IpfsMonad [Text]
 getBurnedCips assetName = do
-  eFiles <- fetchMetaByStatusAndNameRequest "pinned" assetName
+  eFiles <- fetchByStatusNameRequest "pinned" assetName
   case eFiles of
     Left err -> do
       liftIO
         $ putStrLn
-        $ "fetchMetaByStatusAndNameRequest error: " <> show err
+        $ "fetchByStatusNameRequest error: " <> show err
       pure []
     Right ((map ipfsPinHash . rows) -> cips) -> pure cips
 
