@@ -90,7 +90,7 @@ fetchByStatusKeyvalueRequest :: Text
 fetchByStatusKeyvalueRequest status clientId = do
   env <- ask
   liftIO $ runClientM
-    (fetchByStatusName (Just $ envPinataAuthToken env) (Just status) (Just clientId))
+    (fetchByStatusKeyvalue (Just $ envPinataAuthToken env) (Just status) (Just clientId))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
 -- Utils
