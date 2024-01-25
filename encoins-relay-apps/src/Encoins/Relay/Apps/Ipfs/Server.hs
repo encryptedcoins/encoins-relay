@@ -67,7 +67,7 @@ type ServerIpfsApi =
               :> ReqBody '[JSON] (Text, [CloudRequest])
               :> Post '[JSON] (Map Text CloudResponse )
      :<|> "restore"
-              :> ReqBody '[JSON] Text
+              :> Capture "client_id" Text
               :> Get '[JSON] [RestoreResponse]
 
     -- :<|> "minted" :> ReqBody '[JSON] CloudRequest

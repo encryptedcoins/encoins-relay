@@ -44,12 +44,12 @@ type Auth = Header "Authorization" Text
 clientIpfsApi :: Proxy ClientIpfsAPI
 clientIpfsApi = Proxy
 
-pinJson           :: Maybe Text -> TokenToIpfs -> ClientM PinJsonResponse
-fetchByCip        :: Text -> ClientM TokenKey
-fetchMetaAll      :: Maybe Text -> ClientM Files
-unpinByCip        :: Maybe Text -> Text -> ClientM Text
-fetchByStatus :: Maybe Text -> Maybe Text -> ClientM Files
-fetchByStatusName :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
+pinJson               :: Maybe Text -> TokenToIpfs -> ClientM PinJsonResponse
+fetchByCip            :: Text -> ClientM TokenKey
+fetchMetaAll          :: Maybe Text -> ClientM Files
+unpinByCip            :: Maybe Text -> Text -> ClientM Text
+fetchByStatus         :: Maybe Text -> Maybe Text -> ClientM Files
+fetchByStatusName     :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
 fetchByStatusKeyvalue :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
 pinJson :<|> fetchByCip :<|> fetchMetaAll :<|> unpinByCip :<|>
   fetchByStatus :<|> fetchByStatusName :<|> fetchByStatusKeyvalue = client clientIpfsApi
