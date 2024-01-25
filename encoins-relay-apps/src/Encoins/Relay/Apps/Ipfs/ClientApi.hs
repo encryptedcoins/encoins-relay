@@ -36,7 +36,7 @@ type ClientIpfsAPI =
   :<|> "data" :> "pinList"
               :> Auth
               :> QueryParam "status" Text
-              :> QueryParam "metadata[keyvalues][client_id]" Text
+              :> QueryParam "metadata[keyvalue][client_id]" Text
               :> Get '[JSON] Files
 
 type Auth = Header "Authorization" Text

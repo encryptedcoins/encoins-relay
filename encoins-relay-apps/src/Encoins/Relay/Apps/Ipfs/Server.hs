@@ -30,7 +30,8 @@ import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
                                                  ReaderT (..), asks)
 import           Data.Aeson                     (eitherDecodeFileStrict',
-                                                 encodeFile)
+                                                 encode, encodeFile)
+import           Data.ByteString.Lazy           (toStrict)
 import           Data.Either                    (partitionEithers)
 import           Data.List                      (sortOn)
 import           Data.List.Extra                (unsnoc)
@@ -40,6 +41,7 @@ import           Data.Maybe                     (fromMaybe)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
+import qualified Data.Text.Encoding             as TE
 import           Data.Time                      (UTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
                                                  posixDayLength,
