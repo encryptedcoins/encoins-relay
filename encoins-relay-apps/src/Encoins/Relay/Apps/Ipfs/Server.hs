@@ -167,7 +167,7 @@ modifyCacheResponse tVar assetName resp
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
 
-
+-- TODO: add check token is still minted
 restore :: Text -> IpfsMonad [RestoreResponse]
 restore clientId = do
   eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
