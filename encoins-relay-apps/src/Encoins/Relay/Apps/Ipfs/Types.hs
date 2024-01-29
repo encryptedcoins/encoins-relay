@@ -27,7 +27,7 @@ import           Data.Time.Clock.POSIX  (POSIXTime)
 import           GHC.Generics           (Generic)
 import           Network.HTTP.Client    (Manager)
 import           Plutus.V1.Ledger.Api   (CurrencySymbol)
-import           Servant.Client         (BaseUrl (..), Scheme (..))
+import           Servant.Client         (BaseUrl (..), ClientError, Scheme (..))
 
 -- General types
 
@@ -261,3 +261,6 @@ data RestoreResponse = MkRestoreResponse
 
 instance ToJSON RestoreResponse where
    toJSON = genericToJSON $ aesonPrefix snakeCase
+
+data RestoreError = Client ClientError | InvalidStatus CoinStatus
+  deriving stock (Show, Eq)

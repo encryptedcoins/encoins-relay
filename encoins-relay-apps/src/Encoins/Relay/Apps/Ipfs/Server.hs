@@ -22,17 +22,16 @@ import           Cardano.Api                    (NetworkId (..),
 import           Control.Concurrent             (threadDelay)
 import           Control.Concurrent.STM
 import           Control.Exception.Safe         (Exception, SomeException,
-                                                 catchAny, throwM, toException,
-                                                 tryAny)
-import           Control.Monad                  (forM, forever, void)
+                                                 catchAny, throwM, tryAny)
+import           Control.Monad                  (forM, forever)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Control.Monad.Reader           (MonadReader (ask),
                                                  ReaderT (..), asks)
 import           Data.Aeson                     (eitherDecodeFileStrict',
-                                                 encode, encodeFile)
-import           Data.ByteString.Lazy           (toStrict)
+                                                 encodeFile)
 import           Data.Either                    (partitionEithers)
+import           Data.Either.Extra              (mapLeft)
 import           Data.List                      (sortOn)
 import           Data.List.Extra                (unsnoc)
 import           Data.Map                       (Map)
@@ -41,7 +40,6 @@ import           Data.Maybe                     (fromMaybe)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
-import qualified Data.Text.Encoding             as TE
 import           Data.Time                      (UTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
                                                  posixDayLength,
@@ -55,8 +53,10 @@ import           Servant
 import           System.Directory               (createDirectoryIfMissing,
                                                  removeFile)
 import           System.Directory.Extra         (listFiles)
-import           System.FilePath.Posix          (takeFileName, (<.>), (</>))
+import           System.FilePath.Posix          ((<.>), (</>))
 
+-- import qualified Data.Text.Encoding             as TE
+-- import           Data.ByteString.Lazy           (toStrict)
 -- import           Data.ByteString                (ByteString)
 -- import qualified Data.ByteString                as BS
 -- import qualified Data.ByteString.Char8          as BSC8
@@ -71,10 +71,6 @@ type ServerIpfsApi =
      :<|> "restore"
               :> Capture "client_id" Text
               :> Get '[JSON] [RestoreResponse]
-
-    -- :<|> "minted" :> ReqBody '[JSON] CloudRequest
-    --               :> Post '[JSON] CloudResponse
-    -- :<|> "burned" :> ReqBody '[JSON] TokenToCloud :> Post '[JSON] Text
 
 serverIpfsApiProxy :: Proxy ServerIpfsApi
 serverIpfsApiProxy = Proxy
@@ -118,45 +114,25 @@ cacheToken clientId tVar req = do
   say "Minted token received"
   sayShow req
   let assetName = reqAssetName req
-  eAssets <- liftIO $ tryAny $ getAssetMintsAndBurns
-    (Testnet $ NetworkMagic 1)
-    "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
-    (fromString $ T.unpack assetName)
-  sayShow eAssets
-  case eAssets of
-    Left err -> do
-      sayShow err
-      modifyCacheResponse tVar assetName
-        $ MkCloudResponse Nothing
-        $ Just
-        $ CoinError
-        $ T.pack
-        $ show err
-    Right assets -> case ambrAmount <$> getAsset assets of
-      Left err -> do
-        say err
-        modifyCacheResponse tVar assetName
-          $ MkCloudResponse Nothing
-          $ Just
-          $ CoinError
-          $ T.pack
-          $ show err
-      Right x
-        | x > 0 -> do
-            res <- pinJsonRequest $ mkTokentoIpfs clientId req
-            case res of
-              Left err -> do
-                sayShow err
-                modifyCacheResponse tVar assetName $ MkCloudResponse
-                  (Just $ FileError $ T.pack $ show err) Nothing
-              Right r -> do
-                sayShow r
-                modifyCacheResponse tVar assetName
-                  (MkCloudResponse (Just Pinned) (Just Minted))
-        | otherwise -> do
-            say "Token found in blockchain and it burned"
-            modifyCacheResponse tVar assetName
-              (MkCloudResponse Nothing (Just Burned))
+  coinStatus <- checkCoinStatus assetName
+  sayShow coinStatus
+  case coinStatus of
+    CoinError _ -> do
+      modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
+    Burned -> do
+      say "Token found in blockchain and it burned"
+      modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Burned)
+    Minted -> do
+      res <- pinJsonRequest $ mkTokentoIpfs clientId req
+      case res of
+        Left err -> do
+          sayShow err
+          modifyCacheResponse tVar assetName $ MkCloudResponse
+            (Just $ FileError $ T.pack $ show err) Nothing
+        Right r -> do
+          sayShow r
+          modifyCacheResponse tVar assetName
+            (MkCloudResponse (Just Pinned) (Just Minted))
 
 modifyCacheResponse :: TVar (Map Text CloudResponse)
   -> Text
@@ -167,7 +143,6 @@ modifyCacheResponse tVar assetName resp
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
 
--- TODO: add check token is still minted
 restore :: Text -> IpfsMonad [RestoreResponse]
 restore clientId = do
   eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
@@ -177,15 +152,35 @@ restore clientId = do
       pure []
     Right (rows -> files) -> do
       (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
-        eTokenKey <- fetchByCipRequest (ipfsPinHash file)
-        let name = fromMaybe "absentAssetName" $ mrName $ metadata file
-        pure $ MkRestoreResponse name <$> eTokenKey
+        let assetName = fromMaybe "absentAssetName" $ mrName $ metadata file
+        coinStatus <- checkCoinStatus assetName
+        case coinStatus of
+          Minted -> do
+            eTokenKey <- fetchByCipRequest (ipfsPinHash file)
+            pure $ mapLeft Client $
+              MkRestoreResponse assetName <$> eTokenKey
+          _ -> pure $ Left $ InvalidStatus coinStatus
       case errors of
         [] -> pure rRes
         _ -> do
           mapM_ sayShow errors
           pure []
 
+checkCoinStatus :: Text -> IpfsMonad CoinStatus
+checkCoinStatus assetName = do
+  say $ "Check coin status for assetName: " <> assetName
+  eAssets <- liftIO $ tryAny $ getAssetMintsAndBurns
+    (Testnet $ NetworkMagic 1) -- TODO: un-hardcode it
+    "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671" -- TODO: un-hardcode it
+    (fromString $ T.unpack assetName)
+  sayShow eAssets
+  case eAssets of
+    Left err -> pure $ CoinError $ T.pack $ show err
+    Right assets -> case ambrAmount <$> getAsset assets of
+      Left err -> pure $ CoinError $ T.pack $ show err
+      Right x
+        | x > 0 -> pure Minted
+        | otherwise -> pure Burned
 
 -- minted :: CloudRequest -> IpfsMonad CloudResponse
 -- minted t = do
