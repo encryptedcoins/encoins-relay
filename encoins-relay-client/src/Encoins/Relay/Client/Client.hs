@@ -34,7 +34,7 @@ import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
 import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee)
+import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee, treasuryFee)
 import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
 import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
 import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAddressValue, readRequestTerms, readAddressIpAddress)
@@ -139,7 +139,7 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
         LedgerMode -> liftA2 (<>) getWalletRefs (getLedgerAddress >>= getRefsAt)
     let (tokenValsAbs, tokenNames) = unzip $ map (fromSecret ?bulletproofSetup) secrets
         v              = sum $ zipWith (*) (map polarityToInteger ps) tokenValsAbs
-        par           = (ledgerAddr, walletAddr, 2*protocolFee ?mode v) :: TxParams
+        par           = (ledgerAddr, walletAddr, treasuryFee ?mode v + protocolFee ?mode v) :: TxParams
         bp            = parseBulletproofParams $ sha2_256 $ toBytes par
         inputs        = zip tokenNames ps
         (_, _, proof) = bulletproof ?bulletproofSetup bp secrets ps randomness

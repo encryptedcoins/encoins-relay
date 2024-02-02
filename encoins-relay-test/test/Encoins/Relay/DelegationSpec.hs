@@ -34,15 +34,15 @@ spec = describe "Delegation server" $ do
 
 propServers :: HasServantClientEnv => Expectation
 propServers = serversClient >>= (`shouldBe` Right (Map.fromList
-    [("delegationTest12000",12000),("delegationTest8000",8000)]))
+    [("delegationTest8000",8000), ("encoins.io",8000)]))
 
 propCurrent :: HasServantClientEnv => Expectation
-propCurrent = currentServersClient >>= (`shouldBe` Right ["1.2.3.4", "5.6.7.8"])
+propCurrent = currentServersClient >>= (`shouldBe` Right ["delegationTest8000", "encoins.io"])
 
 propDelegatesOk :: HasServantClientEnv => Expectation
-propDelegatesOk = serverDelegatesClient "delegationTest12000" >>=
+propDelegatesOk = serverDelegatesClient "encoins.io" >>=
     (`shouldBe` Right (Map.fromList
-        [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 12000)
+        [("addr_test1qrzde3sqw0na9n4p8dmhc55gkphk2x48hzclpjx6cy0wuzgnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqghxhek", 8000)
         ]))
 
 propDelegates404 :: HasServantClientEnv => Expectation
