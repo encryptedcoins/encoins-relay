@@ -145,7 +145,7 @@ data Progress = Progress
 findDeleg :: TxId -> DelegationM (Maybe Delegation)
 findDeleg txId = runMaybeT $ do
     DelegationEnv{..} <- ask
-    TxDetailsResponse{..} <- MaybeT $ liftIO $ Maestro.getTxDetails dEnvNetworkId txId
+    TxDetailsResponse{..} <- MaybeT $ Maestro.getTxDetails dEnvNetworkId txId
     MaybeT $ fmap (listToMaybe . catMaybes) $ forM tdrOutputs $ \TxDetailsOutput{..} -> runMaybeT $ do
         stakeKey  <- hoistMaybe $ getStakeKey tdoAddress
         (dh, dfq) <- hoistMaybe tdoDatum
@@ -161,7 +161,7 @@ findDeleg txId = runMaybeT $ do
         hoistMaybe = MaybeT . pure
 
 getBalances :: MonadIO m => NetworkId -> CurrencySymbol -> TokenName -> m (Map PubKeyHash Integer)
-getBalances network cs tokenName = liftIO $ Maestro.getAccountAddressesHoldingAssets network cs tokenName
+getBalances network cs tokenName = Maestro.getAccountAddressesHoldingAssets network cs tokenName
 
 isValidIp :: Text -> Bool
 isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)

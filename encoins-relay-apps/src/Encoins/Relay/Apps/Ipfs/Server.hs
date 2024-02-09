@@ -17,12 +17,10 @@ import           PlutusAppsExtra.IO.Maestro
 import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
                                                  AssetMintsAndBurnsResponse (..))
 
-import           Cardano.Api                    (NetworkId (..),
-                                                 NetworkMagic (..))
 import           Control.Concurrent             (threadDelay)
 import           Control.Concurrent.STM
 import           Control.Exception.Safe         (Exception, SomeException,
-                                                 catchAny, throwM, tryAny)
+                                                 catchAny, tryAny)
 import           Control.Monad                  (forM, forever)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
@@ -54,15 +52,6 @@ import           System.Directory               (createDirectoryIfMissing,
                                                  removeFile)
 import           System.Directory.Extra         (listFiles)
 import           System.FilePath.Posix          ((<.>), (</>))
-
--- import qualified Data.Text.Encoding             as TE
--- import           Data.ByteString.Lazy           (toStrict)
--- import           Data.ByteString                (ByteString)
--- import qualified Data.ByteString                as BS
--- import qualified Data.ByteString.Char8          as BSC8
--- import           Data.Time.Format
--- import           Servant.Client
--- import           Control.Concurrent.Async       (withAsync)
 
 type ServerIpfsApi =
           "cache"
@@ -111,6 +100,7 @@ cacheToken :: Text
   -> CloudRequest
   -> IpfsMonad ()
 cacheToken clientId tVar req = do
+  say ""
   say "Minted token received"
   sayShow req
   let assetName = reqAssetName req
@@ -120,7 +110,7 @@ cacheToken clientId tVar req = do
     CoinError _ -> do
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
     Burned -> do
-      say "Token found in blockchain and it burned"
+      say "Token found on blockchain and it was burned"
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Burned)
     Minted -> do
       res <- pinJsonRequest $ mkTokentoIpfs clientId req
@@ -168,11 +158,10 @@ restore clientId = do
 
 checkCoinStatus :: Text -> IpfsMonad CoinStatus
 checkCoinStatus assetName = do
+  networkId <- asks envNetworkId
+  currentSymbol <- asks envIpfsCurrencySymbol
   say $ "Check coin status for assetName: " <> assetName
-  eAssets <- liftIO $ tryAny $ getAssetMintsAndBurns
-    (Testnet $ NetworkMagic 1) -- TODO: un-hardcode it
-    "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671" -- TODO: un-hardcode it
-    (fromString $ T.unpack assetName)
+  eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
   sayShow eAssets
   case eAssets of
     Left err -> pure $ CoinError $ T.pack $ show err
@@ -181,38 +170,6 @@ checkCoinStatus assetName = do
       Right x
         | x > 0 -> pure Minted
         | otherwise -> pure Burned
-
--- minted :: CloudRequest -> IpfsMonad CloudResponse
--- minted t = do
---   say "Minted token received"
---   sayShow t
---   let assetName = reqAssetName t
---   eAssets <- liftIO $ tryAny $ getAssetMintsAndBurns
---     (Testnet $ NetworkMagic 1)
---     "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
---     (fromString $ T.unpack assetName)
---   sayShow eAssets
---   case eAssets of
---     Left err -> do
---       sayShow err
---       pure $ MkCloudResponse assetName Nothing $ Just $ CoinError $ T.pack $ show err
---     Right assets -> case ambrAmount <$> getAsset assets of
---       Left err -> do
---         say err
---         pure $ MkCloudResponse assetName Nothing $ Just $ CoinError $ T.pack $ show err
---       Right x
---         | x > 0 -> do
---             res <- pinJsonRequest $ mkTokentoIpfs t
---             case res of
---               Left err -> do
---                 sayShow err
---                 pure $ MkCloudResponse assetName (Just $ FileError $ T.pack $ show err) Nothing
---               Right r -> do
---                 sayShow r
---                 pure $ MkCloudResponse assetName (Just Pinned) (Just Minted)
---         | otherwise -> do
---             say "Token found in blockchain and it burned"
---             pure $ MkCloudResponse assetName Nothing (Just Burned)
 
 getAsset :: [AssetMintsAndBurnsResponse] -> Either Text AssetMintsAndBurnsData
 getAsset res = do
@@ -226,33 +183,31 @@ getAsset res = do
     Nothing -> Left "ambrData is empty"
     Just a  -> Right a
 
+-- Following functions not used for now.
+-- It can be useful for restore and cleaning cache
+
 burned :: CloudRequest -> IpfsMonad Text
 burned t = do
   say "Burned token received"
-  -- sayShow t
+  networkId <- asks envNetworkId
+  currentSymbol <- asks envIpfsCurrencySymbol
   let assetName = reqAssetName t
-  res <- liftIO $ getAssetMintsAndBurns
-    (Testnet $ NetworkMagic 1)
-    "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
-    (fromString $ T.unpack assetName)
+  res <- getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
   case getAsset res of
     Left err -> do
       say err
       pure err
     Right asset
       | ambrAmount asset < 0 -> do
-      -- | True -> do -- TODO: remove the debug
           env <- ask
           let burnDir = envScheduleDirectory env
           cips <- getBurnedCips assetName
-          liftIO $ print cips
+          sayShow cips
           putInQueue burnDir assetName (ambrTimestamp asset) cips
           pure "Burned token put in queue for unpinning from ipfs"
       | otherwise -> do
           say "Token found on the blockchain. Thus it is should not be unpinned"
           pure "Not unpinned"
-
-
 
 putInQueue :: FilePath -> Text -> UTCTime -> [Text] -> IpfsMonad ()
 putInQueue scheduleDir assetName burnedTime cips = do
@@ -267,9 +222,7 @@ getBurnedCips assetName = do
   eFiles <- fetchByStatusNameRequest "pinned" assetName
   case eFiles of
     Left err -> do
-      liftIO
-        $ putStrLn
-        $ "fetchByStatusNameRequest error: " <> show err
+      sayString $ "fetchByStatusNameRequest error: " <> show err
       pure []
     Right ((map ipfsPinHash . rows) -> cips) -> pure cips
 
@@ -281,8 +234,8 @@ removeRottenTokens  = do
   now <- liftIO $ getPOSIXTime
   cips <- liftIO $ mapMaybeM (selectRottenCip now) queueFiles
   sayShow cips
-  res <- throwM ThisException
-  sayShow @_ @MyException res
+  -- res <- throwM ThisException
+  -- sayShow @_ @MyException res
   forM_ cips $ \(cip, path)-> do
     eUnpined <- unpinByCipRequest cip
     sayShow eUnpined
