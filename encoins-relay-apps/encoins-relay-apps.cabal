@@ -46,6 +46,7 @@ library
       Encoins.Relay.Apps.Ipfs.Config
       Encoins.Relay.Apps.Ipfs.Server
       Encoins.Relay.Apps.Ipfs.Types
+      Encoins.Relay.Apps.Ipfs.Utility
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
       Encoins.Relay.Apps.Poll.Main

@@ -13,45 +13,46 @@ module Encoins.Relay.Apps.Ipfs.Server where
 import           Encoins.Relay.Apps.Ipfs.Client
 import           Encoins.Relay.Apps.Ipfs.Config
 import           Encoins.Relay.Apps.Ipfs.Types
+import           Encoins.Relay.Apps.Ipfs.Utility (toText)
 import           PlutusAppsExtra.IO.Maestro
-import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
-                                                 AssetMintsAndBurnsResponse (..))
+import           PlutusAppsExtra.Utils.Maestro   (AssetMintsAndBurnsData (..),
+                                                  AssetMintsAndBurnsResponse (..))
 
-import           Control.Concurrent             (threadDelay)
+import           Control.Concurrent              (threadDelay)
 import           Control.Concurrent.STM
-import           Control.Exception.Safe         (Exception, SomeException,
-                                                 catchAny, tryAny)
-import           Control.Monad                  (forM, forever)
-import           Control.Monad.Extra            (forM_, mapMaybeM)
-import           Control.Monad.IO.Class         (MonadIO (liftIO))
-import           Control.Monad.Reader           (MonadReader (ask),
-                                                 ReaderT (..), asks)
-import           Data.Aeson                     (eitherDecodeFileStrict',
-                                                 encodeFile)
-import           Data.Either                    (partitionEithers)
-import           Data.Either.Extra              (mapLeft)
-import           Data.List                      (sortOn)
-import           Data.List.Extra                (unsnoc)
-import           Data.Map                       (Map)
-import qualified Data.Map                       as Map
-import           Data.Maybe                     (fromMaybe)
-import           Data.String                    (IsString (fromString))
-import           Data.Text                      (Text)
-import qualified Data.Text                      as T
-import           Data.Time                      (UTCTime, getCurrentTime)
-import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
-                                                 posixDayLength,
-                                                 utcTimeToPOSIXSeconds)
-import qualified Network.Wai                    as Wai
+import           Control.Exception.Safe          (Exception, SomeException,
+                                                  catchAny, tryAny)
+import           Control.Monad                   (forM, forever)
+import           Control.Monad.Extra             (forM_, mapMaybeM)
+import           Control.Monad.IO.Class          (MonadIO (liftIO))
+import           Control.Monad.Reader            (MonadReader (ask),
+                                                  ReaderT (..), asks)
+import           Data.Aeson                      (eitherDecodeFileStrict',
+                                                  encodeFile)
+import           Data.Either                     (partitionEithers)
+import           Data.Either.Extra               (mapLeft)
+import           Data.List                       (sortOn)
+import           Data.List.Extra                 (unsnoc)
+import           Data.Map                        (Map)
+import qualified Data.Map                        as Map
+import           Data.Maybe                      (fromMaybe)
+import           Data.String                     (IsString (fromString))
+import           Data.Text                       (Text)
+import qualified Data.Text                       as T
+import           Data.Time                       (UTCTime, getCurrentTime)
+import           Data.Time.Clock.POSIX           (POSIXTime, getPOSIXTime,
+                                                  posixDayLength,
+                                                  utcTimeToPOSIXSeconds)
+import qualified Network.Wai                     as Wai
 import           Network.Wai.Handler.Warp
-import           Network.Wai.Middleware.Cors    (CorsResourcePolicy (..), cors,
-                                                 simpleCorsResourcePolicy)
+import           Network.Wai.Middleware.Cors     (CorsResourcePolicy (..), cors,
+                                                  simpleCorsResourcePolicy)
 import           Say
 import           Servant
-import           System.Directory               (createDirectoryIfMissing,
-                                                 removeFile)
-import           System.Directory.Extra         (listFiles)
-import           System.FilePath.Posix          ((<.>), (</>))
+import           System.Directory                (createDirectoryIfMissing,
+                                                  removeFile)
+import           System.Directory.Extra          (listFiles)
+import           System.FilePath.Posix           ((<.>), (</>))
 
 type ServerIpfsApi =
           "cache"
@@ -105,7 +106,7 @@ cacheToken clientId tVar req = do
   sayShow req
   let assetName = reqAssetName req
   coinStatus <- checkCoinStatus assetName
-  sayShow coinStatus
+  say "Coin status: "  coinStatus
   case coinStatus of
     CoinError _ -> do
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
@@ -118,7 +119,7 @@ cacheToken clientId tVar req = do
         Left err -> do
           sayShow err
           modifyCacheResponse tVar assetName $ MkCloudResponse
-            (Just $ FileError $ T.pack $ show err) Nothing
+            (Just $ FileError $ toText err) Nothing
         Right r -> do
           sayShow r
           modifyCacheResponse tVar assetName
@@ -164,9 +165,9 @@ checkCoinStatus assetName = do
   eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
   sayShow eAssets
   case eAssets of
-    Left err -> pure $ CoinError $ T.pack $ show err
+    Left err -> pure $ CoinError $ toText err
     Right assets -> case ambrAmount <$> getAsset assets of
-      Left err -> pure $ CoinError $ T.pack $ show err
+      Left err -> pure $ CoinError $ toText err
       Right x
         | x > 0 -> pure Minted
         | otherwise -> pure Burned
@@ -222,7 +223,7 @@ getBurnedCips assetName = do
   eFiles <- fetchByStatusNameRequest "pinned" assetName
   case eFiles of
     Left err -> do
-      sayString $ "fetchByStatusNameRequest error: " <> show err
+      say $ "fetchByStatusNameRequest error: " <> toText err
       pure []
     Right ((map ipfsPinHash . rows) -> cips) -> pure cips
 
@@ -275,12 +276,12 @@ rottenTokenHandler env = forever $ do
       -- liftIO $ threadDelay $ 60 * 60 * 1000000
       threadDelay $ 60 * 1000000
 
-withRecovery :: String -> IO () -> IO ()
+withRecovery :: Text -> IO () -> IO ()
 withRecovery nameOfAction action = action `catchAny` handleException
   where
     handleException :: SomeException -> IO ()
     handleException e = do
-      sayString $ "Exception caught in " <> nameOfAction <> ": " <> show e
+      say $ "Exception caught in " <> nameOfAction <> ": " <> toText e
       liftIO $ threadDelay $ 5 * 1000000
       withRecovery nameOfAction action
 
