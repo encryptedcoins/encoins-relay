@@ -10,49 +10,59 @@
 
 module Encoins.Relay.Apps.Ipfs.Server where
 
+import           Encoins.Common.Transform       (toText)
+import           Encoins.Common.Version (appVersion, showAppVersion)
 import           Encoins.Relay.Apps.Ipfs.Client
 import           Encoins.Relay.Apps.Ipfs.Config
 import           Encoins.Relay.Apps.Ipfs.Types
-import           Encoins.Relay.Apps.Ipfs.Utility (toText)
 import           PlutusAppsExtra.IO.Maestro
-import           PlutusAppsExtra.Utils.Maestro   (AssetMintsAndBurnsData (..),
-                                                  AssetMintsAndBurnsResponse (..))
+import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
+                                                 AssetMintsAndBurnsResponse (..))
 
-import           Control.Concurrent              (threadDelay)
+import           Control.Concurrent             (threadDelay)
 import           Control.Concurrent.STM
-import           Control.Exception.Safe          (Exception, SomeException,
-                                                  catchAny, tryAny)
-import           Control.Monad                   (forM, forever)
-import           Control.Monad.Extra             (forM_, mapMaybeM)
-import           Control.Monad.IO.Class          (MonadIO (liftIO))
-import           Control.Monad.Reader            (MonadReader (ask),
-                                                  ReaderT (..), asks)
-import           Data.Aeson                      (eitherDecodeFileStrict',
-                                                  encodeFile)
-import           Data.Either                     (partitionEithers)
-import           Data.Either.Extra               (mapLeft)
-import           Data.List                       (sortOn)
-import           Data.List.Extra                 (unsnoc)
-import           Data.Map                        (Map)
-import qualified Data.Map                        as Map
-import           Data.Maybe                      (fromMaybe)
-import           Data.String                     (IsString (fromString))
-import           Data.Text                       (Text)
-import qualified Data.Text                       as T
-import           Data.Time                       (UTCTime, getCurrentTime)
-import           Data.Time.Clock.POSIX           (POSIXTime, getPOSIXTime,
-                                                  posixDayLength,
-                                                  utcTimeToPOSIXSeconds)
-import qualified Network.Wai                     as Wai
+import           Control.Exception.Safe         (Exception, SomeException,
+                                                 catchAny, tryAny)
+import           Control.Monad                  (forM, forever)
+import           Control.Monad.Extra            (forM_, mapMaybeM)
+import           Control.Monad.IO.Class         (MonadIO (liftIO))
+import           Control.Monad.Reader           (MonadReader (ask),
+                                                 ReaderT (..), asks)
+import           Data.Aeson                     (eitherDecodeFileStrict',
+                                                 encodeFile)
+import           Data.Either                    (partitionEithers)
+import           Data.Either.Extra              (mapLeft)
+import           Data.List                      (sortOn)
+import           Data.List.Extra                (unsnoc)
+import           Data.Map                       (Map)
+import qualified Data.Map                       as Map
+import           Data.Maybe                     (fromMaybe)
+import           Data.String                    (IsString (fromString))
+import           Data.Text                      (Text)
+import qualified Data.Text                      as T
+import           Data.Time                      (UTCTime, getCurrentTime)
+import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
+                                                 posixDayLength,
+                                                 utcTimeToPOSIXSeconds)
+import qualified Network.Wai                    as Wai
 import           Network.Wai.Handler.Warp
-import           Network.Wai.Middleware.Cors     (CorsResourcePolicy (..), cors,
-                                                  simpleCorsResourcePolicy)
+import           Network.Wai.Middleware.Cors    (CorsResourcePolicy (..), cors,
+                                                 simpleCorsResourcePolicy)
+import           Paths_encoins_relay_apps       (version)
 import           Say
 import           Servant
-import           System.Directory                (createDirectoryIfMissing,
-                                                  removeFile)
-import           System.Directory.Extra          (listFiles)
-import           System.FilePath.Posix           ((<.>), (</>))
+import           System.Directory               (createDirectoryIfMissing,
+                                                 removeFile)
+import           System.Directory.Extra         (listFiles)
+import           System.FilePath.Posix          ((<.>), (</>))
+
+ipfsServer :: IO ()
+ipfsServer = do
+  say $ showAppVersion "IPFS server" $ appVersion version
+  env <- getIpfsEnv
+  -- withAsync (rottenTokenHandler env) $ \_ -> do
+  withRecovery "server" $
+      run (envPort env) $ app env
 
 type ServerIpfsApi =
           "cache"
@@ -81,13 +91,6 @@ corsWithContentType = cors (const $ Just policy)
 app :: IpfsEnv -> Application
 app = corsWithContentType . serve serverIpfsApiProxy . handlerServer
 
-ipfsServer :: IO ()
-ipfsServer = do
-  env <- getIpfsEnv
-  -- withAsync (rottenTokenHandler env) $ \_ -> do
-  withRecovery "server" $
-      run (envPort env) $ app env
-
 -- TODO: get rid of liftIO
 
 cache :: (Text, [CloudRequest]) -> IpfsMonad (Map Text CloudResponse)
@@ -106,7 +109,7 @@ cacheToken clientId tVar req = do
   sayShow req
   let assetName = reqAssetName req
   coinStatus <- checkCoinStatus assetName
-  say "Coin status: "  coinStatus
+  say $ "Coin status:" <> toText coinStatus
   case coinStatus of
     CoinError _ -> do
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
@@ -121,6 +124,7 @@ cacheToken clientId tVar req = do
           modifyCacheResponse tVar assetName $ MkCloudResponse
             (Just $ FileError $ toText err) Nothing
         Right r -> do
+          say "Pin response:"
           sayShow r
           modifyCacheResponse tVar assetName
             (MkCloudResponse (Just Pinned) (Just Minted))
@@ -163,6 +167,7 @@ checkCoinStatus assetName = do
   currentSymbol <- asks envIpfsCurrencySymbol
   say $ "Check coin status for assetName: " <> assetName
   eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
+  say $ "Maestro response:"
   sayShow eAssets
   case eAssets of
     Left err -> pure $ CoinError $ toText err

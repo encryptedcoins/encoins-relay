@@ -62,9 +62,14 @@ import           System.Directory                       (createDirectoryIfMissin
 import qualified System.Process                         as Process
 import           System.ProgressBar                     (incProgress)
 import           Text.Read                              (readMaybe)
+import           Paths_encoins_relay_apps       (version)
+import           Say (say)
+import           Encoins.Common.Version (appVersion, showAppVersion)
+
 
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
+    say $ showAppVersion "Delegation server" $ appVersion version
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     progressRef <- initProgress cDelegationFolder >>= newIORef
     tokenBalanceRef <- do

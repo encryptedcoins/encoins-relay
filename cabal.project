@@ -24,6 +24,7 @@ packages:
     encoins-relay-client
     encoins-relay-verifier
     encoins-relay-test
+    encoins-common
 
 source-repository-package
   type: git

@@ -36,6 +36,8 @@ common lang
 
 library
     import: lang
+    hs-source-dirs: src
+    other-modules: Paths_encoins_relay_server
     exposed-modules:
       Encoins.Relay.Server.Api
       Encoins.Relay.Server.Config
@@ -45,7 +47,6 @@ library
       Encoins.Relay.Server.Opts
       Encoins.Relay.Server.Server
       Encoins.Relay.Server.Status
-      Encoins.Relay.Server.Version
     build-depends:
       base                          >= 4.9 && < 5,
       aeson                                  -any,
@@ -59,13 +60,13 @@ library
       data-default                           -any,
       directory                              -any,
       encoins-bulletproofs                   -any,
+      encoins-common                         -any,
       encoins-core                           -any,
       encoins-relay-apps                     -any,
       encoins-relay-verifier                 -any,
       exceptions                             -any,
       extra                                  -any,
       file-embed                             -any,
-      gitrev                                 -any,
       hex-text                               -any,
       lens                                   -any,
       mtl                                    -any,
@@ -77,16 +78,12 @@ library
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       plutus-script-utils                    -any,
-      prettyprinter                          -any,
-      prettyprinter-ansi-terminal            -any,
       random                                 -any,
       servant-server                         -any,
       servant-client                         -any,
+      say                                    -any,
       text                                   -any,
       time                                   -any
-    hs-source-dirs: src
-    other-modules: Paths_encoins_relay_server
-    autogen-modules: Paths_encoins_relay_server
 
 executable encoins-relay-server
   default-language: Haskell2010
