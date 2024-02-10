@@ -73,7 +73,7 @@ mkLogEnv katipEnv verbosity severity = do
     stdout
     (permitItem severity)
     verbosity
-  initiatedLogEnv <- initLogEnv "IPFS server" katipEnv
+  initiatedLogEnv <- initLogEnv "IPFS" katipEnv
   registerScribe
     "stdout"
     handleScribe
