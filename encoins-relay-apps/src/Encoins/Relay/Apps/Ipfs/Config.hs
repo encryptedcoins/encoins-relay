@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Encoins.Relay.Apps.Ipfs.Config where
 
@@ -11,17 +11,17 @@ import qualified Data.ByteString               as BS
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as TE
+import           Data.Text.Lazy.Builder        (fromString, fromText)
 import           Katip
+import           Katip.Core                    (intercalateNs, locationToString)
+import           Katip.Format.Time             (formatAsIso8601,
+                                                formatAsLogTime)
+import           Katip.Scribes.Handle          (brackets, getKeys)
 import           Network.HTTP.Client           hiding (Proxy)
 import           Network.HTTP.Client.TLS
 import           Servant.Client                (BaseUrl (..), Scheme (..))
 import           System.IO                     (stdout)
 import           Text.Pretty.Simple            (pPrint, pShow)
-
-import Data.Text.Lazy.Builder
-import Katip.Format.Time
-import Katip.Core (intercalateNs, locationToString)
-import Katip.Scribes.Handle
 
 withEnvAndLog :: (IpfsEnv -> IO ()) -> IO ()
 withEnvAndLog action = do
@@ -129,13 +129,13 @@ ipfsLogFormat withColor verb Item {..} =
 colorBySeverityFull :: Bool -> Severity -> Text -> Text
 colorBySeverityFull withColor severity msg = case severity of
   EmergencyS -> red msg
-  AlertS -> red msg
-  CriticalS -> red msg
-  ErrorS -> red msg
-  WarningS -> yellow msg
-  InfoS -> green msg
-  DebugS -> blue msg
-  _ -> msg
+  AlertS     -> red msg
+  CriticalS  -> red msg
+  ErrorS     -> red msg
+  WarningS   -> yellow msg
+  InfoS      -> green msg
+  DebugS     -> blue msg
+  _          -> msg
   where
     red = colorize "31"
     green = colorize "32"
