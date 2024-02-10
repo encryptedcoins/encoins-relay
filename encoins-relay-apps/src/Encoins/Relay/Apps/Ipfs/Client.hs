@@ -10,7 +10,7 @@
 module Encoins.Relay.Apps.Ipfs.Client where
 
 import           Encoins.Relay.Apps.Ipfs.ClientApi
-import           Encoins.Relay.Apps.Ipfs.Config
+import           Encoins.Relay.Apps.Ipfs.Config (withEnvAndLog)
 import           Encoins.Relay.Apps.Ipfs.Types
 
 import           Control.Monad.IO.Class            (MonadIO (liftIO))
@@ -21,8 +21,7 @@ import           Servant.Client
 import           Text.Pretty.Simple
 
 ipfsClient :: IO ()
-ipfsClient = do
-  env <- getIpfsEnv
+ipfsClient = withEnvAndLog $ \env -> do
   runIpfsMonad env $ do
     res <- pinJsonRequest token
     pPrint res

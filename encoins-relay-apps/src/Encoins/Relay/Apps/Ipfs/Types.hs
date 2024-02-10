@@ -13,7 +13,7 @@ import           Cardano.Api            (NetworkId)
 import           Cardano.Server.Config  (HyperTextProtocol (..))
 import           Control.Exception.Safe (MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class (MonadIO)
-import           Control.Monad.Reader   (MonadReader, ReaderT (..))
+import           Control.Monad.Reader   (MonadReader, ReaderT (..), local, asks)
 import           Data.Aeson             (FromJSON (..),
                                          Options (fieldLabelModifier),
                                          ToJSON (..), camelTo2, defaultOptions,
@@ -21,13 +21,13 @@ import           Data.Aeson             (FromJSON (..),
                                          withObject, (.:), (.:?))
 import           Data.Aeson.Casing      (aesonPrefix, snakeCase)
 import           Data.Text              (Text)
-import qualified Data.Text              as T
 import           Data.Time              (UTCTime)
 import           Data.Time.Clock.POSIX  (POSIXTime)
 import           GHC.Generics           (Generic)
+import           Katip
 import           Network.HTTP.Client    (Manager)
 import           Plutus.V1.Ledger.Api   (CurrencySymbol)
-import           Servant.Client         (BaseUrl (..), ClientError, Scheme (..))
+import           Servant.Client         (BaseUrl (..), ClientError)
 
 -- General types
 
@@ -42,8 +42,15 @@ data IpfsEnv = MkIpfsEnv
   , envScheduleDirectory  :: FilePath
   , envPinataAuthToken    :: Text
   , envManager            :: Manager
+  , envLogEnv             :: LogEnv
+  , envKContext           :: LogContexts
+  , envKNamespace         :: Namespace
+  , envFormatMessage      :: Bool -- Pretty print message
   }
 
+-- Format of severity in json file:
+-- debug, info, notice, warning, error, critical, alert, emergency
+-- Format of verbosity in json file: V0, V1, V2, V3
 data IpfsConfig = MkIpfsConfig
   {
     icHyperTextProtocol  :: HyperTextProtocol
@@ -54,33 +61,17 @@ data IpfsConfig = MkIpfsConfig
   , icPinataFetchHost    :: Text
   , icPinataPinHost      :: Text
   , icScheduleDirectory  :: FilePath
+  , icEnvironment        :: Environment
+  , icVerbosity          :: Verbosity
+  , icSeverity           :: Severity
+  , icFormatMessage      :: Bool
   }
   deriving stock (Eq,Show, Generic)
 
 instance FromJSON IpfsConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-mkIpfsEnv :: Manager -> Text -> IpfsConfig -> IpfsEnv
-mkIpfsEnv manager pinataToken ipfsConfig = MkIpfsEnv
-  { envHyperTextProtocol  = icHyperTextProtocol ipfsConfig
-  , envHost               = icHost ipfsConfig
-  , envPort               = icPort ipfsConfig
-  , envNetworkId          = icNetworkId ipfsConfig
-  , envIpfsCurrencySymbol = icIpfsCurrencySymbol ipfsConfig
-  , envPinataFetchHost    = mkUrl $ icPinataFetchHost ipfsConfig
-  , envPinataPinHost      = mkUrl $ icPinataPinHost ipfsConfig
-  , envScheduleDirectory  = icScheduleDirectory ipfsConfig
-  , envPinataAuthToken    = mkBearer pinataToken
-  , envManager            = manager
-  }
-  where
-    mkBearer :: Text -> Text
-    mkBearer jwtToken = "Bearer " <> jwtToken
-    mkUrl :: Text -> BaseUrl
-    mkUrl host = BaseUrl Https (T.unpack host) 443 ""
-
--- type IpfsMonad = ReaderT IpfsEnv IO
-newtype IpfsMonad a = IpfsMonad {unIpfsMonad :: ReaderT IpfsEnv IO a}
+newtype IpfsMonad a = MkIpfsMonad {unIpfsMonad :: ReaderT IpfsEnv IO a}
     deriving newtype
         ( Functor
         , Applicative
@@ -94,11 +85,18 @@ newtype IpfsMonad a = IpfsMonad {unIpfsMonad :: ReaderT IpfsEnv IO a}
 runIpfsMonad :: IpfsEnv -> IpfsMonad a -> IO a
 runIpfsMonad env = (`runReaderT` env) . unIpfsMonad
 
--- IPFS Request/Response types
+instance Katip IpfsMonad where
+  getLogEnv = asks envLogEnv
+  localLogEnv f (MkIpfsMonad m) =
+    MkIpfsMonad (local (\s -> s {envLogEnv = f (envLogEnv s)}) m)
 
--- data TokenStatus = Minted | Burned
---   deriving stock (Show, Eq, Generic)
---   deriving anyclass (ToJSON, FromJSON)
+instance KatipContext IpfsMonad where
+  getKatipContext = asks envKContext
+  localKatipContext f (MkIpfsMonad m) =
+    MkIpfsMonad (local (\s -> s {envKContext = f (envKContext s)}) m)
+  getKatipNamespace = asks envKNamespace
+  localKatipNamespace f (MkIpfsMonad m) =
+    MkIpfsMonad (local (\s -> s {envKNamespace = f (envKNamespace s)}) m)
 
 newtype TokenKey = MkTokenKey { tkTokenKey :: Text }
   deriving newtype (Show, Eq)

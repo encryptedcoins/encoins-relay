@@ -74,6 +74,7 @@ library
       filepath                               -any,
       http-client                            -any,
       http-client-tls                        -any,
+      katip                                  -any,
       lens                                   -any,
       lens-aeson                             -any,
       mtl                                    -any,

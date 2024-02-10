@@ -11,7 +11,7 @@
 module Encoins.Relay.Apps.Ipfs.Server where
 
 import           Encoins.Common.Transform       (toText)
-import           Encoins.Common.Version (appVersion, showAppVersion)
+import           Encoins.Common.Version         (appVersion, showAppVersion)
 import           Encoins.Relay.Apps.Ipfs.Client
 import           Encoins.Relay.Apps.Ipfs.Config
 import           Encoins.Relay.Apps.Ipfs.Types
@@ -59,10 +59,9 @@ import           System.FilePath.Posix          ((<.>), (</>))
 ipfsServer :: IO ()
 ipfsServer = do
   say $ showAppVersion "IPFS server" $ appVersion version
-  env <- getIpfsEnv
-  -- withAsync (rottenTokenHandler env) $ \_ -> do
-  withRecovery "server" $
-      run (envPort env) $ app env
+  withEnvAndLog $ \env -> do
+    -- withAsync (rottenTokenHandler env) $ \_ -> do
+    withRecovery "server" $ run (envPort env) $ app env
 
 type ServerIpfsApi =
           "cache"
@@ -104,28 +103,29 @@ cacheToken :: Text
   -> CloudRequest
   -> IpfsMonad ()
 cacheToken clientId tVar req = do
-  say ""
-  say "Minted token received"
-  sayShow req
+  isFormat <- asks envFormatMessage
+  logInfo ""
+  logInfo "Minted token received"
+  logInfoS isFormat req
   let assetName = reqAssetName req
   coinStatus <- checkCoinStatus assetName
-  say $ "Coin status:" <> toText coinStatus
+  logInfo $ "Coin status: " <> toText coinStatus
   case coinStatus of
     CoinError _ -> do
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
     Burned -> do
-      say "Token found on blockchain and it was burned"
+      logInfo "Token found on blockchain and it was burned"
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Burned)
     Minted -> do
       res <- pinJsonRequest $ mkTokentoIpfs clientId req
       case res of
         Left err -> do
-          sayShow err
+          logErrorS isFormat err
           modifyCacheResponse tVar assetName $ MkCloudResponse
             (Just $ FileError $ toText err) Nothing
         Right r -> do
-          say "Pin response:"
-          sayShow r
+          logInfo "Pin response:"
+          logInfoS isFormat r
           modifyCacheResponse tVar assetName
             (MkCloudResponse (Just Pinned) (Just Minted))
 
@@ -163,16 +163,21 @@ restore clientId = do
 
 checkCoinStatus :: Text -> IpfsMonad CoinStatus
 checkCoinStatus assetName = do
+  isFormat <- asks envFormatMessage
   networkId <- asks envNetworkId
   currentSymbol <- asks envIpfsCurrencySymbol
-  say $ "Check coin status for assetName: " <> assetName
+  logInfo $ "Check coin status for assetName: " <> assetName
   eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
-  say $ "Maestro response:"
-  sayShow eAssets
+  logInfo $ "Maestro response:"
+  logInfoS isFormat eAssets
   case eAssets of
-    Left err -> pure $ CoinError $ toText err
+    Left err -> do
+      logErrorS isFormat err
+      pure $ CoinError $ toText err
     Right assets -> case ambrAmount <$> getAsset assets of
-      Left err -> pure $ CoinError $ toText err
+      Left err -> do
+        logErrorS isFormat err
+        pure $ CoinError $ toText err
       Right x
         | x > 0 -> pure Minted
         | otherwise -> pure Burned
