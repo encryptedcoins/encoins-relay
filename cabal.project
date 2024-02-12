@@ -24,7 +24,15 @@ packages:
     encoins-relay-client
     encoins-relay-verifier
     encoins-relay-test
-    encoins-common
+
+source-repository-package
+  type: git
+  location: https://github.com/encryptedcoins/encoins-common
+  tag: 8e5de464323fb063c39fc29798b19d821768c60c
+  subdir:
+    encoins-common-constant
+    encoins-common-transform
+    encoins-common-version
 
 source-repository-package
   type: git

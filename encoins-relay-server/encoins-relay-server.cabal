@@ -60,7 +60,7 @@ library
       data-default                           -any,
       directory                              -any,
       encoins-bulletproofs                   -any,
-      encoins-common                         -any,
+      encoins-common-version                 -any,
       encoins-core                           -any,
       encoins-relay-apps                     -any,
       encoins-relay-verifier                 -any,
