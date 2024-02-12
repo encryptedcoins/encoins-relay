@@ -11,6 +11,7 @@
 module Encoins.Relay.Apps.Ipfs.Server where
 
 import           Encoins.Common.Constant        (column, space)
+import           Encoins.Common.Log             (logErrorS, logInfo, logInfoS)
 import           Encoins.Common.Transform       (toText)
 import           Encoins.Common.Version         (appVersion, showAppVersion)
 import           Encoins.Relay.Apps.Ipfs.Client
@@ -60,7 +61,7 @@ import           System.FilePath.Posix          ((<.>), (</>))
 ipfsServer :: IO ()
 ipfsServer = do
   say $ showAppVersion "IPFS server" $ appVersion version
-  withEnvAndLog $ \env -> do
+  withIpfsEnv $ \env -> do
     -- withAsync (rottenTokenHandler env) $ \_ -> do
     withRecovery "server" $ run (envPort env) $ app env
 

@@ -69,6 +69,7 @@ library
       encoins-common-constant                -any,
       encoins-common-transform               -any,
       encoins-common-version                 -any,
+      encoins-common-log                     -any,
       encoins-core                           -any,
       exceptions                             -any,
       extra                                  -any,
