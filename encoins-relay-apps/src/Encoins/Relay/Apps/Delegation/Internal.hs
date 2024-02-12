@@ -10,18 +10,30 @@
 module Encoins.Relay.Apps.Delegation.Internal where
 
 import           Cardano.Api                   (NetworkId)
-import           Cardano.Server.Config         (CardanoServerConfig (..), HyperTextProtocol (..))
+import           Cardano.Server.Config         (CardanoServerConfig (..),
+                                                HyperTextProtocol (..))
 import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger)
+import           Encoins.Common.Transform      (toText)
+import           Encoins.Common.Constant       (column)
+import qualified PlutusAppsExtra.IO.Blockfrost as Bf
+import qualified PlutusAppsExtra.IO.Maestro    as Maestro
+import           PlutusAppsExtra.Utils.Address (getStakeKey)
+import           PlutusAppsExtra.Utils.Maestro (TxDetailsOutput (..),
+                                                TxDetailsResponse (..))
+
 import           Control.Applicative           ((<|>))
 import           Control.Exception             (throw)
 import           Control.Monad                 (forM, guard, when)
 import           Control.Monad.Catch           (MonadCatch, MonadThrow (..))
 import           Control.Monad.Except          (MonadError)
 import           Control.Monad.IO.Class        (MonadIO (..))
-import           Control.Monad.Reader          (MonadReader (ask), ReaderT (..), asks)
+import           Control.Monad.Reader          (MonadReader (ask), ReaderT (..),
+                                                asks)
 import           Control.Monad.Trans.Maybe     (MaybeT (..))
-import           Data.Aeson                    (FromJSON (..), FromJSONKey (..), FromJSONKeyFunction (..), ToJSON (..),
-                                                ToJSONKey (..), genericParseJSON)
+import           Data.Aeson                    (FromJSON (..), FromJSONKey (..),
+                                                FromJSONKeyFunction (..),
+                                                ToJSON (..), ToJSONKey (..),
+                                                genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Aeson.Types              (toJSONKeyText)
 import           Data.Function                 (on)
@@ -31,23 +43,25 @@ import           Data.List                     (sortBy)
 import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
-import           Data.Maybe                    (catMaybes, fromMaybe, isJust, isNothing, listToMaybe)
+import           Data.Maybe                    (catMaybes, fromMaybe, isJust,
+                                                isNothing, listToMaybe)
 import           Data.Ord                      (Down (..))
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import qualified Data.Time                     as Time
 import           GHC.Generics                  (Generic)
-import           Ledger                        (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
+import           Ledger                        (Address (..), Credential,
+                                                Datum (..), DatumFromQuery (..),
+                                                PubKeyHash (..), Slot,
                                                 TxId (..), TxOutRef (..))
 import           Network.URI                   (isIPv4address, isURI)
-import           Plutus.V1.Ledger.Api          (Credential (..), CurrencySymbol, FromData (..), StakingCredential (..), TokenName,
-                                                fromBuiltin)
-import qualified PlutusAppsExtra.IO.Blockfrost as Bf
-import qualified PlutusAppsExtra.IO.Maestro    as Maestro
-import           PlutusAppsExtra.Utils.Address (getStakeKey)
-import           PlutusAppsExtra.Utils.Maestro (TxDetailsOutput (..), TxDetailsResponse (..))
+import           Plutus.V1.Ledger.Api          (Credential (..), CurrencySymbol,
+                                                FromData (..),
+                                                StakingCredential (..),
+                                                TokenName, fromBuiltin)
 import           PlutusTx.Builtins             (decodeUtf8)
-import           Servant                       (Handler, ServerError, runHandler)
+import           Servant                       (Handler, ServerError,
+                                                runHandler)
 import           Text.Read                     (readMaybe)
 
 newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
@@ -169,8 +183,8 @@ isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
         isSimpleURI  = isURI . ("http://" <>)
 
 data RelayAddress = RelayAddress
-    { raAddress  :: Text
-    , raPort     :: Maybe Int
+    { raAddress :: Text
+    , raPort    :: Maybe Int
     } deriving (Show, Ord)
 
 instance Eq RelayAddress where
@@ -201,16 +215,16 @@ toRelayAddress addr =
             | T.last txt == '/' && T.length txt > 1 = T.init txt
             | otherwise = txt
         trimProtocol txt = fromMaybe txt $ T.stripPrefix "http://" txt <|> T.stripPrefix "https://" txt
-        splitPort txt = let (txt', mbPort) = readMaybe . T.unpack <$> T.breakOnEnd ":" txt in
+        splitPort txt = let (txt', mbPort) = readMaybe . T.unpack <$> T.breakOnEnd column txt in
             if isJust mbPort then (T.init txt', mbPort) else (txt, mbPort)
 
 fromRelayAddress :: RelayAddress -> Text
-fromRelayAddress RelayAddress{..} = "http://" <> raAddress <> maybe "" ((":" <>) . T.pack . show) raPort
+fromRelayAddress RelayAddress{..} = "http://" <> raAddress <> maybe "" ((column <>) . toText) raPort
 
 -- Remove end slash, protocol prefix and port from URL address. Doesn't remove port from localhost
 trimIp :: Text -> Text
 trimIp txt
-    | raAddress == "localhost" = "localhost" <> maybe "" ((":" <>) . T.pack . show) raPort
+    | raAddress == "localhost" = "localhost" <> maybe "" ((column <>) . toText) raPort
     | otherwise = raAddress
     where
         RelayAddress{..} = toRelayAddress txt

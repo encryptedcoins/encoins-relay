@@ -3,6 +3,7 @@
 
 module Encoins.Relay.Apps.Ipfs.Config where
 
+import           Encoins.Common.Constant       (space)
 import           Encoins.Relay.Apps.Ipfs.Types
 
 import           Cardano.Server.Config         (decodeOrErrorFromFile)
@@ -61,7 +62,7 @@ mkIpfsEnv manager pinataToken ipfsConfig logEnv = MkIpfsEnv
   }
   where
     mkBearer :: Text -> Text
-    mkBearer jwtToken = "Bearer " <> jwtToken
+    mkBearer jwtToken = "Bearer" <> space <> jwtToken
     mkUrl :: Text -> BaseUrl
     mkUrl h = BaseUrl Https (T.unpack h) 443 ""
 
@@ -112,12 +113,12 @@ ipfsLogFormat withColor verb Item {..} =
   brackets nowStr
     <> brackets (mconcat $ map fromText $ intercalateNs _itemNamespace)
     <> brackets (fromText (renderSeverity' _itemSeverity))
-    <> verbMore V2 mempty ( brackets ("PID " <> fromString (show _itemProcess))
-             <> brackets ("ThreadId " <> fromText (getThreadIdText _itemThread))
+    <> verbMore V2 mempty ( brackets ("PID" <> space <> fromString (show _itemProcess))
+             <> brackets ("ThreadId" <> space <> fromText (getThreadIdText _itemThread))
               )
     <> mconcat ks
     <> verbMore V1 mempty (maybe mempty (brackets . fromString . locationToString) _itemLoc)
-    <> fromText " "
+    <> fromText space
     <> (unLogStr _itemMessage)
   where
     nowStr = fromText (verbMore V0 formatAsLogTime formatAsIso8601 $ _itemTime)

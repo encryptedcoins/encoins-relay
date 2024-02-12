@@ -10,6 +10,7 @@
 
 module Encoins.Relay.Apps.Ipfs.Server where
 
+import           Encoins.Common.Constant        (column, space)
 import           Encoins.Common.Transform       (toText)
 import           Encoins.Common.Version         (appVersion, showAppVersion)
 import           Encoins.Relay.Apps.Ipfs.Client
@@ -109,7 +110,7 @@ cacheToken clientId tVar req = do
   logInfoS isFormat req
   let assetName = reqAssetName req
   coinStatus <- checkCoinStatus assetName
-  logInfo $ "Coin status: " <> toText coinStatus
+  logInfo $ "Coin status" <> column <> space <> toText coinStatus
   case coinStatus of
     CoinError _ -> do
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
@@ -166,7 +167,7 @@ checkCoinStatus assetName = do
   isFormat <- asks envFormatMessage
   networkId <- asks envNetworkId
   currentSymbol <- asks envIpfsCurrencySymbol
-  logInfo $ "Check coin status for assetName: " <> assetName
+  logInfo $ "Check coin status for assetName" <> column <> space <> assetName
   eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
   logInfo $ "Maestro response:"
   logInfoS isFormat eAssets
@@ -233,7 +234,7 @@ getBurnedCips assetName = do
   eFiles <- fetchByStatusNameRequest "pinned" assetName
   case eFiles of
     Left err -> do
-      say $ "fetchByStatusNameRequest error: " <> toText err
+      say $ "fetchByStatusNameRequest error" <> column <> space <> toText err
       pure []
     Right ((map ipfsPinHash . rows) -> cips) -> pure cips
 
@@ -291,7 +292,7 @@ withRecovery nameOfAction action = action `catchAny` handleException
   where
     handleException :: SomeException -> IO ()
     handleException e = do
-      say $ "Exception caught in " <> nameOfAction <> ": " <> toText e
+      say $ "Exception caught in" <> space <> nameOfAction <> column <> space <> toText e
       liftIO $ threadDelay $ 5 * 1000000
       withRecovery nameOfAction action
 

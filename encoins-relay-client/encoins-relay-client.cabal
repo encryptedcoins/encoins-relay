@@ -47,6 +47,8 @@ library
       data-default                           -any,
       directory                              -any,
       encoins-bulletproofs                   -any,
+      encoins-common-constant                -any,
+      encoins-common-transform               -any,
       encoins-core                           -any,
       encoins-relay-server                   -any,
       encoins-relay-verifier                 -any,

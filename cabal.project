@@ -28,7 +28,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-common
-  tag: 8e5de464323fb063c39fc29798b19d821768c60c
+  tag: 785e5b35aef416273874314d11caec256ead7373
   subdir:
     encoins-common-constant
     encoins-common-transform

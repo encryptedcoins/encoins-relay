@@ -14,15 +14,48 @@
 
 module Encoins.Relay.Client.Client where
 
-import           CSL                            (TransactionInputs)
-import qualified CSL
-import           CSL.Class                      (ToCSL (..))
-import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWithRandom, manualWithRead)
+import           Cardano.Server.Client.Handle   (ClientHandle (..),
+                                                 HasServantClientEnv,
+                                                 autoWithRandom, manualWithRead)
 import           Cardano.Server.Client.Internal (ClientEndpoint (..))
 import           Cardano.Server.Config          (ServerEndpoint (NewTxE, ServerTxE))
 import           Cardano.Server.Internal        (InputOf, ServerM)
 import           Cardano.Server.Utils.Logger    (logMsg, (.<))
 import           Cardano.Server.Utils.Wait      (waitTime)
+import           CSL                            (TransactionInputs)
+import qualified CSL
+import           CSL.Class                      (ToCSL (..))
+import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
+import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..),
+                                                 bulletproof, fromSecret,
+                                                 parseBulletproofParams,
+                                                 polarityToInteger)
+import           Encoins.Common.Constant        (space, newLine)
+import           Encoins.Common.Transform       (toText)
+import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee,
+                                                 treasuryFee)
+import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
+import           ENCOINS.Crypto.Field           (fromFieldElement,
+                                                 toFieldElement)
+import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..),
+                                                 readAddressIpAddress,
+                                                 readAddressValue,
+                                                 readRequestTerms)
+import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup,
+                                                 clientSecretToSecret,
+                                                 confirmTokens, genTerms,
+                                                 mkSecretFile, readSecretFile)
+import           Encoins.Relay.Server.Internal  (getLedgerAddress)
+import           Encoins.Relay.Server.Server    (EncoinsApi,
+                                                 InputOfEncoinsApi (..))
+import           Ledger                         (Address)
+import           Plutus.Script.Utils.Ada        (Ada (..))
+import           Plutus.V2.Ledger.Api           (TokenName (..))
+import           PlutusAppsExtra.IO.ChainIndex  (getRefsAt)
+import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletRefs)
+import           PlutusTx.Builtins              (sha2_256)
+import           PlutusTx.Extra.ByteString      (ToBuiltinByteString (..))
+
 import           Control.Applicative            (liftA2)
 import           Control.Monad                  (join)
 import           Control.Monad.Extra            (forever, replicateM, zipWithM)
@@ -32,26 +65,8 @@ import           Data.Default                   (def)
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
-import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
-import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee, treasuryFee)
-import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
-import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
-import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAddressValue, readRequestTerms, readAddressIpAddress)
-import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, clientSecretToSecret, confirmTokens, genTerms, mkSecretFile,
-                                                 readSecretFile)
-import           Encoins.Relay.Server.Internal  (getLedgerAddress)
-import           Encoins.Relay.Server.Server    (EncoinsApi, InputOfEncoinsApi (..))
-import           Ledger                         (Address)
-import           Plutus.Script.Utils.Ada        (Ada (..))
-import           Plutus.V2.Ledger.Api           (TokenName (..))
-
-import           PlutusAppsExtra.IO.ChainIndex  (getRefsAt)
-import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletRefs)
-import           PlutusTx.Builtins              (sha2_256)
-import           PlutusTx.Extra.ByteString      (ToBuiltinByteString (..))
-import           Servant.Client                 (runClientM)
 import qualified Servant.Client                 as Servant
+import           Servant.Client                 (runClientM)
 import           System.Random                  (randomIO, randomRIO)
 
 mkClientHandle :: BulletproofSetup -> EncoinsMode -> ClientHandle EncoinsApi
@@ -86,7 +101,7 @@ txClientAddressValue (addr, val) = do
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
     logMsg $ "Sending request with:" .< ((addr, val), txInputs)
     res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputSending addr val changeAddr, txInputs))
-    logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
+    logMsg $ "Received response:\n" <> either toText toText res
     pure res
 
 ------------------------------------------------------------------------- TxClient with (Address, IpAddress) -------------------------------------------------------------------------
@@ -96,7 +111,7 @@ txClientDelegation (addr, ipAddr) = do
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt addr
     logMsg $ "Sending request with:" .< (addr, ipAddr)
     res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputDelegation addr ipAddr, txInputs))
-    logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
+    logMsg $ "Received response:\n" <> either toText toText res
     pure res
 
 ----------------------------------------------------------------------------- TxClient with redeemer -----------------------------------------------------------------------------
@@ -117,16 +132,16 @@ sendTxClientRequest secrets = do
             <> "\n= "
             <> T.pack (show v)
     res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputRedeemer red ?mode, txInputs))
-    logMsg $ "Received response:\n" <> either (T.pack . show) (T.pack . show) res
+    logMsg $ "Received response:\n" <> either toText toText res
     pure res
     where
         prettyInput acc (Secret _ v,(bbs, p)) = mconcat
             [ acc
-            , "\n"
-            , case p of Mint -> "M "; Burn -> "B "
-            , T.pack $ show $ fromFieldElement v
-            , " "
-            , T.pack $ show $ TokenName bbs
+            , newLine
+            , case p of Mint -> "M" <> space; Burn -> "B" <> space
+            , toText $ fromFieldElement v
+            , space
+            , toText $ TokenName bbs
             ]
 
 secretsToReqBody :: HasEncoinsModeAndBulletproofSetup => [(Secret, MintingPolarity)] -> ServerM EncoinsApi (EncoinsRedeemer, TransactionInputs)
