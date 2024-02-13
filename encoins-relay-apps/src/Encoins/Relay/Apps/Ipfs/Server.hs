@@ -69,16 +69,16 @@ type ServerIpfsApi =
           "cache"
               :> ReqBody '[JSON] (Text, [CloudRequest])
               :> Post '[JSON] (Map Text CloudResponse )
-     :<|> "restore"
-              :> Capture "client_id" Text
-              :> Get '[JSON] [RestoreResponse]
+    --  :<|> "restore"
+    --           :> Capture "client_id" Text
+    --           :> Get '[JSON] [RestoreResponse]
 
 serverIpfsApiProxy :: Proxy ServerIpfsApi
 serverIpfsApiProxy = Proxy
 
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
 serverIpfsApi = cache
-           :<|> restore
+          --  :<|> restore
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
 handlerServer env = hoistServer serverIpfsApiProxy (liftIO . runIpfsMonad env) serverIpfsApi
@@ -140,29 +140,6 @@ modifyCacheResponse tVar assetName resp
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
 
-restore :: Text -> IpfsMonad [RestoreResponse]
-restore clientId = do
-  eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
-  case eFiles of
-    Left err -> do
-      sayShow err
-      pure []
-    Right (rows -> files) -> do
-      (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
-        let assetName = fromMaybe "absentAssetName" $ mrName $ metadata file
-        coinStatus <- checkCoinStatus assetName
-        case coinStatus of
-          Minted -> do
-            eTokenKey <- fetchByCipRequest (ipfsPinHash file)
-            pure $ mapLeft Client $
-              MkRestoreResponse assetName <$> eTokenKey
-          _ -> pure $ Left $ InvalidStatus coinStatus
-      case errors of
-        [] -> pure rRes
-        _ -> do
-          mapM_ sayShow errors
-          pure []
-
 checkCoinStatus :: Text -> IpfsMonad CoinStatus
 checkCoinStatus assetName = do
   isFormat <- asks envFormatMessage
@@ -198,6 +175,29 @@ getAsset res = do
 
 -- Following functions not used for now.
 -- It can be useful for restore and cleaning cache
+
+restore :: Text -> IpfsMonad [RestoreResponse]
+restore clientId = do
+  eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
+  case eFiles of
+    Left err -> do
+      sayShow err
+      pure []
+    Right (rows -> files) -> do
+      (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
+        let assetName = fromMaybe "absentAssetName" $ mrName $ metadata file
+        coinStatus <- checkCoinStatus assetName
+        case coinStatus of
+          Minted -> do
+            eTokenKey <- fetchByCipRequest (ipfsPinHash file)
+            pure $ mapLeft Client $
+              MkRestoreResponse assetName <$> eTokenKey
+          _ -> pure $ Left $ InvalidStatus coinStatus
+      case errors of
+        [] -> pure rRes
+        _ -> do
+          mapM_ sayShow errors
+          pure []
 
 burned :: CloudRequest -> IpfsMonad Text
 burned t = do

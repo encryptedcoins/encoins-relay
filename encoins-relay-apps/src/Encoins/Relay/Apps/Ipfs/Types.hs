@@ -108,6 +108,16 @@ instance FromJSON TokenKey where
 instance ToJSON TokenKey where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
+-- TokenKey and EncryptedSecret are semantically the same.
+-- The difference is in their JSON instances.
+-- EncryptedSecret is encoded as Text, whereas
+-- TokenKey is encoded as Object with field name 'token_key'
+-- We don't use TokenKey-like encoding for EncryptedSecret
+-- because it increase the size of request needlessly.
+newtype EncryptedSecret = MkEncryptedSecret { getEncryptedSecret :: Text }
+  deriving newtype (Eq, Show, ToJSON, FromJSON)
+  deriving stock (Generic)
+
 data MetaOptions = MkMetaOptions
   { moClientId :: Text
   }
@@ -135,6 +145,14 @@ data TokenToIpfs = MkTokenToIpfs
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
+
+mkTokentoIpfs :: Text -> CloudRequest -> TokenToIpfs
+mkTokentoIpfs clientId req = MkTokenToIpfs
+  { pinataContent = MkTokenKey $ getEncryptedSecret $ reqSecretKey req
+  , pinataMetadata = MkMetadata
+      (reqAssetName req)
+      (MkMetaOptions clientId)
+  }
 
 data PinJsonResponse = MkPinJsonResponse
   { ipfsHash    :: Text
@@ -206,20 +224,12 @@ instance ToJSON Metadata where
 -- Request body from frontend to backend
 data CloudRequest = MkCloudRequest
   { reqAssetName :: Text
-  , reqSecretKey :: Text
+  , reqSecretKey :: EncryptedSecret
   }
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON CloudRequest where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-mkTokentoIpfs :: Text -> CloudRequest -> TokenToIpfs
-mkTokentoIpfs clientId req = MkTokenToIpfs
-  { pinataContent = MkTokenKey $ reqSecretKey req
-  , pinataMetadata = MkMetadata
-      (reqAssetName req)
-      (MkMetaOptions clientId)
-  }
 
 data IpfsStatus = Pinned | Unpinned | FileError Text
   deriving stock (Eq, Show, Generic)

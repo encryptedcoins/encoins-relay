@@ -9,22 +9,15 @@ import           Encoins.Common.Constant (space)
 import           Encoins.Relay.Apps.Ipfs.Types
 
 import           Cardano.Server.Config         (decodeOrErrorFromFile)
-import           Control.Exception             (bracket)
 import qualified Data.ByteString               as BS
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as TE
-import           Data.Text.Lazy.Builder        (fromString, fromText)
 import           Katip
-import           Katip.Core                    (intercalateNs, locationToString)
-import           Katip.Format.Time             (formatAsIso8601,
-                                                formatAsLogTime)
-import           Katip.Scribes.Handle          (brackets, getKeys)
 import           Network.HTTP.Client           hiding (Proxy)
 import           Network.HTTP.Client.TLS
 import           Servant.Client                (BaseUrl (..), Scheme (..))
-import           System.IO                     (stdout)
-import           Text.Pretty.Simple            (pPrint, pShow)
+import           Text.Pretty.Simple            (pPrint)
 
 withIpfsEnv :: (IpfsEnv -> IO ()) -> IO ()
 withIpfsEnv action = do
