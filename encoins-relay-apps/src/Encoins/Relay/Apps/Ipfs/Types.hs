@@ -13,12 +13,12 @@ import           Cardano.Api            (NetworkId)
 import           Cardano.Server.Config  (HyperTextProtocol (..))
 import           Control.Exception.Safe (MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class (MonadIO)
-import           Control.Monad.Reader   (MonadReader, ReaderT (..), local, asks)
-import           Data.Aeson             (FromJSON (..),
+import           Control.Monad.Reader   (MonadReader, ReaderT (..), asks, local)
+import           Data.Aeson             (FromJSON (..), FromJSONKey,
                                          Options (fieldLabelModifier),
-                                         ToJSON (..), camelTo2, defaultOptions,
-                                         genericParseJSON, genericToJSON,
-                                         withObject, (.:), (.:?))
+                                         ToJSON (..), ToJSONKey, camelTo2,
+                                         defaultOptions, genericParseJSON,
+                                         genericToJSON, withObject, (.:), (.:?))
 import           Data.Aeson.Casing      (aesonPrefix, snakeCase)
 import           Data.Text              (Text)
 import           Data.Time              (UTCTime)
@@ -27,6 +27,7 @@ import           GHC.Generics           (Generic)
 import           Katip
 import           Network.HTTP.Client    (Manager)
 import           Plutus.V1.Ledger.Api   (CurrencySymbol)
+import           Servant.API            (ToHttpApiData)
 import           Servant.Client         (BaseUrl (..), ClientError)
 
 -- General types
@@ -98,21 +99,21 @@ instance KatipContext IpfsMonad where
   localKatipNamespace f (MkIpfsMonad m) =
     MkIpfsMonad (local (\s -> s {envKNamespace = f (envKNamespace s)}) m)
 
-newtype TokenKey = MkTokenKey { tkTokenKey :: Text }
+newtype EncryptedToken= MkEncryptedToken { getEncryptedToken :: Text }
   deriving newtype (Show, Eq)
   deriving stock (Generic)
 
-instance FromJSON TokenKey where
+instance FromJSON EncryptedToken where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-instance ToJSON TokenKey where
+instance ToJSON EncryptedToken where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
--- TokenKey and EncryptedSecret are semantically the same.
+-- EncryptedToken and EncryptedSecret are semantically the same.
 -- The difference is in their JSON instances.
 -- EncryptedSecret is encoded as Text, whereas
--- TokenKey is encoded as Object with field name 'token_key'
--- We don't use TokenKey-like encoding for EncryptedSecret
+-- EncryptedToken is encoded as Object with field name 'token_key'
+-- We don't use EncryptedToken-like encoding for EncryptedSecret
 -- because it increase the size of request needlessly.
 newtype EncryptedSecret = MkEncryptedSecret { getEncryptedSecret :: Text }
   deriving newtype (Eq, Show, ToJSON, FromJSON)
@@ -140,18 +141,18 @@ instance FromJSON MetadataLoose where
 
 -- Request body from backend to IPFS
 data TokenToIpfs = MkTokenToIpfs
-  { pinataContent  :: TokenKey
+  { pinataContent  :: EncryptedToken
   , pinataMetadata :: Metadata
   }
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
-mkTokentoIpfs :: Text -> CloudRequest -> TokenToIpfs
+mkTokentoIpfs :: AesKeyHash -> CloudRequest -> TokenToIpfs
 mkTokentoIpfs clientId req = MkTokenToIpfs
-  { pinataContent = MkTokenKey $ getEncryptedSecret $ reqSecretKey req
+  { pinataContent = MkEncryptedToken $ getEncryptedSecret $ reqSecretKey req
   , pinataMetadata = MkMetadata
       (reqAssetName req)
-      (MkMetaOptions clientId)
+      (MkMetaOptions $ getAesKeyHash clientId)
   }
 
 data PinJsonResponse = MkPinJsonResponse
@@ -209,8 +210,12 @@ data Files = MkFiles
 
 -- Backend Request/Response types
 
+newtype AssetName = MkAssetName { getAssetName :: Text }
+  deriving newtype (Eq, Show, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey, ToHttpApiData)
+  deriving stock (Generic)
+
 data Metadata = MkMetadata
-  { mName      :: Text -- Asset Name
+  { mName      :: AssetName
   , mKeyvalues :: MetaOptions
   }
   deriving stock (Show, Eq, Generic)
@@ -223,7 +228,7 @@ instance ToJSON Metadata where
 
 -- Request body from frontend to backend
 data CloudRequest = MkCloudRequest
-  { reqAssetName :: Text
+  { reqAssetName :: AssetName
   , reqSecretKey :: EncryptedSecret
   }
   deriving stock (Show, Eq, Generic)
@@ -249,7 +254,7 @@ instance ToJSON CloudResponse where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
 data RottenToken = MkRottenToken
-  { rtAssetName  :: Text
+  { rtAssetName  :: AssetName
   , rtRemoveTime :: POSIXTime
   , rtCip        :: Text
   }
@@ -262,8 +267,8 @@ instance ToJSON RottenToken where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
 data RestoreResponse = MkRestoreResponse
-  { rrAssetName :: Text
-  , rrSecretKey :: TokenKey
+  { rrAssetName       :: AssetName
+  , rrEncryptedSecret :: EncryptedSecret
   }
   deriving stock (Show, Eq, Generic)
 
@@ -272,3 +277,9 @@ instance ToJSON RestoreResponse where
 
 data RestoreError = Client ClientError | InvalidStatus CoinStatus
   deriving stock (Show, Eq)
+
+-- Hash of aes key to save it in metadata field as clientId on IPFS
+-- For identifying which token to fetch
+newtype AesKeyHash = MkAesKeyHash { getAesKeyHash :: Text }
+  deriving newtype (Eq, Show, ToJSON, FromJSON, ToHttpApiData)
+  deriving stock (Generic)

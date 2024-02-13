@@ -67,8 +67,8 @@ ipfsServer = do
 
 type ServerIpfsApi =
           "cache"
-              :> ReqBody '[JSON] (Text, [CloudRequest])
-              :> Post '[JSON] (Map Text CloudResponse )
+              :> ReqBody '[JSON] (AesKeyHash, [CloudRequest])
+              :> Post '[JSON] (Map AssetName CloudResponse )
     --  :<|> "restore"
     --           :> Capture "client_id" Text
     --           :> Get '[JSON] [RestoreResponse]
@@ -94,14 +94,14 @@ app = corsWithContentType . serve serverIpfsApiProxy . handlerServer
 
 -- TODO: get rid of liftIO
 
-cache :: (Text, [CloudRequest]) -> IpfsMonad (Map Text CloudResponse)
+cache :: (AesKeyHash, [CloudRequest]) -> IpfsMonad (Map AssetName CloudResponse)
 cache (clientId, reqs) = do
   responseTVar <- liftIO $ newTVarIO Map.empty
   mapM_ (cacheToken clientId responseTVar) reqs
   liftIO $ readTVarIO responseTVar
 
-cacheToken :: Text
-  -> TVar (Map Text CloudResponse)
+cacheToken :: AesKeyHash
+  -> TVar (Map AssetName CloudResponse)
   -> CloudRequest
   -> IpfsMonad ()
 cacheToken clientId tVar req = do
@@ -131,8 +131,8 @@ cacheToken clientId tVar req = do
           modifyCacheResponse tVar assetName
             (MkCloudResponse (Just Pinned) (Just Minted))
 
-modifyCacheResponse :: TVar (Map Text CloudResponse)
-  -> Text
+modifyCacheResponse :: TVar (Map AssetName CloudResponse)
+  -> AssetName
   -> CloudResponse
   -> IpfsMonad ()
 modifyCacheResponse tVar assetName resp
@@ -140,13 +140,14 @@ modifyCacheResponse tVar assetName resp
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
 
-checkCoinStatus :: Text -> IpfsMonad CoinStatus
+checkCoinStatus :: AssetName -> IpfsMonad CoinStatus
 checkCoinStatus assetName = do
   isFormat <- asks envFormatMessage
   networkId <- asks envNetworkId
   currentSymbol <- asks envIpfsCurrencySymbol
-  logInfo $ "Check coin status for assetName" <> column <> space <> assetName
-  eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
+  logInfo $ "Check coin status for assetName" <> column <> space <> getAssetName assetName
+  eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol
+    $ fromString $ T.unpack $ getAssetName assetName
   logInfo $ "Maestro response:"
   logInfoS isFormat eAssets
   case eAssets of
@@ -176,7 +177,7 @@ getAsset res = do
 -- Following functions not used for now.
 -- It can be useful for restore and cleaning cache
 
-restore :: Text -> IpfsMonad [RestoreResponse]
+restore :: AesKeyHash -> IpfsMonad [RestoreResponse]
 restore clientId = do
   eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
   case eFiles of
@@ -185,13 +186,13 @@ restore clientId = do
       pure []
     Right (rows -> files) -> do
       (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
-        let assetName = fromMaybe "absentAssetName" $ mrName $ metadata file
+        let assetName = MkAssetName $ fromMaybe "invalidAssetName" $ mrName $ metadata file
         coinStatus <- checkCoinStatus assetName
         case coinStatus of
           Minted -> do
-            eTokenKey <- fetchByCipRequest (ipfsPinHash file)
-            pure $ mapLeft Client $
-              MkRestoreResponse assetName <$> eTokenKey
+            eSecretIpfs <- fetchByCipRequest (ipfsPinHash file)
+            let eEncSecret = MkEncryptedSecret . getEncryptedToken <$> eSecretIpfs
+            pure $ mapLeft Client $ MkRestoreResponse assetName <$> eEncSecret
           _ -> pure $ Left $ InvalidStatus coinStatus
       case errors of
         [] -> pure rRes
@@ -205,7 +206,10 @@ burned t = do
   networkId <- asks envNetworkId
   currentSymbol <- asks envIpfsCurrencySymbol
   let assetName = reqAssetName t
-  res <- getAssetMintsAndBurns networkId currentSymbol (fromString $ T.unpack assetName)
+  res <- getAssetMintsAndBurns networkId currentSymbol
+    $ fromString
+    $ T.unpack
+    $ getAssetName assetName
   case getAsset res of
     Left err -> do
       say err
@@ -222,15 +226,16 @@ burned t = do
           say "Token found on the blockchain. Thus it is should not be unpinned"
           pure "Not unpinned"
 
-putInQueue :: FilePath -> Text -> UTCTime -> [Text] -> IpfsMonad ()
+putInQueue :: FilePath -> AssetName -> UTCTime -> [Text] -> IpfsMonad ()
 putInQueue scheduleDir assetName burnedTime cips = do
   let burnedTimePosix = utcTimeToPOSIXSeconds burnedTime
   let halfDay = posixDayLength / 2
   let removeTime = burnedTimePosix + halfDay
   liftIO $ createDirectoryIfMissing False scheduleDir
-  mapM_ (\cip -> liftIO $ encodeFile (scheduleDir </> T.unpack cip <.> "json") $ MkRottenToken assetName removeTime cip) cips
+  mapM_ (\cip -> liftIO $ encodeFile (scheduleDir </> T.unpack cip <.> "json")
+    $ MkRottenToken assetName removeTime cip) cips
 
-getBurnedCips :: Text -> IpfsMonad [Text]
+getBurnedCips :: AssetName -> IpfsMonad [Text]
 getBurnedCips assetName = do
   eFiles <- fetchByStatusNameRequest "pinned" assetName
   case eFiles of

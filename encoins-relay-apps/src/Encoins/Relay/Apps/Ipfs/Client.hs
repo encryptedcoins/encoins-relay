@@ -46,7 +46,7 @@ pinJsonRequest p = do
     (pinJson (Just $ envPinataAuthToken env) p)
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
-fetchByCipRequest :: Text -> IpfsMonad (Either ClientError TokenKey)
+fetchByCipRequest :: Text -> IpfsMonad (Either ClientError EncryptedToken)
 fetchByCipRequest cip = do
   env <- ask
   liftIO $ runClientM
@@ -75,7 +75,7 @@ fetchMetaPinnedRequest status = do
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
 fetchByStatusNameRequest :: Text
-  -> Text
+  -> AssetName
   -> IpfsMonad (Either ClientError Files)
 fetchByStatusNameRequest status name = do
   env <- ask
@@ -84,7 +84,7 @@ fetchByStatusNameRequest status name = do
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
 fetchByStatusKeyvalueRequest :: Text
-  -> Text
+  -> AesKeyHash
   -> IpfsMonad (Either ClientError Files)
 fetchByStatusKeyvalueRequest status clientId = do
   env <- ask
@@ -97,9 +97,9 @@ fetchByStatusKeyvalueRequest status clientId = do
 -- TODO: remove after debug
 token :: TokenToIpfs
 token = MkTokenToIpfs
-  { pinataContent = MkTokenKey "super secret key"
+  { pinataContent = MkEncryptedToken "super secret key"
   , pinataMetadata = MkMetadata
-      { mName = "tokenName"
+      { mName = MkAssetName "tokenName"
       , mKeyvalues = MkMetaOptions "client_id_hash"
       }
   }
