@@ -228,16 +228,16 @@ burned t = do
           say "Token found on the blockchain. Thus it is should not be unpinned"
           pure "Not unpinned"
 
-putInQueue :: FilePath -> AssetName -> UTCTime -> [Text] -> IpfsMonad ()
+putInQueue :: FilePath -> AssetName -> UTCTime -> [Cip] -> IpfsMonad ()
 putInQueue scheduleDir assetName burnedTime cips = do
   let burnedTimePosix = utcTimeToPOSIXSeconds burnedTime
   let halfDay = posixDayLength / 2
   let removeTime = burnedTimePosix + halfDay
   liftIO $ createDirectoryIfMissing False scheduleDir
-  mapM_ (\cip -> liftIO $ encodeFile (scheduleDir </> T.unpack cip <.> "json")
+  mapM_ (\cip@(MkCip c) -> liftIO $ encodeFile (scheduleDir </> T.unpack c <.> "json")
     $ MkRottenToken assetName removeTime cip) cips
 
-getBurnedCips :: AssetName -> IpfsMonad [Text]
+getBurnedCips :: AssetName -> IpfsMonad [Cip]
 getBurnedCips assetName = do
   eFiles <- fetchByStatusNameRequest "pinned" assetName
   case eFiles of
@@ -272,7 +272,7 @@ removeRottenTokens  = do
           Right _ -> say "Burned filed removed from queue"
   pure ()
 
-selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe (Text, FilePath))
+selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe (Cip, FilePath))
 selectRottenCip now tokenPath = do
   eRotten <- liftIO $ eitherDecodeFileStrict' tokenPath
   case eRotten of

@@ -22,10 +22,10 @@ type ClientIpfsAPI =
                  :> Auth
                  :> ReqBody '[JSON] TokenToIpfs
                  :> Post '[JSON] PinJsonResponse
-  :<|> "ipfs" :> Capture "cip" Text :> Get '[JSON] EncryptedToken
+  :<|> "ipfs" :> Capture "cip" Cip :> Get '[JSON] EncryptedToken
   :<|> "data" :> Auth :> "pinList" :> Get '[JSON] Files
   :<|> "pinning" :> "unpin"
-                 :> Auth :> Capture "cip" Text :> Delete '[PlainText] Text
+                 :> Auth :> Capture "cip" Cip :> Delete '[PlainText] Text
   :<|> "data" :> "pinList"
               :> Auth :> QueryParam "status" Text :> Get '[JSON] Files
   :<|> "data" :> "pinList"
@@ -45,9 +45,9 @@ clientIpfsApi :: Proxy ClientIpfsAPI
 clientIpfsApi = Proxy
 
 pinJson               :: Maybe Text -> TokenToIpfs -> ClientM PinJsonResponse
-fetchByCip            :: Text -> ClientM EncryptedToken
+fetchByCip            :: Cip -> ClientM EncryptedToken
 fetchMetaAll          :: Maybe Text -> ClientM Files
-unpinByCip            :: Maybe Text -> Text -> ClientM Text
+unpinByCip            :: Maybe Text -> Cip -> ClientM Text
 fetchByStatus         :: Maybe Text -> Maybe Text -> ClientM Files
 fetchByStatusName     :: Maybe Text -> Maybe Text -> Maybe AssetName -> ClientM Files
 fetchByStatusKeyvalue :: Maybe Text -> Maybe Text -> Maybe AesKeyHash -> ClientM Files

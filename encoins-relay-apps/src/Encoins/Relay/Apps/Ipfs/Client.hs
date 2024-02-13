@@ -46,7 +46,7 @@ pinJsonRequest p = do
     (pinJson (Just $ envPinataAuthToken env) p)
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
-fetchByCipRequest :: Text -> IpfsMonad (Either ClientError EncryptedToken)
+fetchByCipRequest :: Cip -> IpfsMonad (Either ClientError EncryptedToken)
 fetchByCipRequest cip = do
   env <- ask
   liftIO $ runClientM
@@ -60,7 +60,7 @@ fetchMetaAllRequest = do
     (fetchMetaAll $ Just $ envPinataAuthToken env)
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
-unpinByCipRequest :: Text -> IpfsMonad (Either ClientError Text)
+unpinByCipRequest :: Cip -> IpfsMonad (Either ClientError Text)
 unpinByCipRequest cip = do
   env <- ask
   liftIO $ runClientM

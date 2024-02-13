@@ -156,7 +156,7 @@ mkTokentoIpfs clientId req = MkTokenToIpfs
   }
 
 data PinJsonResponse = MkPinJsonResponse
-  { ipfsHash    :: Text
+  { ipfsHash    :: Cip
   , pinSize     :: Int
   , timestamp   :: UTCTime
   , isDuplicate :: Maybe Bool
@@ -173,7 +173,7 @@ instance FromJSON PinJsonResponse where
 
 data File = MkFile
   { fileId        :: Text
-  , ipfsPinHash   :: Text
+  , ipfsPinHash   :: Cip
   , size          :: Int
   , userId        :: Text
   , datePinned    :: Maybe UTCTime
@@ -256,7 +256,7 @@ instance ToJSON CloudResponse where
 data RottenToken = MkRottenToken
   { rtAssetName  :: AssetName
   , rtRemoveTime :: POSIXTime
-  , rtCip        :: Text
+  , rtCip        :: Cip
   }
   deriving stock (Show, Eq, Generic)
 
@@ -282,4 +282,8 @@ data RestoreError = Client ClientError | InvalidStatus CoinStatus
 -- For identifying which token to fetch
 newtype AesKeyHash = MkAesKeyHash { getAesKeyHash :: Text }
   deriving newtype (Eq, Show, ToJSON, FromJSON, ToHttpApiData)
+  deriving stock (Generic)
+
+newtype Cip = MkCip { getCip :: Text }
+  deriving newtype (Eq, Show, Ord, FromJSON, ToJSON, ToHttpApiData)
   deriving stock (Generic)
