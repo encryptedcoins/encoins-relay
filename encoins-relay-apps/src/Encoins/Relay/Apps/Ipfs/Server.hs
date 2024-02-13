@@ -38,7 +38,6 @@ import           Data.List                      (sortOn)
 import           Data.List.Extra                (unsnoc)
 import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
-import           Data.Maybe                     (fromMaybe)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
@@ -186,14 +185,17 @@ restore clientId = do
       pure []
     Right (rows -> files) -> do
       (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
-        let assetName = MkAssetName $ fromMaybe "invalidAssetName" $ mrName $ metadata file
-        coinStatus <- checkCoinStatus assetName
-        case coinStatus of
-          Minted -> do
-            eSecretIpfs <- fetchByCipRequest (ipfsPinHash file)
-            let eEncSecret = MkEncryptedSecret . getEncryptedToken <$> eSecretIpfs
-            pure $ mapLeft Client $ MkRestoreResponse assetName <$> eEncSecret
-          _ -> pure $ Left $ InvalidStatus coinStatus
+        let mAssetName = mrName $ metadata file
+        case mAssetName of
+          Nothing -> pure $ Left $ InvalidStatus $ CoinError "Absent AssetName in metadata"
+          Just assetName -> do
+            coinStatus <- checkCoinStatus assetName
+            case coinStatus of
+              Minted -> do
+                eSecretIpfs <- fetchByCipRequest (ipfsPinHash file)
+                let eEncSecret = MkEncryptedSecret . getEncryptedToken <$> eSecretIpfs
+                pure $ mapLeft Client $ MkRestoreResponse assetName <$> eEncSecret
+              _ -> pure $ Left $ InvalidStatus coinStatus
       case errors of
         [] -> pure rRes
         _ -> do

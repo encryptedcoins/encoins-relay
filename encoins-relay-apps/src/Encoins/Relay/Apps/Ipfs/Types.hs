@@ -131,7 +131,7 @@ instance ToJSON MetaOptions where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
 data MetadataLoose = MkMetadataLoose
-  { mrName      :: Maybe Text -- Asset Name
+  { mrName      :: Maybe AssetName
   , mrKeyvalues :: Maybe MetaOptions
   }
   deriving stock (Show, Eq, Generic)
