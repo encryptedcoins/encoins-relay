@@ -25,7 +25,7 @@ import           Cardano.Server.Main                    (runCardanoServer)
 import           Cardano.Server.Utils.Logger            (logMsg, logSmth,
                                                          logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
-import           Encoins.Common.Constant                (column, space, newLine)
+import           Encoins.Common.Constant                (column, newLine, space)
 import           Encoins.Common.Transform               (toText)
 import           Encoins.Common.Version                 (appVersion,
                                                          showAppVersion)
@@ -81,6 +81,7 @@ import           Data.Text                              (Text)
 import qualified Data.Text                              as T
 import qualified Data.Text.IO                           as T
 import qualified Data.Time                              as Time
+import           Development.GitRev                     (gitCommitDate, gitHash)
 import           Ledger                                 (Address, PubKeyHash)
 import           Paths_encoins_relay_apps               (version)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
@@ -101,7 +102,7 @@ import           Text.Read                              (readMaybe)
 
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
-    say $ showAppVersion "Delegation server" $ appVersion version
+    say $ showAppVersion "Delegation server" $ appVersion version $(gitHash) $(gitCommitDate)
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     progressRef <- initProgress cDelegationFolder >>= newIORef
     tokenBalanceRef <- do

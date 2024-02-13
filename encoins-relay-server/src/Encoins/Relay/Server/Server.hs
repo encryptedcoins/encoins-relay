@@ -43,6 +43,7 @@ import           Data.FileEmbed                 (embedFileIfExists)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
+import           Development.GitRev             (gitCommitDate, gitHash)
 import           Encoins.Common.Version         (AppVersion, appVersion)
 import           ENCOINS.Core.OffChain          (EncoinsMode (..), beaconTx,
                                                  delegateTx, encoinsSendTx,
@@ -104,7 +105,7 @@ mkServerHandle c = do
         processRequest
         encoinsStatusHandler
         checkStatusEndpoint
-        (pure $ appVersion version)
+        (pure $ appVersion version $(gitHash) $(gitCommitDate))
 
 -- Embed https cert and key files on compilation
 embedCreds :: Creds

@@ -2,10 +2,12 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE ViewPatterns        #-}
+
 
 
 module Encoins.Relay.Apps.Ipfs.Server where
@@ -45,6 +47,7 @@ import           Data.Time                      (UTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
                                                  posixDayLength,
                                                  utcTimeToPOSIXSeconds)
+import           Development.GitRev             (gitCommitDate, gitHash)
 import qualified Network.Wai                    as Wai
 import           Network.Wai.Handler.Warp
 import           Network.Wai.Middleware.Cors    (CorsResourcePolicy (..), cors,
@@ -59,7 +62,7 @@ import           System.FilePath.Posix          ((<.>), (</>))
 
 ipfsServer :: IO ()
 ipfsServer = do
-  say $ showAppVersion "IPFS server" $ appVersion version
+  say $ showAppVersion "IPFS server" $ appVersion version $(gitHash) $(gitCommitDate)
   withIpfsEnv $ \env -> do
     -- withAsync (rottenTokenHandler env) $ \_ -> do
     withRecovery "server" $ run (envPort env) $ app env

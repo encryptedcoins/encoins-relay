@@ -75,6 +75,7 @@ library
       extra                                  -any,
       file-embed                             -any,
       filepath                               -any,
+      gitrev                                 -any,
       http-client                            -any,
       http-client-tls                        -any,
       katip                                  -any,
