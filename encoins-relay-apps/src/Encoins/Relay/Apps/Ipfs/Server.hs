@@ -13,7 +13,8 @@
 module Encoins.Relay.Apps.Ipfs.Server where
 
 import           Encoins.Common.Constant        (column, space)
-import           Encoins.Common.Log             (logErrorS, logInfo, logInfoS)
+import           Encoins.Common.Log             (logDebugS, logError, logErrorS,
+                                                 logInfo, logInfoS)
 import           Encoins.Common.Transform       (toText)
 import           Encoins.Common.Version         (appVersion, showAppVersion)
 import           Encoins.Relay.Apps.Ipfs.Client
@@ -25,8 +26,8 @@ import           PlutusAppsExtra.Utils.Maestro  (AssetMintsAndBurnsData (..),
 
 import           Control.Concurrent             (threadDelay)
 import           Control.Concurrent.STM
-import           Control.Exception.Safe         (Exception, SomeException,
-                                                 catchAny, tryAny)
+import           Control.Exception.Safe         (SomeException, catchAny, throw,
+                                                 tryAny)
 import           Control.Monad                  (forM, forever)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
@@ -64,6 +65,7 @@ ipfsServer :: IO ()
 ipfsServer = do
   say $ showAppVersion "IPFS server" $ appVersion version $(gitHash) $(gitCommitDate)
   withIpfsEnv $ \env -> do
+    checkPinataToken env
     -- withAsync (rottenTokenHandler env) $ \_ -> do
     withRecovery "server" $ run (envPort env) $ app env
 
@@ -176,6 +178,33 @@ getAsset res = do
     Nothing -> Left "ambrData is empty"
     Just a  -> Right a
 
+withRecovery :: Text -> IO () -> IO ()
+withRecovery nameOfAction action = action `catchAny` handleException
+  where
+    handleException :: SomeException -> IO ()
+    handleException e = do
+      say $ "Exception caught in" <> space <> nameOfAction <> column <> space <> toText e
+      liftIO $ threadDelay $ 5 * 1000000
+      withRecovery nameOfAction action
+
+checkPinataToken :: IpfsEnv -> IO ()
+checkPinataToken env = runIpfsMonad env $ do
+  isFormat <- asks envFormatMessage
+  logInfo ""
+  logInfo "Checking pinata token is valid..."
+  res <- testAuthenticationRequest
+  case res of
+    Left err -> do
+      logDebugS isFormat err
+      logError "Pinata token is invalid"
+      throw InvalidPinataToken
+    Right r -> do
+      logDebugS isFormat r
+      logInfo "Pinata token is valid"
+
+
+
+
 -- Following functions not used for now.
 -- It can be useful for restore and cleaning cache
 
@@ -257,8 +286,6 @@ removeRottenTokens  = do
   now <- liftIO $ getPOSIXTime
   cips <- liftIO $ mapMaybeM (selectRottenCip now) queueFiles
   sayShow cips
-  -- res <- throwM ThisException
-  -- sayShow @_ @MyException res
   forM_ cips $ \(cip, path)-> do
     eUnpined <- unpinByCipRequest cip
     sayShow eUnpined
@@ -297,18 +324,3 @@ rottenTokenHandler env = forever $ do
       -- Sleep for 1 hour (in microseconds)
       -- liftIO $ threadDelay $ 60 * 60 * 1000000
       threadDelay $ 60 * 1000000
-
-withRecovery :: Text -> IO () -> IO ()
-withRecovery nameOfAction action = action `catchAny` handleException
-  where
-    handleException :: SomeException -> IO ()
-    handleException e = do
-      say $ "Exception caught in" <> space <> nameOfAction <> column <> space <> toText e
-      liftIO $ threadDelay $ 5 * 1000000
-      withRecovery nameOfAction action
-
-
-data MyException = ThisException | ThatException
-    deriving Show
-
-instance Exception MyException

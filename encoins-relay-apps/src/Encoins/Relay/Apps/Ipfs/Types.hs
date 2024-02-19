@@ -11,7 +11,7 @@ module Encoins.Relay.Apps.Ipfs.Types where
 
 import           Cardano.Api            (NetworkId)
 import           Cardano.Server.Config  (HyperTextProtocol (..))
-import           Control.Exception.Safe (MonadCatch, MonadThrow)
+import           Control.Exception.Safe (Exception, MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class (MonadIO)
 import           Control.Monad.Reader   (MonadReader, ReaderT (..), asks, local)
 import           Data.Aeson             (FromJSON (..), FromJSONKey,
@@ -287,3 +287,17 @@ newtype AesKeyHash = MkAesKeyHash { getAesKeyHash :: Text }
 newtype Cip = MkCip { getCip :: Text }
   deriving newtype (Eq, Show, Ord, FromJSON, ToJSON, ToHttpApiData)
   deriving stock (Generic)
+
+data CheckTokenResponse = MkCheckTokenResponse
+  {
+    vtMessage :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON CheckTokenResponse where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+data IPFSException = InvalidPinataToken
+    deriving Show
+
+instance Exception IPFSException

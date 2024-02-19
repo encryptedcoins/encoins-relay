@@ -38,6 +38,9 @@ type ClientIpfsAPI =
               :> QueryParam "status" Text
               :> QueryParam "metadata[keyvalue][client_id]" AesKeyHash
               :> Get '[JSON] Files
+  :<|> "data" :> "testAuthentication"
+              :> Auth
+              :> Get '[JSON] CheckTokenResponse
 
 type Auth = Header "Authorization" Text
 
@@ -51,5 +54,7 @@ unpinByCip            :: Maybe Text -> Cip -> ClientM Text
 fetchByStatus         :: Maybe Text -> Maybe Text -> ClientM Files
 fetchByStatusName     :: Maybe Text -> Maybe Text -> Maybe AssetName -> ClientM Files
 fetchByStatusKeyvalue :: Maybe Text -> Maybe Text -> Maybe AesKeyHash -> ClientM Files
+testAuthentication    :: Maybe Text -> ClientM CheckTokenResponse
 pinJson :<|> fetchByCip :<|> fetchMetaAll :<|> unpinByCip :<|>
-  fetchByStatus :<|> fetchByStatusName :<|> fetchByStatusKeyvalue = client clientIpfsApi
+  fetchByStatus :<|> fetchByStatusName :<|> fetchByStatusKeyvalue
+  :<|> testAuthentication = client clientIpfsApi

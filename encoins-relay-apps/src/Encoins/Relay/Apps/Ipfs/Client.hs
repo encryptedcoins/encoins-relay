@@ -92,6 +92,13 @@ fetchByStatusKeyvalueRequest status clientId = do
     (fetchByStatusKeyvalue (Just $ envPinataAuthToken env) (Just status) (Just clientId))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
+testAuthenticationRequest :: IpfsMonad (Either ClientError CheckTokenResponse)
+testAuthenticationRequest = do
+  env <- ask
+  liftIO $ runClientM
+    (testAuthentication (Just $ envPinataAuthToken env))
+    (mkClientEnv (envManager env) (envPinataPinHost env))
+
 -- Utils
 
 -- TODO: remove after debug
