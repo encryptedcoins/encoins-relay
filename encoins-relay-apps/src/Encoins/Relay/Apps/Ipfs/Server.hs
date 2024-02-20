@@ -191,7 +191,7 @@ checkPinataToken :: IpfsEnv -> IO ()
 checkPinataToken env = runIpfsMonad env $ do
   isFormat <- asks envFormatMessage
   logInfo ""
-  logInfo "Checking pinata token is valid..."
+  logInfo "Checking pinata token..."
   res <- testAuthenticationRequest
   case res of
     Left err -> do
