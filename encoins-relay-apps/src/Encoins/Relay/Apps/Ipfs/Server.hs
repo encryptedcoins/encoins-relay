@@ -14,7 +14,7 @@ module Encoins.Relay.Apps.Ipfs.Server where
 
 import           Encoins.Common.Constant        (column, space)
 import           Encoins.Common.Log             (logDebugS, logError, logErrorS,
-                                                 logInfo, logInfoS)
+                                                 logInfo, logInfoS, logWarn)
 import           Encoins.Common.Transform       (toText)
 import           Encoins.Common.Version         (appVersion, showAppVersion)
 import           Encoins.Relay.Apps.Ipfs.Client
@@ -41,6 +41,7 @@ import           Data.List                      (sortOn)
 import           Data.List.Extra                (unsnoc)
 import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
+import           Data.Maybe                     (catMaybes)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
@@ -117,23 +118,34 @@ cacheToken clientId tVar req = do
   coinStatus <- checkCoinStatus assetName
   logInfo $ "Coin status" <> column <> space <> toText coinStatus
   case coinStatus of
-    CoinError _ -> do
+    CoinError err -> do
+      logErrorS isFormat err
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
     Burned -> do
       logInfo "Token found on blockchain and it was burned"
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Burned)
     Minted -> do
-      res <- pinJsonRequest $ mkTokentoIpfs clientId req
-      case res of
-        Left err -> do
-          logErrorS isFormat err
-          modifyCacheResponse tVar assetName $ MkCloudResponse
-            (Just $ FileError $ toText err) Nothing
-        Right r -> do
-          logInfo "Pin response:"
-          logInfoS isFormat r
+      ipfsStatus <- checkIpfsStatus assetName
+      logInfo $ "IPFS status" <> column <> space <> toText ipfsStatus
+      case ipfsStatus of
+        IpfsError iErr -> do
+          logErrorS isFormat iErr
+          modifyCacheResponse tVar assetName $ MkCloudResponse (Just ipfsStatus) (Just Minted)
+        Pinned -> do
           modifyCacheResponse tVar assetName
             (MkCloudResponse (Just Pinned) (Just Minted))
+        Unpinned -> do
+          res <- pinJsonRequest $ mkTokentoIpfs clientId req
+          case res of
+            Left err -> do
+              logErrorS isFormat err
+              modifyCacheResponse tVar assetName $ MkCloudResponse
+                (Just $ IpfsError $ toText err) Nothing
+            Right r -> do
+              logInfo "Pin response:"
+              logInfoS isFormat r
+              modifyCacheResponse tVar assetName
+                (MkCloudResponse (Just Pinned) (Just Minted))
 
 modifyCacheResponse :: TVar (Map AssetName CloudResponse)
   -> AssetName
@@ -165,6 +177,29 @@ checkCoinStatus assetName = do
       Right x
         | x > 0 -> pure Minted
         | otherwise -> pure Burned
+
+checkIpfsStatus :: AssetName -> IpfsMonad IpfsStatus
+checkIpfsStatus assetName = do
+  let assetNameT = getAssetName assetName
+  logInfo $ "Check IPFS status for assetName" <> column <> space <> assetNameT
+  files <- fetchByStatusNameRequest "pinned" assetName
+  case files of
+    Left err -> do
+      logError $ "fetchByStaIpfsErrortusNameRequest error" <> column <> space <> toText err
+      pure $ IpfsError $ toText err
+    Right fs -> do
+      let names = catMaybes . map (mrName . metadata) . rows $ fs
+      let validNames = filter (== assetName) names
+      case length validNames of
+        1 -> pure Pinned
+        0 -> pure Unpinned
+        n -> do
+          logWarn $ "Token"
+            <> space <> assetNameT
+            <> space <> "pinned"
+            <> space <> toText n
+            <> space <> "times"
+          pure Pinned
 
 getAsset :: [AssetMintsAndBurnsResponse] -> Either Text AssetMintsAndBurnsData
 getAsset res = do

@@ -236,7 +236,7 @@ data CloudRequest = MkCloudRequest
 instance FromJSON CloudRequest where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-data IpfsStatus = Pinned | Unpinned | FileError Text
+data IpfsStatus = Pinned | Unpinned | IpfsError Text
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
