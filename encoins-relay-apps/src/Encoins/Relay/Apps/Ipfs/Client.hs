@@ -92,6 +92,16 @@ fetchByStatusKeyvalueRequest status clientId = do
     (fetchByStatusKeyvalue (Just $ envPinataAuthToken env) (Just status) (Just clientId))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
+fetchByStatusNameKeyvalueRequest :: Text
+  -> AssetName
+  -> AesKeyHash
+  -> IpfsMonad (Either ClientError Files)
+fetchByStatusNameKeyvalueRequest status name clientId = do
+  env <- ask
+  liftIO $ runClientM
+    (fetchByStatusNameKeyvalue (Just $ envPinataAuthToken env) (Just status) (Just name) (Just clientId))
+    (mkClientEnv (envManager env) (envPinataPinHost env))
+
 testAuthenticationRequest :: IpfsMonad (Either ClientError CheckTokenResponse)
 testAuthenticationRequest = do
   env <- ask

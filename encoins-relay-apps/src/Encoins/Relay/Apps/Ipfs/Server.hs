@@ -125,7 +125,7 @@ cacheToken clientId tVar req = do
       logInfo "Token found on blockchain and it was burned"
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Burned)
     Minted -> do
-      ipfsStatus <- checkIpfsStatus assetName
+      ipfsStatus <- checkIpfsStatus assetName clientId
       logInfo $ "IPFS status" <> column <> space <> toText ipfsStatus
       case ipfsStatus of
         IpfsError iErr -> do
@@ -178,11 +178,11 @@ checkCoinStatus assetName = do
         | x > 0 -> pure Minted
         | otherwise -> pure Burned
 
-checkIpfsStatus :: AssetName -> IpfsMonad IpfsStatus
-checkIpfsStatus assetName = do
+checkIpfsStatus :: AssetName -> AesKeyHash -> IpfsMonad IpfsStatus
+checkIpfsStatus assetName clientId  = do
   let assetNameT = getAssetName assetName
   logInfo $ "Check IPFS status for assetName" <> column <> space <> assetNameT
-  files <- fetchByStatusNameRequest "pinned" assetName
+  files <- fetchByStatusNameKeyvalueRequest "pinned" assetName clientId
   case files of
     Left err -> do
       logError $ "fetchByStaIpfsErrortusNameRequest error" <> column <> space <> toText err

@@ -38,6 +38,12 @@ type ClientIpfsAPI =
               :> QueryParam "status" Text
               :> QueryParam "metadata[keyvalue][client_id]" AesKeyHash
               :> Get '[JSON] Files
+  :<|> "data" :> "pinList"
+              :> Auth
+              :> QueryParam "status" Text
+              :> QueryParam "metadata[name]" AssetName
+              :> QueryParam "metadata[keyvalue][client_id]" AesKeyHash
+              :> Get '[JSON] Files
   :<|> "data" :> "testAuthentication"
               :> Auth
               :> Get '[JSON] CheckTokenResponse
@@ -47,14 +53,19 @@ type Auth = Header "Authorization" Text
 clientIpfsApi :: Proxy ClientIpfsAPI
 clientIpfsApi = Proxy
 
-pinJson               :: Maybe Text -> TokenToIpfs -> ClientM PinJsonResponse
-fetchByCip            :: Cip -> ClientM EncryptedToken
-fetchMetaAll          :: Maybe Text -> ClientM Files
-unpinByCip            :: Maybe Text -> Cip -> ClientM Text
-fetchByStatus         :: Maybe Text -> Maybe Text -> ClientM Files
-fetchByStatusName     :: Maybe Text -> Maybe Text -> Maybe AssetName -> ClientM Files
-fetchByStatusKeyvalue :: Maybe Text -> Maybe Text -> Maybe AesKeyHash -> ClientM Files
-testAuthentication    :: Maybe Text -> ClientM CheckTokenResponse
+pinJson                   :: Maybe Text -> TokenToIpfs -> ClientM PinJsonResponse
+fetchByCip                :: Cip -> ClientM EncryptedToken
+fetchMetaAll              :: Maybe Text -> ClientM Files
+unpinByCip                :: Maybe Text -> Cip -> ClientM Text
+fetchByStatus             :: Maybe Text -> Maybe Text -> ClientM Files
+fetchByStatusName         :: Maybe Text -> Maybe Text -> Maybe AssetName -> ClientM Files
+fetchByStatusKeyvalue     :: Maybe Text -> Maybe Text -> Maybe AesKeyHash -> ClientM Files
+fetchByStatusNameKeyvalue :: Maybe Text
+  -> Maybe Text
+  -> Maybe AssetName
+  -> Maybe AesKeyHash
+  -> ClientM Files
+testAuthentication        :: Maybe Text -> ClientM CheckTokenResponse
 pinJson :<|> fetchByCip :<|> fetchMetaAll :<|> unpinByCip :<|>
   fetchByStatus :<|> fetchByStatusName :<|> fetchByStatusKeyvalue
-  :<|> testAuthentication = client clientIpfsApi
+  :<|> fetchByStatusNameKeyvalue :<|> testAuthentication = client clientIpfsApi
