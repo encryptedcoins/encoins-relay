@@ -74,6 +74,8 @@ type ServerIpfsApi =
           "cache"
               :> ReqBody '[JSON] (AesKeyHash, [CloudRequest])
               :> Post '[JSON] (Map AssetName CloudResponse )
+      :<|> "ping"
+              :> Get '[JSON] NoContent
     --  :<|> "restore"
     --           :> Capture "client_id" Text
     --           :> Get '[JSON] [RestoreResponse]
@@ -83,6 +85,7 @@ serverIpfsApiProxy = Proxy
 
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
 serverIpfsApi = cache
+           :<|> ping
           --  :<|> restore
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
@@ -98,6 +101,11 @@ app :: IpfsEnv -> Application
 app = corsWithContentType . serve serverIpfsApiProxy . handlerServer
 
 -- TODO: get rid of liftIO
+
+ping :: IpfsMonad NoContent
+ping = do
+  logInfo "Ping request"
+  pure NoContent
 
 cache :: (AesKeyHash, [CloudRequest]) -> IpfsMonad (Map AssetName CloudResponse)
 cache (clientId, reqs) = do
