@@ -10,3 +10,4 @@ certificate.pem
 key.pem
 
 cabal.project.local
+cabal.log
