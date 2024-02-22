@@ -30,7 +30,7 @@ import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..),
                                                  bulletproof, fromSecret,
                                                  parseBulletproofParams,
                                                  polarityToInteger)
-import           Encoins.Common.Constant        (space, newLine)
+import           Encoins.Common.Constant        (newLine, space)
 import           Encoins.Common.Transform       (toText)
 import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee,
                                                  treasuryFee)
@@ -64,7 +64,6 @@ import           Data.Data                      (Proxy (Proxy))
 import           Data.Default                   (def)
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
-import qualified Data.Text                      as T
 import qualified Servant.Client                 as Servant
 import           Servant.Client                 (runClientM)
 import           System.Random                  (randomIO, randomRIO)
@@ -130,7 +129,7 @@ sendTxClientRequest secrets = do
     logMsg $ "Sending request with:\n"
             <> foldl prettyInput "" (zip (map fst secrets) inputs)
             <> "\n= "
-            <> T.pack (show v)
+            <> toText v
     res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputRedeemer red ?mode, txInputs))
     logMsg $ "Received response:\n" <> either toText toText res
     pure res

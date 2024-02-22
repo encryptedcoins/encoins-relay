@@ -20,21 +20,6 @@ import           Servant.Client
 
 import           Text.Pretty.Simple
 
-ipfsClient :: IO ()
-ipfsClient = withIpfsEnv $ \env -> do
-  runIpfsMonad env $ do
-    res <- pinJsonRequest token
-    pPrint res
-    -- pPrint =<< fetchMetaAllRequest manager key
-    -- case res of
-    --   Left err -> pPrint err
-    --   Right r -> do
-    --     let cip = ipfsHash r
-    --     pPrint =<< fetchByCipRequest manager cip
-    --     -- pPrint =<< unpinByCipRequest manager key cip
-    -- pPrint =<< fetchMetaPinnedRequest manager key "pinned"
-
-
 -- Requests to Pinata API
 
 -- TODO: Handle ClientError inside of requests
@@ -109,7 +94,13 @@ testAuthenticationRequest = do
     (testAuthentication (Just $ envPinataAuthToken env))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
--- Utils
+-- Just for example for debug
+
+ipfsClient :: IO ()
+ipfsClient = withIpfsEnv $ \env -> do
+  runIpfsMonad env $ do
+    res <- pinJsonRequest token
+    pPrint res
 
 -- TODO: remove after debug
 token :: TokenToIpfs

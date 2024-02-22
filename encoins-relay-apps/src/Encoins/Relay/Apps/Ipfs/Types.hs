@@ -46,7 +46,7 @@ data IpfsEnv = MkIpfsEnv
   , envLogEnv             :: LogEnv
   , envKContext           :: LogContexts
   , envKNamespace         :: Namespace
-  , envFormatMessage      :: Bool -- Pretty print message
+  , envFormatMessage      :: Bool -- Pretty print message or not
   }
 
 -- Format of severity in json file:

@@ -21,7 +21,8 @@ import           Text.Pretty.Simple            (pPrint)
 
 withIpfsEnv :: (IpfsEnv -> IO ()) -> IO ()
 withIpfsEnv action = do
-  config <- getIpfsConfig
+  config <- decodeOrErrorFromFile "ipfs_config.json"
+  pPrint config
   let logEnv = mkLogEnv
         "IPFS"
         (icEnvironment config)
@@ -32,12 +33,6 @@ withIpfsEnv action = do
     manager <- newManager tlsManagerSettings
     let env = mkIpfsEnv manager key config le
     action env
-
-getIpfsConfig :: IO IpfsConfig
-getIpfsConfig = do
-  ipfsConfig <- decodeOrErrorFromFile "ipfs_config.json"
-  pPrint ipfsConfig
-  pure ipfsConfig
 
 mkIpfsEnv :: Manager -> Text -> IpfsConfig -> LogEnv -> IpfsEnv
 mkIpfsEnv manager pinataToken ipfsConfig logEnv = MkIpfsEnv

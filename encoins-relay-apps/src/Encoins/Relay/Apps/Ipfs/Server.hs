@@ -249,7 +249,7 @@ checkPinataToken env = runIpfsMonad env $ do
 
 
 -- Following functions not used for now.
--- It can be useful for restore and cleaning cache
+-- It can be useful for restoring and cleaning cache
 
 restore :: AesKeyHash -> IpfsMonad [RestoreResponse]
 restore clientId = do
@@ -279,7 +279,7 @@ restore clientId = do
 
 burned :: CloudRequest -> IpfsMonad Text
 burned t = do
-  say "Burned token received"
+  logInfo "Burned token received"
   networkId <- asks envNetworkId
   currentSymbol <- asks envIpfsCurrencySymbol
   let assetName = reqAssetName t
@@ -289,18 +289,19 @@ burned t = do
     $ getAssetName assetName
   case getAsset res of
     Left err -> do
-      say err
+      logError err
       pure err
     Right asset
       | ambrAmount asset < 0 -> do
           env <- ask
           let burnDir = envScheduleDirectory env
           cips <- getBurnedCips assetName
-          sayShow cips
+          isFormat <- asks envFormatMessage
+          logInfoS isFormat cips
           putInQueue burnDir assetName (ambrTimestamp asset) cips
           pure "Burned token put in queue for unpinning from ipfs"
       | otherwise -> do
-          say "Token found on the blockchain. Thus it is should not be unpinned"
+          logInfo "Token found on the blockchain. Thus it is should not be unpinned"
           pure "Not unpinned"
 
 putInQueue :: FilePath -> AssetName -> UTCTime -> [Cip] -> IpfsMonad ()
@@ -317,32 +318,33 @@ getBurnedCips assetName = do
   eFiles <- fetchByStatusNameRequest "pinned" assetName
   case eFiles of
     Left err -> do
-      say $ "fetchByStatusNameRequest error" <> column <> space <> toText err
+      logError $ "fetchByStatusNameRequest error" <> column <> space <> toText err
       pure []
     Right ((map ipfsPinHash . rows) -> cips) -> pure cips
 
 
 removeRottenTokens :: IpfsMonad ()
 removeRottenTokens  = do
+  isFormat <- asks envFormatMessage
   burnedDirectory <- asks envScheduleDirectory
   queueFiles <- liftIO $ listFiles burnedDirectory
   now <- liftIO $ getPOSIXTime
   cips <- liftIO $ mapMaybeM (selectRottenCip now) queueFiles
-  sayShow cips
+  logInfoS isFormat cips
   forM_ cips $ \(cip, path)-> do
     eUnpined <- unpinByCipRequest cip
-    sayShow eUnpined
+    logInfoS isFormat eUnpined
     case eUnpined of
       Left err ->
-        sayShow err
+        logErrorS isFormat err
       Right _ -> do
-        say "Burned token unpinned"
+        logInfo "Burned token unpinned"
         eRemoved <- liftIO $ tryAny $ removeFile path
         case eRemoved of
           Left err -> do
-            say "Fail to remove file"
-            sayErrShow err
-          Right _ -> say "Burned filed removed from queue"
+            logError "Fail to remove file"
+            logErrorS isFormat err
+          Right _  -> logInfo "Burned filed removed from queue"
   pure ()
 
 selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe (Cip, FilePath))

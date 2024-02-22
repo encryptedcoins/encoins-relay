@@ -376,7 +376,11 @@ updateProgress = do
     where
         prettyDeleg network d rest = case addressToBech32 network (delegAddress d) of
             Just addr -> rest <> newLine <> addr <> space <> column <> space <> trimIp (delegIp d)
-            Nothing   -> rest <> newLine <> T.pack (show (delegCredential d) <> "<>" <> show (delegStakeKey d)) <> space <> column <> space <> trimIp (delegIp d)
+            Nothing   -> rest
+              <> newLine <> toText (delegCredential d)
+              <> "<>" <> toText (delegStakeKey d)
+              <> space <> column
+              <> space <> trimIp (delegIp d)
 
 updateBalances :: DelegationM (Map PubKeyHash Integer)
 updateBalances = do
