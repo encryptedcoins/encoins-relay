@@ -29,7 +29,7 @@ withIpfsEnv action = do
         (icVerbosity config)
         (icSeverity config)
   withLogEnv logEnv $ \le -> do
-    key <- TE.decodeUtf8 <$> BS.readFile "pinata_jwt.token"
+    key <- T.strip . TE.decodeUtf8 <$> BS.readFile "pinata_jwt.token"
     manager <- newManager tlsManagerSettings
     let env = mkIpfsEnv manager key config le
     action env
