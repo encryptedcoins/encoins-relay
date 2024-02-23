@@ -45,7 +45,7 @@ import           Data.Maybe                     (catMaybes)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
-import           Data.Time                      (UTCTime, getCurrentTime)
+import           Data.Time                      (UTCTime, addUTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
                                                  posixDayLength,
                                                  utcTimeToPOSIXSeconds)
@@ -124,36 +124,37 @@ cacheToken clientId tVar req = do
   logInfoS isFormat req
   let assetName = reqAssetName req
   coinStatus <- checkCoinStatus assetName
-  logInfo $ "Coin status" <> column <> space <> toText coinStatus
+  logInfo $ "Coin status" <> column
+  logInfoS isFormat coinStatus
   case coinStatus of
     CoinError err -> do
       logErrorS isFormat err
       modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
-    Burned -> do
-      logInfo "Token found on blockchain and it was burned"
-      modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Burned)
-    Minted -> do
+    Discarded -> do
+      logInfo "Token can't be rollback anymore"
+      modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Discarded)
+    cStatus -> do
       ipfsStatus <- checkIpfsStatus assetName clientId
       logInfo $ "IPFS status" <> column <> space <> toText ipfsStatus
       case ipfsStatus of
         IpfsError iErr -> do
           logErrorS isFormat iErr
-          modifyCacheResponse tVar assetName $ MkCloudResponse (Just ipfsStatus) (Just Minted)
+          modifyCacheResponse tVar assetName $ MkCloudResponse (Just ipfsStatus) (Just cStatus)
         Pinned -> do
           modifyCacheResponse tVar assetName
-            (MkCloudResponse (Just Pinned) (Just Minted))
+            (MkCloudResponse (Just Pinned) (Just cStatus))
         Unpinned -> do
           res <- pinJsonRequest $ mkTokentoIpfs clientId req
           case res of
             Left err -> do
               logErrorS isFormat err
               modifyCacheResponse tVar assetName $ MkCloudResponse
-                (Just $ IpfsError $ toText err) (Just Minted)
+                (Just $ IpfsError $ toText err) (Just cStatus)
             Right r -> do
               logInfo "Pin response:"
               logInfoS isFormat r
               modifyCacheResponse tVar assetName
-                (MkCloudResponse (Just Pinned) (Just Minted))
+                (MkCloudResponse (Just Pinned) (Just cStatus))
 
 modifyCacheResponse :: TVar (Map AssetName CloudResponse)
   -> AssetName
@@ -178,13 +179,20 @@ checkCoinStatus assetName = do
     Left err -> do
       logErrorS isFormat err
       pure $ CoinError $ toText err
-    Right assets -> case ambrAmount <$> getAsset assets of
+    Right assets -> case getAsset assets of
       Left err -> do
         logErrorS isFormat err
         pure $ CoinError $ toText err
-      Right x
-        | x > 0 -> pure Minted
-        | otherwise -> pure Burned
+      Right asset
+        | ambrAmount asset >= 0 -> pure Minted -- TODO: check 0 case
+        | otherwise -> do
+            now <- liftIO getCurrentTime
+            if add12Hours (ambrTimestamp asset) > now
+              then pure Burned
+              else pure Discarded
+
+add12Hours :: UTCTime -> UTCTime
+add12Hours = addUTCTime (12 * 60 * 60)
 
 checkIpfsStatus :: AssetName -> AesKeyHash -> IpfsMonad IpfsStatus
 checkIpfsStatus assetName clientId  = do

@@ -240,7 +240,7 @@ data IpfsStatus = Pinned | Unpinned | IpfsError Text
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
-data CoinStatus = Minted | Burned | CoinError Text
+data CoinStatus = Minted | Burned | Discarded | CoinError Text
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
