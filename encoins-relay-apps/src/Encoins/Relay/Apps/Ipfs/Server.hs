@@ -148,7 +148,7 @@ cacheToken clientId tVar req = do
             Left err -> do
               logErrorS isFormat err
               modifyCacheResponse tVar assetName $ MkCloudResponse
-                (Just $ IpfsError $ toText err) Nothing
+                (Just $ IpfsError $ toText err) (Just Minted)
             Right r -> do
               logInfo "Pin response:"
               logInfoS isFormat r
