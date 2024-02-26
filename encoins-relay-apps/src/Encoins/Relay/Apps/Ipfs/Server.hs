@@ -71,11 +71,12 @@ ipfsServer = do
     withRecovery "server" $ run (envPort env) $ app env
 
 type ServerIpfsApi =
-          "cache"
+          "ping"
+              :> Get '[JSON] NoContent
+      :<|> "minted"
               :> ReqBody '[JSON] (AesKeyHash, [CloudRequest])
               :> Post '[JSON] (Map AssetName CloudResponse )
-      :<|> "ping"
-              :> Get '[JSON] NoContent
+
     --  :<|> "restore"
     --           :> Capture "client_id" Text
     --           :> Get '[JSON] [RestoreResponse]
@@ -84,8 +85,8 @@ serverIpfsApiProxy :: Proxy ServerIpfsApi
 serverIpfsApiProxy = Proxy
 
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
-serverIpfsApi = cache
-           :<|> ping
+serverIpfsApi = ping
+           :<|> minted
           --  :<|> restore
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
@@ -107,17 +108,18 @@ ping = do
   logInfo "Ping request"
   pure NoContent
 
-cache :: (AesKeyHash, [CloudRequest]) -> IpfsMonad (Map AssetName CloudResponse)
-cache (clientId, reqs) = do
+minted :: (AesKeyHash, [CloudRequest]) -> IpfsMonad (Map AssetName CloudResponse)
+minted (clientId, reqs) = do
   responseTVar <- liftIO $ newTVarIO Map.empty
-  mapM_ (cacheToken clientId responseTVar) reqs
+  mapM_ (mintedToken clientId responseTVar) reqs
   liftIO $ readTVarIO responseTVar
 
-cacheToken :: AesKeyHash
+-- Pin minted tokens on IPFS and return their statuses
+mintedToken :: AesKeyHash
   -> TVar (Map AssetName CloudResponse)
   -> CloudRequest
   -> IpfsMonad ()
-cacheToken clientId tVar req = do
+mintedToken clientId tVar req = do
   isFormat <- asks envFormatMessage
   logInfo ""
   logInfo "Minted token received"
