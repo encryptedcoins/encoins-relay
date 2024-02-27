@@ -71,11 +71,14 @@ ipfsServer = do
     withRecovery "server" $ run (envPort env) $ app env
 
 type ServerIpfsApi =
-          "ping"
+           "ping"
               :> Get '[JSON] NoContent
-      :<|> "minted"
-              :> ReqBody '[JSON] (AesKeyHash, [CloudRequest])
-              :> Post '[JSON] (Map AssetName CloudResponse )
+      :<|> "pin"
+              :> ReqBody '[JSON] (AesKeyHash, [PinRequest])
+              :> Post '[JSON] (Map AssetName StatusResponse)
+      :<|> "status"
+              :> ReqBody '[JSON] [AssetName]
+              :> Post '[JSON] (Map AssetName StatusResponse)
 
     --  :<|> "restore"
     --           :> Capture "client_id" Text
@@ -86,7 +89,8 @@ serverIpfsApiProxy = Proxy
 
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
 serverIpfsApi = ping
-           :<|> minted
+           :<|> pin
+           :<|> status
           --  :<|> restore
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
@@ -108,59 +112,79 @@ ping = do
   logInfo "Ping request"
   pure NoContent
 
-minted :: (AesKeyHash, [CloudRequest]) -> IpfsMonad (Map AssetName CloudResponse)
-minted (clientId, reqs) = do
+pin :: (AesKeyHash, [PinRequest]) -> IpfsMonad (Map AssetName StatusResponse)
+pin (clientId, reqs) = do
   responseTVar <- liftIO $ newTVarIO Map.empty
-  mapM_ (mintedToken clientId responseTVar) reqs
+  mapM_ (pinToken clientId responseTVar) reqs
   liftIO $ readTVarIO responseTVar
 
 -- Pin minted tokens on IPFS and return their statuses
-mintedToken :: AesKeyHash
-  -> TVar (Map AssetName CloudResponse)
-  -> CloudRequest
+pinToken :: AesKeyHash
+  -> TVar (Map AssetName StatusResponse)
+  -> PinRequest
   -> IpfsMonad ()
-mintedToken clientId tVar req = do
+pinToken clientId tVar req = do
   isFormat <- asks envFormatMessage
   logInfo ""
   logInfo "Minted token received"
   logInfoS isFormat req
-  let assetName = reqAssetName req
+  let assetName = ppAssetName req
   coinStatus <- checkCoinStatus assetName
   logInfo $ "Coin status" <> column
   logInfoS isFormat coinStatus
   case coinStatus of
     CoinError err -> do
       logErrorS isFormat err
-      modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just coinStatus)
+      modifyCacheResponse tVar assetName $ MkStatusResponse (Just coinStatus) Nothing
     Discarded -> do
       logInfo "Token can't be rollback anymore"
-      modifyCacheResponse tVar assetName $ MkCloudResponse Nothing (Just Discarded)
+      modifyCacheResponse tVar assetName $ MkStatusResponse (Just Discarded) Nothing
     cStatus -> do
       ipfsStatus <- checkIpfsStatus assetName clientId
       logInfo $ "IPFS status" <> column <> space <> toText ipfsStatus
       case ipfsStatus of
         IpfsError iErr -> do
           logErrorS isFormat iErr
-          modifyCacheResponse tVar assetName $ MkCloudResponse (Just ipfsStatus) (Just cStatus)
+          modifyCacheResponse tVar assetName $ MkStatusResponse (Just cStatus) (Just ipfsStatus)
         Pinned -> do
           modifyCacheResponse tVar assetName
-            (MkCloudResponse (Just Pinned) (Just cStatus))
+            (MkStatusResponse (Just cStatus) (Just Pinned))
         Unpinned -> do
           res <- pinJsonRequest $ mkTokentoIpfs clientId req
           case res of
             Left err -> do
               logErrorS isFormat err
-              modifyCacheResponse tVar assetName $ MkCloudResponse
-                (Just $ IpfsError $ toText err) (Just cStatus)
+              modifyCacheResponse tVar assetName $ MkStatusResponse
+                (Just cStatus) (Just $ IpfsError $ toText err)
             Right r -> do
               logInfo "Pin response:"
               logInfoS isFormat r
               modifyCacheResponse tVar assetName
-                (MkCloudResponse (Just Pinned) (Just cStatus))
+                (MkStatusResponse (Just cStatus) (Just Pinned))
 
-modifyCacheResponse :: TVar (Map AssetName CloudResponse)
+status :: [AssetName] -> IpfsMonad (Map AssetName StatusResponse)
+status assets = do
+  responseTVar <- liftIO $ newTVarIO Map.empty
+  mapM_ (checkTokenStatus responseTVar) assets
+  liftIO $ readTVarIO responseTVar
+
+-- Pin minted tokens on IPFS and return their statuses
+checkTokenStatus :: TVar (Map AssetName StatusResponse)
   -> AssetName
-  -> CloudResponse
+  -> IpfsMonad ()
+checkTokenStatus tVar assetName = do
+  isFormat <- asks envFormatMessage
+  logInfo ""
+  logInfo "Checking status"
+  logInfoS isFormat assetName
+  coinStatus <- checkCoinStatus assetName
+  logInfo $ "Coin status" <> column
+  logInfoS isFormat coinStatus
+  modifyCacheResponse tVar assetName $ MkStatusResponse (Just coinStatus) Nothing
+
+modifyCacheResponse :: TVar (Map AssetName StatusResponse)
+  -> AssetName
+  -> StatusResponse
   -> IpfsMonad ()
 modifyCacheResponse tVar assetName resp
   = liftIO
@@ -186,15 +210,15 @@ checkCoinStatus assetName = do
         logErrorS isFormat err
         pure $ CoinError $ toText err
       Right asset
-        | ambrAmount asset >= 0 -> pure Minted -- TODO: check 0 case
+        | ambrAmount asset >= 0 -> pure Minted
         | otherwise -> do
             now <- liftIO getCurrentTime
-            if add12Hours (ambrTimestamp asset) > now
-              then pure Burned
+            let discardTime = add12Hours (ambrTimestamp asset)
+            if discardTime > now
+              then do
+                logInfo $ "Discarding time" <> space <> toText discardTime
+                pure Burned
               else pure Discarded
-
-add12Hours :: UTCTime -> UTCTime
-add12Hours = addUTCTime (12 * 60 * 60)
 
 checkIpfsStatus :: AssetName -> AesKeyHash -> IpfsMonad IpfsStatus
 checkIpfsStatus assetName clientId  = do
@@ -255,7 +279,8 @@ checkPinataToken env = runIpfsMonad env $ do
       logDebugS isFormat r
       logInfo "Pinata token is valid"
 
-
+add12Hours :: UTCTime -> UTCTime
+add12Hours = addUTCTime (12 * 60 * 60)
 
 
 -- Following functions not used for now.
@@ -287,12 +312,12 @@ restore clientId = do
           mapM_ sayShow errors
           pure []
 
-burned :: CloudRequest -> IpfsMonad Text
+burned :: PinRequest -> IpfsMonad Text
 burned t = do
   logInfo "Burned token received"
   networkId <- asks envNetworkId
   currentSymbol <- asks envIpfsCurrencySymbol
-  let assetName = reqAssetName t
+  let assetName = ppAssetName t
   res <- getAssetMintsAndBurns networkId currentSymbol
     $ fromString
     $ T.unpack
