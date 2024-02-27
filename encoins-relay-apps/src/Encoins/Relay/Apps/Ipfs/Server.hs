@@ -176,7 +176,7 @@ checkTokenStatus tVar assetName = do
   isFormat <- asks envFormatMessage
   logInfo ""
   logInfo "Checking status"
-  logInfoS isFormat assetName
+  logDebugS isFormat assetName
   coinStatus <- checkCoinStatus assetName
   logInfo $ "Coin status" <> column
   logInfoS isFormat coinStatus
@@ -213,10 +213,10 @@ checkCoinStatus assetName = do
         | ambrAmount asset >= 0 -> pure Minted
         | otherwise -> do
             now <- liftIO getCurrentTime
-            let discardTime = add12Hours (ambrTimestamp asset)
-            if discardTime > now
+            let delta = discardTime (ambrTimestamp asset)
+            if delta > now
               then do
-                logInfo $ "Discarding time" <> space <> toText discardTime
+                logInfo $ "Discarding time" <> space <> toText delta
                 pure Burned
               else pure Discarded
 
@@ -279,8 +279,9 @@ checkPinataToken env = runIpfsMonad env $ do
       logDebugS isFormat r
       logInfo "Pinata token is valid"
 
-add12Hours :: UTCTime -> UTCTime
-add12Hours = addUTCTime (12 * 60 * 60)
+-- Discarding burned token in 12 hours
+discardTime :: UTCTime -> UTCTime
+discardTime = addUTCTime (12 * 60 * 60)
 
 
 -- Following functions not used for now.
