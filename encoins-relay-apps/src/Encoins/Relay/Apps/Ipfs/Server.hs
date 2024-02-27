@@ -31,21 +31,20 @@ import           Control.Exception.Safe         (SomeException, catchAny, throw,
 import           Control.Monad                  (forM, forever)
 import           Control.Monad.Extra            (forM_, mapMaybeM)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
-import           Control.Monad.Reader           (MonadReader (ask),
-                                                 ReaderT (..), asks)
+import           Control.Monad.Reader           (ReaderT (..), asks)
 import           Data.Aeson                     (eitherDecodeFileStrict',
                                                  encodeFile)
 import           Data.Either                    (partitionEithers)
 import           Data.Either.Extra              (mapLeft)
-import           Data.List                      (sortOn)
-import           Data.List.Extra                (unsnoc)
+import qualified Data.List.NonEmpty             as NE
 import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (catMaybes)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
-import           Data.Time                      (UTCTime, addUTCTime, getCurrentTime)
+import           Data.Time                      (UTCTime, addUTCTime,
+                                                 getCurrentTime)
 import           Data.Time.Clock.POSIX          (POSIXTime, getPOSIXTime,
                                                  posixDayLength,
                                                  utcTimeToPOSIXSeconds)
@@ -205,20 +204,27 @@ checkCoinStatus assetName = do
     Left err -> do
       logErrorS isFormat err
       pure $ CoinError $ toText err
-    Right assets -> case getAsset assets of
-      Left err -> do
-        logErrorS isFormat err
-        pure $ CoinError $ toText err
-      Right asset
-        | ambrAmount asset >= 0 -> pure Minted
-        | otherwise -> do
-            now <- liftIO getCurrentTime
-            let delta = discardTime (ambrTimestamp asset)
-            if delta > now
-              then do
-                logInfo $ "Discarding time" <> space <> toText delta
-                pure Burned
-              else pure Discarded
+    Right resAssets -> case length resAssets of
+      1 -> case NE.nonEmpty $ ambrData $ head resAssets of
+        Nothing -> do
+          logWarn "ambrData is empty"
+          pure Discarded
+        Just (NE.last . NE.sortWith ambrSlot -> asset)
+          | ambrAmount asset > 1 -> pure Minted
+          | ambrAmount asset == 0 -> do
+              logError "Asset amount is equal to zero"
+              pure Discarded
+          | otherwise -> do
+              now <- liftIO getCurrentTime
+              let delta = discardTime (ambrTimestamp asset)
+              if delta > now
+                then do
+                  logInfo $ "Discarding time" <> space <> toText delta
+                  pure Burned
+                else pure Discarded
+      _ -> do
+        logError "getAssetMintsAndBurns returned more than one asset"
+        pure Discarded
 
 checkIpfsStatus :: AssetName -> AesKeyHash -> IpfsMonad IpfsStatus
 checkIpfsStatus assetName clientId  = do
@@ -242,18 +248,6 @@ checkIpfsStatus assetName clientId  = do
             <> space <> toText n
             <> space <> "times"
           pure Pinned
-
-getAsset :: [AssetMintsAndBurnsResponse] -> Either Text AssetMintsAndBurnsData
-getAsset res = do
-  resUniq <- if length res == 1
-        then Right $ head res
-        else Left "getAssetMintsAndBurns returned more than one asset."
-  -- Sorting by slot is just in case
-  let asset = sortOn ambrSlot $ ambrData resUniq
-  let assetSorted = snd <$> (unsnoc asset)
-  case assetSorted of
-    Nothing -> Left "ambrData is empty"
-    Just a  -> Right a
 
 withRecovery :: Text -> IO () -> IO ()
 withRecovery nameOfAction action = action `catchAny` handleException
@@ -313,32 +307,32 @@ restore clientId = do
           mapM_ sayShow errors
           pure []
 
-burned :: PinRequest -> IpfsMonad Text
-burned t = do
-  logInfo "Burned token received"
-  networkId <- asks envNetworkId
-  currentSymbol <- asks envIpfsCurrencySymbol
-  let assetName = ppAssetName t
-  res <- getAssetMintsAndBurns networkId currentSymbol
-    $ fromString
-    $ T.unpack
-    $ getAssetName assetName
-  case getAsset res of
-    Left err -> do
-      logError err
-      pure err
-    Right asset
-      | ambrAmount asset < 0 -> do
-          env <- ask
-          let burnDir = envScheduleDirectory env
-          cips <- getBurnedCips assetName
-          isFormat <- asks envFormatMessage
-          logInfoS isFormat cips
-          putInQueue burnDir assetName (ambrTimestamp asset) cips
-          pure "Burned token put in queue for unpinning from ipfs"
-      | otherwise -> do
-          logInfo "Token found on the blockchain. Thus it is should not be unpinned"
-          pure "Not unpinned"
+-- burned :: PinRequest -> IpfsMonad Text
+-- burned t = do
+--   logInfo "Burned token received"
+--   networkId <- asks envNetworkId
+--   currentSymbol <- asks envIpfsCurrencySymbol
+--   let assetName = ppAssetName t
+--   res <- getAssetMintsAndBurns networkId currentSymbol
+--     $ fromString
+--     $ T.unpack
+--     $ getAssetName assetName
+--   case selectLastData res of
+--     Left err -> do
+--       logError err
+--       pure err
+--     Right asset
+--       | ambrAmount asset < 0 -> do
+--           env <- ask
+--           let burnDir = envScheduleDirectory env
+--           cips <- getBurnedCips assetName
+--           isFormat <- asks envFormatMessage
+--           logInfoS isFormat cips
+--           putInQueue burnDir assetName (ambrTimestamp asset) cips
+--           pure "Burned token put in queue for unpinning from ipfs"
+--       | otherwise -> do
+--           logInfo "Token found on the blockchain. Thus it is should not be unpinned"
+--           pure "Not unpinned"
 
 putInQueue :: FilePath -> AssetName -> UTCTime -> [Cip] -> IpfsMonad ()
 putInQueue scheduleDir assetName burnedTime cips = do
