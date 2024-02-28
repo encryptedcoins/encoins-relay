@@ -48,15 +48,14 @@ import qualified Data.Text                              as T
 import qualified Data.Text.IO                           as T
 import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
-                                                         Progress (..), concatIpsWithBalances, delegAddress, findDeleg,
-                                                         fromRelayAddress, getBalances, removeDuplicates, runDelegationM,
-                                                         setProgress, setTokenBalance, toRelayAddress, trimIp, RelayAddress)
+                                                         Progress (..), RelayAddress, concatIpsWithBalances, delegAddress, findDeleg,
+                                                         fromRelayAddress, getBalances, removeDuplicates, runDelegationM, setProgress,
+                                                         setTokenBalance, toRelayAddress, trimIp)
 import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
 import           Ledger                                 (Address, PubKeyHash)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
 import           PlutusAppsExtra.Utils.Address          (addressToBech32, getStakeKey)
-import           Servant                                (Get, JSON, Post, ReqBody, err404, err500, throwError,
-                                                         type (:<|>) ((:<|>)), (:>))
+import           Servant                                (Get, JSON, Post, ReqBody, err404, err500, throwError, type (:<|>) ((:<|>)), (:>))
 import           Servant.Server.Internal.ServerError    (ServerError (..))
 import           System.Directory                       (createDirectoryIfMissing)
 import qualified System.Process                         as Process
@@ -66,29 +65,28 @@ import           Text.Read                              (readMaybe)
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
-    progressRef <- initProgress cDelegationFolder >>= newIORef
-    tokenBalanceRef <- do
-        t <- Time.getCurrentTime
-        b <- getBalances cNetworkId cDelegationCurrencySymbol cDelegationTokenName
-        newIORef (b, t)
-    let ?creds    = creds
+    dEnvProgress <- initProgress cDelegationFolder >>= newIORef
+    dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
+    dEnvBlockfrostToken <- decodeOrErrorFromFile $ fromMaybe "blockfrost.token" cMaestroTokenFilePath
+    dEnvMaestroToken <- decodeOrErrorFromFile $ fromMaybe "maestro.token" cMaestroTokenFilePath
+    let ?creds = creds
     let env = DelegationEnv
-            logger
-            (Just "delegationServer.log")
-            cNetworkId
-            cHost
-            cPort
-            cHyperTextProtocol
-            cDelegationFolder
-            cFrequency
-            cMaxDelay
-            cMinTokenNumber
-            cRewardTokenThreshold
-            cDelegationCurrencySymbol
-            cDelegationTokenName
-            True
-            progressRef
-            tokenBalanceRef
+            { dEnvLogger               = logger
+            , dEnvLoggerFp             = Just "delegationServer.log"
+            , dEnvNetworkId            = cNetworkId
+            , dEnvHost                 = cHost
+            , dEnvPort                 = cPort
+            , dEnvHyperTextProtocol    = cHyperTextProtocol
+            , dEnvDelegationFolder     = cDelegationFolder
+            , dEnvFrequency            = cFrequency
+            , dEnvMaxDelay             = cMaxDelay
+            , dEnvMinTokenNumber       = cMinTokenNumber
+            , dEnvRewardTokenThreshold = cRewardTokenThreshold
+            , dEnvCurrencySymbol       = cDelegationCurrencySymbol
+            , dEnvTokenName            = cDelegationTokenName
+            , dEnvCheckSig             = True
+            , ..
+            }
     runDelegationServer' env
 
 initProgress :: FilePath -> IO (Progress, Time.UTCTime)
@@ -316,7 +314,7 @@ updateProgress = do
     DelegationEnv{..} <- ask
     (Progress{..}, _) <- liftIO $ readIORef dEnvProgress
     ct                <- liftIO Time.getCurrentTime
-    txIds             <- liftIO $ Bf.getAllAssetTxsAfterTxId dEnvNetworkId dEnvCurrencySymbol dEnvTokenName pLastTxId
+    txIds             <- Bf.getAllAssetTxsAfterTxId dEnvCurrencySymbol dEnvTokenName pLastTxId
     if null txIds
     then logMsg "No new delegations." >> setProgress Progress{..} ct >> pure Progress{..}
     else do
@@ -337,6 +335,6 @@ updateBalances :: DelegationM (Map PubKeyHash Integer)
 updateBalances = do
     DelegationEnv{..} <- ask
     ct <- liftIO Time.getCurrentTime
-    b  <- getBalances dEnvNetworkId dEnvCurrencySymbol dEnvTokenName
+    b  <- getBalances dEnvCurrencySymbol dEnvTokenName
     setTokenBalance b ct
     pure b

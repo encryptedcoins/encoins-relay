@@ -53,7 +53,7 @@ import           Encoins.Relay.Verifier.Client  (VerifierClientError (..), verif
 import           Encoins.Relay.Verifier.Server  (VerifierApiError (..))
 import           GHC.Generics                   (Generic)
 import           Ledger                         (Address, TxId (TxId), TxOutRef (..))
-import           PlutusAppsExtra.IO.ChainIndex  (ChainIndex (..), getMapUtxoFromRefs)
+import           PlutusAppsExtra.IO.ChainIndex  (ChainIndexProvider (..), getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletUtxos)
 import           PlutusAppsExtra.Types.Tx       (TransactionBuilder, txBuilderRequirements)
 import qualified Servant.Client                 as Servant
