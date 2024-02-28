@@ -9,32 +9,50 @@
 module Encoins.Relay.Apps.Internal where
 
 import           Cardano.Api                        (NetworkId, writeFileJSON)
-import           Control.Arrow                      (Arrow ((&&&)), (<<<), (>>>))
+import           Encoins.Common.Constant            (newLine)
+import           Ledger                             (Slot (getSlot))
+import           Plutus.V2.Ledger.Api               (CurrencySymbol, TokenName)
+import           PlutusAppsExtra.Api.Kupo           (CreatedOrSpent (..),
+                                                     KupoRequest (..),
+                                                     SpentOrUnspent (..),
+                                                     getKupoResponse)
+import           PlutusAppsExtra.IO.ChainIndex.Kupo ()
+import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..),
+                                                     kupoResponseToJSON)
+
+import           Control.Arrow                      (Arrow ((&&&)), (<<<),
+                                                     (>>>))
 import           Control.Concurrent                 (threadDelay)
-import           Control.Exception                  (AsyncException (UserInterrupt), Exception (..), SomeException)
+import           Control.Exception                  (AsyncException (UserInterrupt),
+                                                     Exception (..),
+                                                     SomeException)
 import           Control.Monad                      (forM, join, (>=>))
-import           Control.Monad.Catch                (MonadCatch, MonadThrow (throwM), handle, try)
+import           Control.Monad.Catch                (MonadCatch,
+                                                     MonadThrow (throwM),
+                                                     handle, try)
 import           Control.Monad.IO.Class             (MonadIO (liftIO))
-import           Data.Aeson                         (FromJSON (parseJSON), ToJSON, eitherDecodeFileStrict)
+import           Data.Aeson                         (FromJSON (parseJSON),
+                                                     ToJSON,
+                                                     eitherDecodeFileStrict)
 import           Data.Aeson.Types                   (parseMaybe)
 import           Data.Default                       (def)
 import           Data.Either.Extra                  (eitherToMaybe)
-import           Data.List                          (isPrefixOf, sort, stripPrefix)
-import           Data.Maybe                         (catMaybes, listToMaybe, mapMaybe)
+import           Data.List                          (isPrefixOf, sort,
+                                                     stripPrefix)
+import           Data.Maybe                         (catMaybes, listToMaybe,
+                                                     mapMaybe)
 import           Data.Text                          (Text)
 import qualified Data.Text.Lazy                     as TL
 import           Data.Time                          (getCurrentTime)
 import qualified Data.Time                          as Time
-import           Ledger                             (Slot (getSlot))
-import           Plutus.V2.Ledger.Api               (CurrencySymbol, TokenName)
-import           PlutusAppsExtra.Api.Kupo           (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
-import           PlutusAppsExtra.IO.ChainIndex.Kupo ()
-import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
-import           System.Directory                   (createDirectoryIfMissing, listDirectory, removeFile)
+import           System.Directory                   (createDirectoryIfMissing,
+                                                     listDirectory, removeFile)
 import           System.FilePath                    ((</>))
-import           System.ProgressBar                 (Progress (..), ProgressBar, ProgressBarWidth (..), Style (..), defStyle,
-                                                     exact, incProgress, msg)
 import qualified System.ProgressBar                 as PB
+import           System.ProgressBar                 (Progress (..), ProgressBar,
+                                                     ProgressBarWidth (..),
+                                                     Style (..), defStyle,
+                                                     exact, incProgress, msg)
 
 encoinsTokenName :: TokenName
 encoinsTokenName = "ENCS"
@@ -63,7 +81,7 @@ getResponsesIO networkId slotFrom slotTo slotDelta = do
             Just UserInterrupt -> throwM UserInterrupt
             _ -> do
                 ct <- liftIO getCurrentTime
-                mkLog (show ct <> "\n" <> show e <> "\n(Handled)")
+                mkLog (show ct <> newLine <> show e <> newLine <> "(Handled)")
                 liftIO (threadDelay 5_000_000)
                 reloadHandler ma
 

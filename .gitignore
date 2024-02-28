@@ -8,3 +8,6 @@ encoins-relay-test/test/configuration/blockfrost.token
 */poll*files/*
 certificate.pem
 key.pem
+
+cabal.project.local
+cabal.log
