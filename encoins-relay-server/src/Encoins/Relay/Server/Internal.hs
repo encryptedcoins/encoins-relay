@@ -19,6 +19,7 @@ import Cardano.Server.Config (HyperTextProtocol)
 data EncoinsRelayEnv = EncoinsRelayEnv
     { envRefStakeOwner            :: TxOutRef
     , envRefBeacon                :: TxOutRef
+    , envValidatorStakeKey        :: BuiltinByteString
     , envVerifierPKH              :: BuiltinByteString
     , envVerifierClientEnv        :: ClientEnv
     , envDelegationCurrencySymbol :: CurrencySymbol
@@ -43,7 +44,7 @@ getLedgerUtxos :: AuxillaryEnvOf api ~ EncoinsRelayEnv => UtxoRequirements -> Se
 getLedgerUtxos reqs = getLedgerAddress >>= getUtxosAt reqs
 
 getEncoinsProtocolParams :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsProtocolParams
-getEncoinsProtocolParams = (\e -> (envRefStakeOwner e, envRefBeacon e, envVerifierPKH e)) <$> getAuxillaryEnv
+getEncoinsProtocolParams = (\e -> (envRefStakeOwner e, envRefBeacon e, envVerifierPKH e, envValidatorStakeKey e)) <$> getAuxillaryEnv
 
 getEncoinsSymbol :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api CurrencySymbol
 getEncoinsSymbol = encoinsSymbol <$> getEncoinsProtocolParams

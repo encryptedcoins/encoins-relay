@@ -28,6 +28,7 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     -- Relay
     { cRefStakeOwner            :: TxOutRef
     , cRefBeacon                :: TxOutRef
+    , cValidatorStakeKey        :: BuiltinByteString
     -- Verifier
     , cVerifierPkh              :: BuiltinByteString
     , cVerifierHost             :: Text
