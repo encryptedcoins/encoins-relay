@@ -210,11 +210,8 @@ checkCoinStatus assetName = do
           logWarn "ambrData is empty"
           pure Discarded
         Just (NE.last . NE.sortWith ambrSlot -> asset)
-          | ambrAmount asset > 1 -> pure Minted
-          | ambrAmount asset == 0 -> do
-              logError "Asset amount is equal to zero"
-              pure Discarded
-          | otherwise -> do
+          | ambrAmount asset == 1 -> pure Minted
+          | ambrAmount asset == (-1) -> do
               now <- liftIO getCurrentTime
               let delta = discardTime (ambrTimestamp asset)
               if delta > now
@@ -222,6 +219,10 @@ checkCoinStatus assetName = do
                   logInfo $ "Discarding time" <> space <> toText delta
                   pure Burned
                 else pure Discarded
+          | otherwise -> do
+              logError $ "Asset amount is invalid: "
+                <> toText (ambrAmount asset)
+              pure Discarded
       _ -> do
         logError "getAssetMintsAndBurns returned more than one asset"
         pure Discarded
