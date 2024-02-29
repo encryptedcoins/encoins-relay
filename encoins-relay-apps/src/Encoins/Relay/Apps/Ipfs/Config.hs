@@ -16,12 +16,14 @@ import qualified Data.Text.Encoding            as TE
 import           Katip
 import           Network.HTTP.Client           hiding (Proxy)
 import           Network.HTTP.Client.TLS
+import           PlutusAppsExtra.Api.Maestro   (MaestroToken)
 import           Servant.Client                (BaseUrl (..), Scheme (..))
 import           Text.Pretty.Simple            (pPrint)
 
 withIpfsEnv :: (IpfsEnv -> IO ()) -> IO ()
 withIpfsEnv action = do
   config <- decodeOrErrorFromFile "ipfs_config.json"
+  maestroToken <- decodeOrErrorFromFile $ icMaestroTokenFilePath config
   pPrint config
   let logEnv = mkLogEnv
         "IPFS"
@@ -31,26 +33,28 @@ withIpfsEnv action = do
   withLogEnv logEnv $ \le -> do
     key <- T.strip . TE.decodeUtf8 <$> BS.readFile "pinata_jwt.token"
     manager <- newManager tlsManagerSettings
-    let env = mkIpfsEnv manager key config le
+    let env = mkIpfsEnv manager key config le maestroToken
     action env
 
-mkIpfsEnv :: Manager -> Text -> IpfsConfig -> LogEnv -> IpfsEnv
-mkIpfsEnv manager pinataToken ipfsConfig logEnv = MkIpfsEnv
-  { envHyperTextProtocol  = icHyperTextProtocol ipfsConfig
-  , envHost               = icHost ipfsConfig
-  , envPort               = icPort ipfsConfig
-  , envNetworkId          = icNetworkId ipfsConfig
-  , envIpfsCurrencySymbol = icIpfsCurrencySymbol ipfsConfig
-  , envPinataFetchHost    = mkUrl $ icPinataFetchHost ipfsConfig
-  , envPinataPinHost      = mkUrl $ icPinataPinHost ipfsConfig
-  , envScheduleDirectory  = icScheduleDirectory ipfsConfig
-  , envPinataAuthToken    = mkBearer pinataToken
-  , envManager            = manager
-  , envLogEnv             = logEnv
-  , envKContext           = mempty
-  , envKNamespace         = mempty
-  , envFormatMessage      = icFormatMessage ipfsConfig
-  }
+mkIpfsEnv :: Manager -> Text -> IpfsConfig -> LogEnv -> MaestroToken -> IpfsEnv
+mkIpfsEnv manager pinataToken ipfsConfig logEnv maestroToken =
+  MkIpfsEnv
+    { envHyperTextProtocol  = icHyperTextProtocol ipfsConfig
+    , envHost               = icHost ipfsConfig
+    , envPort               = icPort ipfsConfig
+    , envNetworkId          = icNetworkId ipfsConfig
+    , envMaestroToken       = maestroToken
+    , envIpfsCurrencySymbol = icIpfsCurrencySymbol ipfsConfig
+    , envPinataFetchHost    = mkUrl $ icPinataFetchHost ipfsConfig
+    , envPinataPinHost      = mkUrl $ icPinataPinHost ipfsConfig
+    , envScheduleDirectory  = icScheduleDirectory ipfsConfig
+    , envPinataAuthToken    = mkBearer pinataToken
+    , envManager            = manager
+    , envLogEnv             = logEnv
+    , envKContext           = mempty
+    , envKNamespace         = mempty
+    , envFormatMessage      = icFormatMessage ipfsConfig
+    }
   where
     mkBearer :: Text -> Text
     mkBearer jwtToken = "Bearer" <> space <> jwtToken

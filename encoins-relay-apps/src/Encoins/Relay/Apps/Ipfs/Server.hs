@@ -193,10 +193,9 @@ modifyCacheResponse tVar assetName resp
 checkCoinStatus :: AssetName -> IpfsMonad CoinStatus
 checkCoinStatus assetName = do
   isFormat <- asks envFormatMessage
-  networkId <- asks envNetworkId
   currentSymbol <- asks envIpfsCurrencySymbol
   logInfo $ "Check coin status for assetName" <> column <> space <> getAssetName assetName
-  eAssets <- tryAny $ getAssetMintsAndBurns networkId currentSymbol
+  eAssets <- tryAny $ getAssetMintsAndBurns currentSymbol
     $ fromString $ T.unpack $ getAssetName assetName
   logInfo $ "Maestro response:"
   logInfoS isFormat eAssets
