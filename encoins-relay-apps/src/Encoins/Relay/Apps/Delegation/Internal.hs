@@ -36,6 +36,8 @@ import           Data.Ord                       (Down (..))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import qualified Data.Time                      as Time
+import           Encoins.Common.Constant        (column)
+import           Encoins.Common.Transform       (toText)
 import           GHC.Generics                   (Generic)
 import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
                                                  TxId (..), TxOutRef (..))
