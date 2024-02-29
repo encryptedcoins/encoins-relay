@@ -5,16 +5,21 @@
 
 module Encoins.Relay.Server.Api where
 
-import qualified CSL
 import           Cardano.Server.Endpoints.Tx.Submit (SubmitTxReqBody)
 import           Cardano.Server.Error               (Throws)
 import           Cardano.Server.Error.Servant       (Throwing)
+import qualified CSL
+import           Encoins.Common.Version             (AppVersion)
+import           Encoins.Relay.Server.Server        (EncoinsApi,
+                                                     InputOfEncoinsApi)
+import           Encoins.Relay.Server.Status        (EncoinsStatusReqBody,
+                                                     EncoinsStatusResult)
+
 import           Data.Text                          (Text)
 import           Data.Type.Equality                 ((:~:) (..))
-import           Encoins.Relay.Server.Server        (EncoinsApi, InputOfEncoinsApi)
-import           Encoins.Relay.Server.Status        (EncoinsStatusReqBody, EncoinsStatusResult)
-import           Encoins.Relay.Server.Version       (ServerVersion)
-import           Servant                            (Get, Post, JSON, NoContent, ReqBody, type (:<|>), type (:>))
+import           Servant                            (Get, JSON, NoContent, Post,
+                                                     ReqBody, type (:<|>),
+                                                     type (:>))
 
 type Api
     =    "ping"
@@ -41,7 +46,7 @@ type Api
       :> Post '[JSON] EncoinsStatusResult
 
     :<|> "version"
-      :> Get '[JSON] ServerVersion
+      :> Get '[JSON] AppVersion
 
 thisApiIsActual :: Api :~: EraseErrors EncoinsApi
 thisApiIsActual = Refl
