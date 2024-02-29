@@ -17,19 +17,52 @@
 
 module Encoins.Relay.Apps.Delegation.Server where
 
-import           Cardano.Api                            (NetworkId (Mainnet), writeFileJSON)
-import           Cardano.Server.Config                  (HasCreds, decodeOrErrorFromFile)
+import           Cardano.Api                            (NetworkId (Mainnet),
+                                                         writeFileJSON)
+import           Cardano.Server.Config                  (HasCreds,
+                                                         decodeOrErrorFromFile)
 import           Cardano.Server.Main                    (runCardanoServer)
-import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
+import           Cardano.Server.Utils.Logger            (logMsg, logSmth,
+                                                         logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
+import           Encoins.Common.Constant                (column, newLine, space)
+import           Encoins.Common.Transform               (toText)
+import           Encoins.Common.Version                 (appVersion,
+                                                         showAppVersion)
+import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..),
+                                                         Delegation (..),
+                                                         DelegationEnv (..),
+                                                         DelegationM (..),
+                                                         Progress (..),
+                                                         RelayAddress,
+                                                         concatIpsWithBalances,
+                                                         delegAddress,
+                                                         findDeleg,
+                                                         fromRelayAddress,
+                                                         getBalances,
+                                                         removeDuplicates,
+                                                         runDelegationM,
+                                                         setProgress,
+                                                         setTokenBalance,
+                                                         toRelayAddress, trimIp)
+import           Encoins.Relay.Apps.Internal            (formatTime,
+                                                         janitorFiles,
+                                                         loadMostRecentFile,
+                                                         newProgressBar)
+
 import           Control.Applicative                    (liftA2, (<|>))
 import           Control.Concurrent                     (forkIO)
 import           Control.Concurrent.Async               (async, wait)
 import           Control.Exception                      (throw)
-import           Control.Monad                          (forM, forever, void, when, (>=>))
-import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
+import           Control.Monad                          (forM, forever, void,
+                                                         when, (>=>))
+import           Control.Monad.Catch                    (Exception,
+                                                         MonadCatch (catch),
+                                                         MonadThrow (..),
+                                                         SomeException, handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
+import           Control.Monad.Reader                   (MonadReader (ask, local),
+                                                         ReaderT (..))
 import           Data.Aeson                             (FromJSON, ToJSON)
 import           Data.ByteString                        (ByteString)
 import           Data.FileEmbed                         (embedFileIfExists)
@@ -41,7 +74,8 @@ import           Data.List                              (find, sortBy)
 import           Data.List.Extra                        (notNull, stripSuffix)
 import           Data.Map                               (Map, filterWithKey)
 import qualified Data.Map                               as Map
-import           Data.Maybe                             (catMaybes, fromMaybe, listToMaybe, mapMaybe)
+import           Data.Maybe                             (catMaybes, fromMaybe,
+                                                         listToMaybe, mapMaybe)
 import           Data.String                            (IsString (..))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
@@ -53,6 +87,7 @@ import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Deleg
                                                          setTokenBalance, toRelayAddress, trimIp)
 import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
 import           Ledger                                 (Address, PubKeyHash)
+import           Paths_encoins_relay_apps               (version)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
 import           PlutusAppsExtra.Utils.Address          (addressToBech32, getStakeKey)
 import           Servant                                (Get, JSON, Post, ReqBody, err404, err500, throwError, type (:<|>) ((:<|>)), (:>))
@@ -62,8 +97,10 @@ import qualified System.Process                         as Process
 import           System.ProgressBar                     (incProgress)
 import           Text.Read                              (readMaybe)
 
+
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
+    say $ showAppVersion "Delegation server" $ appVersion version $(gitHash) $(gitCommitDate)
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     dEnvProgress <- initProgress cDelegationFolder >>= newIORef
     dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
@@ -221,7 +258,8 @@ readDelegationServerError txt = T.stripPrefix "The distribution of delegates is 
 showDelegationServerError :: DelegationServerError -> String
 showDelegationServerError UnknownIp  = "Unknown IP."
 showDelegationServerError UnknownAddress = "Unknown wallet address."
-showDelegationServerError err = ("The distribution of delegates is not yet ready - " <>) $ show err
+showDelegationServerError err =
+  "The distribution of delegates is not yet ready -" <> space <> (show err)
 
 delegationErrorH :: DelegationM a -> DelegationM a
 delegationErrorH = handle $ \case
@@ -276,7 +314,7 @@ searchForDelegations = do
             void $ liftIO $ writeFileJSON (delegFolder <> "/delegatorsV2_" <> formatTime ct <> ".json") newProgress
             janitorFiles delegFolder "delegatorsV2_"
         writeResult delegFolder ct ipsWithBalances = do
-            let result = Map.map (T.pack . show) ipsWithBalances
+            let result = Map.map toText ipsWithBalances
             liftIO $ void $ writeFileJSON (delegFolder <> "/result_" <> formatTime ct <> ".json") result
             janitorFiles delegFolder "result_"
 
@@ -294,16 +332,22 @@ updateDelegationMap relaysWithBalances = do
         void $ liftIO $ writeFileJSON "delegationMap.json" delegationMap'
     where
         createAmazonProxy relay = do
-            amazonID <- fmap trimAmazonID $ liftIO $ execute $ "./api-create.sh " <> T.unpack (fromRelayAddress relay)
-            logMsg $ "New amazon id " <> T.pack amazonID <> " for address " <> fromRelayAddress relay
+            amazonID <- fmap trimAmazonID $ liftIO $ execute $ "./api-create.sh" <> space <> T.unpack (fromRelayAddress relay)
+            logMsg $ "New amazon id"
+              <> space
+              <> T.pack amazonID
+              <> space
+              <> "for address"
+              <> space
+              <> fromRelayAddress relay
             pure $ ProxyAddress $ "https://" <> T.pack amazonID <> ".execute-api.eu-central-1.amazonaws.com/"
-        trimAmazonID amazonID = fromMaybe amazonID $ stripSuffix "\n" amazonID
+        trimAmazonID amazonID = fromMaybe amazonID $ stripSuffix newLine amazonID
         amazonIDfromAddress = (\a -> fromMaybe a $ T.stripSuffix ".execute-api.eu-central-1.amazonaws.com/" a)
                             . (\a -> fromMaybe a $ T.stripPrefix "https://" a)
                             . unProxyAddress
         removeAmazonProxy addr = do
             logMsg $ "Removing proxy " .< show addr
-            liftIO $ execute $ "./api-delete.sh " <> T.unpack (amazonIDfromAddress addr)
+            liftIO $ execute $ "./api-delete.sh" <> space <> T.unpack (amazonIDfromAddress addr)
         execute cmd = Process.readCreateProcess ((Process.shell cmd) {Process.cwd = Just "../../scripts/delegationProxy"}) ""
 
 newtype ProxyAddress = ProxyAddress {unProxyAddress :: Text}
@@ -328,8 +372,12 @@ updateProgress = do
         pure p
     where
         prettyDeleg network d rest = case addressToBech32 network (delegAddress d) of
-            Just addr -> rest <> "\n" <> addr <> " : " <> trimIp (delegIp d)
-            Nothing   -> rest <> "\n" <> T.pack (show (delegCredential d) <> "<>" <> show (delegStakeKey d)) <> " : " <> trimIp (delegIp d)
+            Just addr -> rest <> newLine <> addr <> space <> column <> space <> trimIp (delegIp d)
+            Nothing   -> rest
+              <> newLine <> toText (delegCredential d)
+              <> "<>" <> toText (delegStakeKey d)
+              <> space <> column
+              <> space <> trimIp (delegIp d)
 
 updateBalances :: DelegationM (Map PubKeyHash Integer)
 updateBalances = do

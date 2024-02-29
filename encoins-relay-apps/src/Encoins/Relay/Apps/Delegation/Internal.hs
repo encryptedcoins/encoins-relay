@@ -185,8 +185,8 @@ isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
         isSimpleURI  = isURI . ("http://" <>)
 
 data RelayAddress = RelayAddress
-    { raAddress  :: Text
-    , raPort     :: Maybe Int
+    { raAddress :: Text
+    , raPort    :: Maybe Int
     } deriving (Show, Ord)
 
 instance Eq RelayAddress where
@@ -217,16 +217,16 @@ toRelayAddress addr =
             | T.last txt == '/' && T.length txt > 1 = T.init txt
             | otherwise = txt
         trimProtocol txt = fromMaybe txt $ T.stripPrefix "http://" txt <|> T.stripPrefix "https://" txt
-        splitPort txt = let (txt', mbPort) = readMaybe . T.unpack <$> T.breakOnEnd ":" txt in
+        splitPort txt = let (txt', mbPort) = readMaybe . T.unpack <$> T.breakOnEnd column txt in
             if isJust mbPort then (T.init txt', mbPort) else (txt, mbPort)
 
 fromRelayAddress :: RelayAddress -> Text
-fromRelayAddress RelayAddress{..} = "http://" <> raAddress <> maybe "" ((":" <>) . T.pack . show) raPort
+fromRelayAddress RelayAddress{..} = "http://" <> raAddress <> maybe "" ((column <>) . toText) raPort
 
 -- Remove end slash, protocol prefix and port from URL address. Doesn't remove port from localhost
 trimIp :: Text -> Text
 trimIp txt
-    | raAddress == "localhost" = "localhost" <> maybe "" ((":" <>) . T.pack . show) raPort
+    | raAddress == "localhost" = "localhost" <> maybe "" ((column <>) . toText) raPort
     | otherwise = raAddress
     where
         RelayAddress{..} = toRelayAddress txt
