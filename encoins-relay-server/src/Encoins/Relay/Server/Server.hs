@@ -68,6 +68,7 @@ mkServerHandle c = do
         (EncoinsRelayEnv
             cRefStakeOwner
             cRefBeacon
+            cValidatorStakeKey
             cVerifierPkh
             verifierClientEnv
             cDelegationCurrencySymbol
@@ -129,7 +130,7 @@ instance IsCardanoServerError EncoinsTxApiError where
 
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
-    encoinsProtocolParams@(_, refBeacon, _) <- getEncoinsProtocolParams
+    encoinsProtocolParams@(_, refBeacon, _, _) <- getEncoinsProtocolParams
     addr <- getWalletAddr
     -- Mint the stake owner token
     utxos <- getWalletUtxos mempty
