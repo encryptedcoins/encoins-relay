@@ -9,60 +9,51 @@
 
 module Encoins.Relay.Apps.Delegation.Internal where
 
-import           Cardano.Api                   (NetworkId)
-import           Cardano.Server.Config         (CardanoServerConfig (..),
-                                                HyperTextProtocol (..))
-import           Cardano.Server.Utils.Logger   (HasLogger (..), Logger)
-import           Encoins.Common.Transform      (toText)
-import           Encoins.Common.Constant       (column)
-import qualified PlutusAppsExtra.IO.Blockfrost as Bf
-import qualified PlutusAppsExtra.IO.Maestro    as Maestro
-import           PlutusAppsExtra.Utils.Address (getStakeKey)
-import           PlutusAppsExtra.Utils.Maestro (TxDetailsOutput (..),
-                                                TxDetailsResponse (..))
-
-import           Control.Applicative           ((<|>))
-import           Control.Exception             (throw)
-import           Control.Monad                 (forM, guard, when)
-import           Control.Monad.Catch           (MonadCatch, MonadThrow (..))
-import           Control.Monad.Except          (MonadError)
-import           Control.Monad.IO.Class        (MonadIO (..))
-import           Control.Monad.Reader          (MonadReader (ask), ReaderT (..),
-                                                asks)
-import           Control.Monad.Trans.Maybe     (MaybeT (..))
-import           Data.Aeson                    (FromJSON (..), FromJSONKey (..),
-                                                FromJSONKeyFunction (..),
-                                                ToJSON (..), ToJSONKey (..),
-                                                genericParseJSON)
-import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
-import           Data.Aeson.Types              (toJSONKeyText)
-import           Data.Function                 (on)
-import           Data.Functor                  ((<&>))
-import           Data.IORef                    (IORef, atomicWriteIORef)
-import           Data.List                     (sortBy)
-import qualified Data.List.NonEmpty            as NonEmpty
-import           Data.Map                      (Map)
-import qualified Data.Map                      as Map
-import           Data.Maybe                    (catMaybes, fromMaybe, isJust,
-                                                isNothing, listToMaybe)
-import           Data.Ord                      (Down (..))
-import           Data.Text                     (Text)
-import qualified Data.Text                     as T
-import qualified Data.Time                     as Time
-import           GHC.Generics                  (Generic)
-import           Ledger                        (Address (..), Credential,
-                                                Datum (..), DatumFromQuery (..),
-                                                PubKeyHash (..), Slot,
-                                                TxId (..), TxOutRef (..))
-import           Network.URI                   (isIPv4address, isURI)
-import           Plutus.V1.Ledger.Api          (Credential (..), CurrencySymbol,
-                                                FromData (..),
-                                                StakingCredential (..),
-                                                TokenName, fromBuiltin)
-import           PlutusTx.Builtins             (decodeUtf8)
-import           Servant                       (Handler, ServerError,
-                                                runHandler)
-import           Text.Read                     (readMaybe)
+import           Cardano.Api                    (NetworkId)
+import           Cardano.Server.Config          (CardanoServerConfig (..), HyperTextProtocol (..))
+import           Cardano.Server.Utils.Logger    (HasLogger (..), Logger)
+import           Control.Applicative            ((<|>))
+import           Control.Exception              (throw)
+import           Control.Monad                  (forM, guard, when)
+import           Control.Monad.Catch            (MonadCatch, MonadThrow (..))
+import           Control.Monad.Except           (MonadError)
+import           Control.Monad.IO.Class         (MonadIO (..))
+import           Control.Monad.Reader           (MonadReader (ask), ReaderT (..), asks)
+import           Control.Monad.Trans.Maybe      (MaybeT (..))
+import           Data.Aeson                     (FromJSON (..), FromJSONKey (..), FromJSONKeyFunction (..), ToJSON (..), ToJSONKey (..),
+                                                 genericParseJSON)
+import           Data.Aeson.Casing              (aesonPrefix, snakeCase)
+import           Data.Aeson.Types               (toJSONKeyText)
+import           Data.Function                  (on)
+import           Data.Functor                   ((<&>))
+import           Data.IORef                     (IORef, atomicWriteIORef)
+import           Data.List                      (sortBy)
+import qualified Data.List.NonEmpty             as NonEmpty
+import           Data.Map                       (Map)
+import qualified Data.Map                       as Map
+import           Data.Maybe                     (catMaybes, fromMaybe, isJust, isNothing, listToMaybe)
+import           Data.Ord                       (Down (..))
+import           Data.Text                      (Text)
+import qualified Data.Text                      as T
+import qualified Data.Time                      as Time
+import           Encoins.Common.Constant        (column)
+import           Encoins.Common.Transform       (toText)
+import           GHC.Generics                   (Generic)
+import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
+                                                 TxId (..), TxOutRef (..))
+import           Network.URI                    (isIPv4address, isURI)
+import           Plutus.V1.Ledger.Api           (Credential (..), CurrencySymbol, FromData (..), StakingCredential (..), TokenName,
+                                                 fromBuiltin)
+import           PlutusAppsExtra.Api.Blockfrost (BlockfrostToken, MonadBlockfrost (..))
+import           PlutusAppsExtra.Api.Maestro    (MaestroToken, MonadMaestro (..))
+import qualified PlutusAppsExtra.IO.Blockfrost  as Bf
+import qualified PlutusAppsExtra.IO.Maestro     as Maestro
+import           PlutusAppsExtra.Utils.Address  (getStakeKey)
+import           PlutusAppsExtra.Utils.Maestro  (TxDetailsOutput (..), TxDetailsResponse (..))
+import           PlutusAppsExtra.Utils.Network  (HasNetworkId (..))
+import           PlutusTx.Builtins              (decodeUtf8)
+import           Servant                        (Handler, ServerError, runHandler)
+import           Text.Read                      (readMaybe)
 
 newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
     deriving newtype
@@ -83,6 +74,15 @@ instance HasLogger DelegationM where
     getLogger = asks dEnvLogger
     getLoggerFilePath = asks dEnvLoggerFp
 
+instance HasNetworkId DelegationM where
+    getNetworkId = asks dEnvNetworkId
+
+instance MonadBlockfrost DelegationM where
+    getBlockfrostToken = asks dEnvBlockfrostToken
+
+instance MonadMaestro DelegationM where
+    getMaestroToken = asks dEnvMaestroToken
+
 data DelegationEnv = DelegationEnv
     { dEnvLogger               :: Logger DelegationM
     , dEnvLoggerFp             :: Maybe FilePath
@@ -90,6 +90,8 @@ data DelegationEnv = DelegationEnv
     , dEnvHost                 :: Text
     , dEnvPort                 :: Int
     , dEnvHyperTextProtocol    :: HyperTextProtocol
+    , dEnvMaestroToken         :: MaestroToken
+    , dEnvBlockfrostToken      :: BlockfrostToken
     , dEnvDelegationFolder     :: FilePath
     , dEnvFrequency            :: Int
     -- ^ Frequency of search for new delegations in seconds
@@ -128,6 +130,8 @@ data DelegConfig = DelegConfig
     , cPort                     :: Int
     , cHyperTextProtocol        :: HyperTextProtocol
     , cNetworkId                :: NetworkId
+    , cBlockfrostTokenFilePath  :: Maybe FilePath
+    , cMaestroTokenFilePath     :: Maybe FilePath
     , cDelegationCurrencySymbol :: CurrencySymbol
     , cDelegationTokenName      :: TokenName
     , cDelegationFolder         :: FilePath
@@ -159,12 +163,12 @@ data Progress = Progress
 findDeleg :: TxId -> DelegationM (Maybe Delegation)
 findDeleg txId = runMaybeT $ do
     DelegationEnv{..} <- ask
-    TxDetailsResponse{..} <- MaybeT $ Maestro.getTxDetails dEnvNetworkId txId
+    TxDetailsResponse{..} <- MaybeT $ Maestro.getTxDetails txId
     MaybeT $ fmap (listToMaybe . catMaybes) $ forM tdrOutputs $ \TxDetailsOutput{..} -> runMaybeT $ do
         stakeKey  <- hoistMaybe $ getStakeKey tdoAddress
         (dh, dfq) <- hoistMaybe tdoDatum
         Datum dat <- case dfq of
-            DatumUnknown   -> MaybeT $ liftIO $ Bf.getDatumByHash dEnvNetworkId dh
+            DatumUnknown   -> MaybeT $ Bf.getDatumByHash dh
             DatumInline da -> pure da
             DatumInBody da -> pure da
         ["ENCOINS", "Delegate", skBbs, ipBbs] <- hoistMaybe $ fromBuiltinData dat
@@ -174,8 +178,8 @@ findDeleg txId = runMaybeT $ do
     where
         hoistMaybe = MaybeT . pure
 
-getBalances :: MonadIO m => NetworkId -> CurrencySymbol -> TokenName -> m (Map PubKeyHash Integer)
-getBalances network cs tokenName = Maestro.getAccountAddressesHoldingAssets network cs tokenName
+getBalances :: MonadMaestro m => CurrencySymbol -> TokenName -> m (Map PubKeyHash Integer)
+getBalances = Maestro.getAccountAddressesHoldingAssets
 
 isValidIp :: Text -> Bool
 isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)

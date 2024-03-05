@@ -1,9 +1,10 @@
-{ "ref_stake_owner"             : {"txOutRefId"  : {"getTxId" : "f94b7cf5e7dccafc7a8211b5e66412220639c7f87c1226f1a1ba284ca7bb7fe1"}, "txOutRefIdx" : 5}
-, "ref_beacon"                  : {"txOutRefId"  : {"getTxId" : "fea3f86d1b89c4a1979d2b76f13909b18c6a79afea4b5bbc57f8c772921f06a4"}, "txOutRefIdx" : 1}
-, "verifier_host"               : "localhost"
+{ "ref_stake_owner"             : {"txOutRefId"  : {"getTxId" : "0f27a9384e175a98784932813bc087fbfe10afbb87d4c2bae7c3da2357a0effc"}, "txOutRefIdx" : 5}
+, "ref_beacon"                  : {"txOutRefId"  : {"getTxId" : "f25655007d89a1459fc0b2933e89888a7955dc8560e0440cb371a5c0a45d5967"}, "txOutRefIdx" : 2}
+, "validator_stake_key"         : "0bd016f8ba5857d2e2026da550e4b724a3e1e8d5598cbfab19ce756c"
+, "verifier_pkh"                : "7F04730FC0F75A7D20BEB8CD152B2B8571591282EC8E5A3FC266C52049A3A5C6"
+, "verifier_host"               : "3.71.79.183"
 , "verifier_port"               : 3001
 , "verifier_protocol"           : "HTTP"
-, "verifier_pkh"                : "AB39EFD01872F96A4CA2534EB5959D737F1939094BEA19069EE7FE76ECE3494A"
 , "delegation_currency_symbol"  : {"unCurrencySymbol" : "f2cbed8817eee9bfa37e80a0a2f4e0dfcf661bb1298003a2e77cb237"}
 , "delegation_token_name"       : {"unTokenName" : "ENCSDelegationTest"}
 , "delegation_server_host"      : "localhost"

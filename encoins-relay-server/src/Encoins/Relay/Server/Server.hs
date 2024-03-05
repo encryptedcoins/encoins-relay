@@ -16,16 +16,15 @@
 
 module Encoins.Relay.Server.Server where
 
+import           CSL                            (TransactionInputs)
+import qualified CSL
+import           CSL.Class                      (FromCSL (..))
 import           Cardano.Server.Client.Internal (statusC)
 import           Cardano.Server.Config          (Config (..), Creds)
 import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input           (InputContext (..))
-import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf,
-                                                 InputWithContext,
-                                                 ServerHandle (..), ServerM,
-                                                 getAuxillaryEnv,
-                                                 mkServantClientEnv,
-                                                 mkServerClientEnv)
+import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM, getAuxillaryEnv,
+                                                 mkServantClientEnv, mkServerClientEnv)
 import           Cardano.Server.Main            (ServerApi)
 import           Cardano.Server.Tx              (mkTx)
 import           Cardano.Server.Utils.Logger    ((.<))
@@ -34,51 +33,33 @@ import           Control.Exception              (Exception, throw)
 import           Control.Monad                  (void)
 import           Control.Monad.Catch            (MonadThrow (..))
 import           Control.Monad.IO.Class         (MonadIO (..))
-import           CSL                            (TransactionInputs)
-import qualified CSL
-import           CSL.Class                      (FromCSL (..))
 import           Data.Aeson                     (FromJSON, ToJSON)
 import           Data.Default                   (def)
 import           Data.FileEmbed                 (embedFileIfExists)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
+import           Data.Time                      (defaultTimeLocale, parseTimeM)
+import           Data.Time.Clock.POSIX          (posixSecondsToUTCTime)
 import           Development.GitRev             (gitCommitDate, gitHash)
-import           Encoins.Common.Version         (AppVersion, appVersion)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..), beaconTx,
-                                                 delegateTx, encoinsSendTx,
-                                                 encoinsTx, postEncoinsPolicyTx,
-                                                 postLedgerValidatorTx,
-                                                 stakeOwnerTx)
-import           ENCOINS.Core.OnChain           (EncoinsRedeemer,
-                                                 EncoinsRedeemerOnChain,
-                                                 ledgerValidatorAddress,
-                                                 minMaxTxOutValueInLedger)
-import           Encoins.Relay.Server.Config    (EncoinsRelayConfig (..),
-                                                 loadEncoinsRelayConfig,
-                                                 referenceScriptSalt,
+import           ENCOINS.Core.OffChain          (EncoinsMode (..), beaconTx, delegateTx, encoinsSendTx, encoinsTx, postEncoinsPolicyTx,
+                                                 postLedgerValidatorTx, stakeOwnerTx)
+import           ENCOINS.Core.OnChain           (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress, minMaxTxOutValueInLedger)
+import           Encoins.Common.Version         (AppVersion (..))
+import           Encoins.Relay.Server.Config    (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
                                                  treasuryWalletAddress)
-import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (..),
-                                                 getEncoinsProtocolParams,
-                                                 getTrackedAddresses)
-import           Encoins.Relay.Server.Status    (EncoinsStatusErrors,
-                                                 EncoinsStatusReqBody (MaxAdaWithdraw),
-                                                 EncoinsStatusResult,
+import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (..), getEncoinsProtocolParams, getTrackedAddresses)
+import           Encoins.Relay.Server.Status    (EncoinsStatusErrors, EncoinsStatusReqBody (MaxAdaWithdraw), EncoinsStatusResult,
                                                  encoinsStatusHandler)
-import           Encoins.Relay.Verifier.Client  (VerifierClientError (..),
-                                                 verifierClient)
+import           Encoins.Relay.Verifier.Client  (VerifierClientError (..), verifierClient)
 import           Encoins.Relay.Verifier.Server  (VerifierApiError (..))
 import           GHC.Generics                   (Generic)
-import           Ledger                         (Address, TxId (TxId),
-                                                 TxOutRef (..))
+import           Ledger                         (Address, TxId (TxId), TxOutRef (..))
 import           Paths_encoins_relay_server     (version)
-import           PlutusAppsExtra.IO.ChainIndex  (ChainIndex (..),
-                                                 getMapUtxoFromRefs)
+import           PlutusAppsExtra.IO.ChainIndex  (ChainIndexProvider (..), getMapUtxoFromRefs)
 import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletUtxos)
-import           PlutusAppsExtra.Types.Tx       (TransactionBuilder,
-                                                 txBuilderRequirements)
+import           PlutusAppsExtra.Types.Tx       (TransactionBuilder, txBuilderRequirements)
 import qualified Servant.Client                 as Servant
-
 
 mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
@@ -106,7 +87,13 @@ mkServerHandle c = do
         processRequest
         encoinsStatusHandler
         checkStatusEndpoint
-        (pure $ appVersion version $(gitHash) $(gitCommitDate))
+        versionHandler
+    where
+        versionHandler = pure $ MkAppVersion version $(gitHash) $ fromMaybe (posixSecondsToUTCTime $ toEnum 0) $ parseTimeM
+            False
+            defaultTimeLocale
+            "%a %b %e %T %Y %Z"
+            $(gitCommitDate)
 
 -- Embed https cert and key files on compilation
 embedCreds :: Creds

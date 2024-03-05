@@ -9,26 +9,28 @@
 
 module Encoins.Relay.Apps.Ipfs.Types where
 
-import           Cardano.Api            (NetworkId)
-import           Cardano.Server.Config  (HyperTextProtocol (..))
-import           Control.Exception.Safe (Exception, MonadCatch, MonadThrow)
-import           Control.Monad.IO.Class (MonadIO)
-import           Control.Monad.Reader   (MonadReader, ReaderT (..), asks, local)
-import           Data.Aeson             (FromJSON (..), FromJSONKey,
-                                         Options (fieldLabelModifier),
-                                         ToJSON (..), ToJSONKey, camelTo2,
-                                         defaultOptions, genericParseJSON,
-                                         genericToJSON, withObject, (.:), (.:?))
-import           Data.Aeson.Casing      (aesonPrefix, snakeCase)
-import           Data.Text              (Text)
-import           Data.Time              (UTCTime)
-import           Data.Time.Clock.POSIX  (POSIXTime)
-import           GHC.Generics           (Generic)
+import           Cardano.Api                   (NetworkId)
+import           Cardano.Server.Config         (HyperTextProtocol (..))
+import           Control.Exception.Safe        (Exception, MonadCatch, MonadThrow)
+import           Control.Monad.IO.Class        (MonadIO)
+import           Control.Monad.Reader          (MonadReader, ReaderT (..), asks, local)
+import           Data.Aeson                    (FromJSON (..), FromJSONKey,
+                                                Options (fieldLabelModifier),
+                                                ToJSON (..), ToJSONKey, camelTo2,
+                                                defaultOptions, genericParseJSON,
+                                                genericToJSON, withObject, (.:), (.:?))
+import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
+import           Data.Text                     (Text)
+import           Data.Time                     (UTCTime)
+import           Data.Time.Clock.POSIX         (POSIXTime)
+import           GHC.Generics                  (Generic)
 import           Katip
-import           Network.HTTP.Client    (Manager)
-import           Plutus.V1.Ledger.Api   (CurrencySymbol)
-import           Servant.API            (ToHttpApiData)
-import           Servant.Client         (BaseUrl (..), ClientError)
+import           Network.HTTP.Client           (Manager)
+import           Plutus.V1.Ledger.Api          (CurrencySymbol)
+import           PlutusAppsExtra.Api.Maestro   (MonadMaestro (..), MaestroToken)
+import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
+import           Servant.API                   (ToHttpApiData)
+import           Servant.Client                (BaseUrl (..), ClientError)
 
 -- General types
 
@@ -37,6 +39,7 @@ data IpfsEnv = MkIpfsEnv
   , envHost               :: Text
   , envPort               :: Int
   , envNetworkId          :: NetworkId
+  , envMaestroToken       :: MaestroToken
   , envIpfsCurrencySymbol :: CurrencySymbol
   , envPinataFetchHost    :: BaseUrl
   , envPinataPinHost      :: BaseUrl
@@ -54,18 +57,19 @@ data IpfsEnv = MkIpfsEnv
 -- Format of verbosity in json file: V0, V1, V2, V3
 data IpfsConfig = MkIpfsConfig
   {
-    icHyperTextProtocol  :: HyperTextProtocol
-  , icHost               :: Text
-  , icPort               :: Int
-  , icNetworkId          :: NetworkId
-  , icIpfsCurrencySymbol :: CurrencySymbol
-  , icPinataFetchHost    :: Text
-  , icPinataPinHost      :: Text
-  , icScheduleDirectory  :: FilePath
-  , icEnvironment        :: Environment
-  , icVerbosity          :: Verbosity
-  , icSeverity           :: Severity
-  , icFormatMessage      :: Bool
+    icHyperTextProtocol    :: HyperTextProtocol
+  , icHost                 :: Text
+  , icPort                 :: Int
+  , icNetworkId            :: NetworkId
+  , icMaestroTokenFilePath :: FilePath
+  , icIpfsCurrencySymbol   :: CurrencySymbol
+  , icPinataFetchHost      :: Text
+  , icPinataPinHost        :: Text
+  , icScheduleDirectory    :: FilePath
+  , icEnvironment          :: Environment
+  , icVerbosity            :: Verbosity
+  , icSeverity             :: Severity
+  , icFormatMessage        :: Bool
   }
   deriving stock (Eq,Show, Generic)
 
@@ -85,6 +89,12 @@ newtype IpfsMonad a = MkIpfsMonad {unIpfsMonad :: ReaderT IpfsEnv IO a}
 
 runIpfsMonad :: IpfsEnv -> IpfsMonad a -> IO a
 runIpfsMonad env = (`runReaderT` env) . unIpfsMonad
+
+instance HasNetworkId IpfsMonad where
+  getNetworkId = asks envNetworkId
+
+instance MonadMaestro IpfsMonad where
+  getMaestroToken = asks envMaestroToken
 
 instance Katip IpfsMonad where
   getLogEnv = asks envLogEnv

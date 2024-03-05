@@ -1,5 +1,6 @@
 {-# LANGUAGE ImplicitParams     #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module Main where
 
@@ -13,6 +14,7 @@ import           Control.Exception                      (bracket, bracket_, try)
 import           Control.Monad                          (void)
 import           Control.Monad.IO.Class                 (MonadIO (..))
 import           Data.IORef                             (newIORef)
+import           Data.Maybe                             (fromMaybe)
 import qualified Data.Time                              as Time
 import           Encoins.Relay.Apps.Delegation.Internal (DelegationEnv (..), Progress (..))
 import qualified Encoins.Relay.Apps.Delegation.Internal as Deleg
@@ -34,7 +36,7 @@ main = do
     let configFp         = "encoins-relay-test/test/configuration/config.json"
         verifierConfigFp = "encoins-relay-test/test/configuration/verifierConfig.json"
         delegConfigFp    = "encoins-relay-test/test/configuration/delegConfig.json"
-    let ?creds            = embedCreds
+    let ?creds           = embedCreds
     delegConfig <- decodeOrErrorFromFile delegConfigFp
     config      <- decodeOrErrorFromFile configFp
     relayConfig <- decodeOrErrorFromFile $ cAuxiliaryEnvFile config
@@ -54,25 +56,29 @@ main = do
     delegClientEnv <- mkServantClientEnv (Deleg.cPort delegConfig) (Deleg.cHost delegConfig) (Deleg.cHyperTextProtocol delegConfig)
     let ?servantClientEnv = delegClientEnv
     setCurrentDirectory "encoins-relay-test/test/configuration"
-    resultRef  <- newIORef (Progress Nothing [], Time.UTCTime (toEnum 0) 0)
-    balanceRef <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
+    dEnvProgress <- newIORef (Progress Nothing [], Time.UTCTime (toEnum 0) 0)
+    dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
+    dEnvBlockfrostToken <- decodeOrErrorFromFile $
+        fromMaybe "encoins-relay-test/test/configuration/blockfrost.token" $ Deleg.cMaestroTokenFilePath delegConfig
+    dEnvMaestroToken    <- decodeOrErrorFromFile $
+        fromMaybe "encoins-relay-test/test/configuration/maestro.token"    $ Deleg.cMaestroTokenFilePath delegConfig
     let env = DelegationEnv
-            mutedLogger
-            Nothing
-            (cNetworkId config)
-            (Deleg.cHost delegConfig)
-            (Deleg.cPort delegConfig)
-            (Deleg.cHyperTextProtocol delegConfig)
-            (Deleg.cDelegationFolder delegConfig)
-            (Deleg.cFrequency delegConfig)
-            (Deleg.cMaxDelay delegConfig)
-            (Deleg.cMinTokenNumber delegConfig)
-            (Deleg.cRewardTokenThreshold delegConfig)
-            (cDelegationCurrencySymbol relayConfig)
-            (cDelegationTokenName relayConfig)
-            False
-            resultRef
-            balanceRef
+            { dEnvLogger               = mutedLogger
+            , dEnvLoggerFp             = Nothing
+            , dEnvNetworkId            = cNetworkId config
+            , dEnvHost                 = Deleg.cHost delegConfig
+            , dEnvPort                 = Deleg.cPort delegConfig
+            , dEnvHyperTextProtocol    = Deleg.cHyperTextProtocol delegConfig
+            , dEnvDelegationFolder     = Deleg.cDelegationFolder delegConfig
+            , dEnvFrequency            = Deleg.cFrequency delegConfig
+            , dEnvMaxDelay             = Deleg.cMaxDelay delegConfig
+            , dEnvMinTokenNumber       = Deleg.cMinTokenNumber delegConfig
+            , dEnvRewardTokenThreshold = Deleg.cRewardTokenThreshold delegConfig
+            , dEnvCurrencySymbol       = cDelegationCurrencySymbol relayConfig
+            , dEnvTokenName            = cDelegationTokenName relayConfig
+            , dEnvCheckSig             = False
+            , ..
+            }
     bracket
         (C.forkIO $ runDelegationServer' env)
         (\threadId -> do

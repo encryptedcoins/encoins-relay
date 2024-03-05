@@ -3,6 +3,7 @@
 
 module Encoins.Relay.Server.Internal where
 
+import           Cardano.Server.Config                    (HyperTextProtocol)
 import           Cardano.Server.Internal                  (AuxillaryEnvOf, ServerM, getAuxillaryEnv)
 import           Data.Text                                (Text)
 import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, encoinsSymbol, ledgerValidatorAddress)
@@ -14,7 +15,6 @@ import           PlutusAppsExtra.Types.Tx                 (UtxoRequirements)
 import           PlutusAppsExtra.Utils.ChainIndex         (MapUTXO)
 import           PlutusTx.Builtins                        (BuiltinByteString)
 import           Servant.Client                           (ClientEnv)
-import Cardano.Server.Config (HyperTextProtocol)
 
 data EncoinsRelayEnv = EncoinsRelayEnv
     { envRefStakeOwner            :: TxOutRef
