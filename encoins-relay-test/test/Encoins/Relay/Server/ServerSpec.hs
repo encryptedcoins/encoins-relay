@@ -12,8 +12,8 @@
 
 module Encoins.Relay.Server.ServerSpec where
 
-import           Cardano.Server.Client.Handle          (HasServantClientEnv)
-import           Cardano.Server.Config                 (ServerEndpoint (ServerTxE), decodeOrErrorFromFile)
+import           Cardano.Server.Client.Client          (HasServantClientEnv)
+import           Cardano.Server.Config                 (decodeOrErrorFromFile)
 import           Cardano.Server.Internal               (Env (envLogger), ServerM, loadEnv, runServerM)
 import           Cardano.Server.Utils.Logger           (logSmth, mutedLogger, (.<))
 import           Cardano.Server.Utils.Wait             (waitTime)
@@ -32,11 +32,10 @@ import           ENCOINS.Core.OffChain                 (EncoinsMode (..))
 import           Encoins.Relay.Apps.Internal           (encoinsCS, encoinsTokenName)
 import           Encoins.Relay.Client.Client           (TxClientCosntraints, secretsToReqBody, sendTxClientRequest,
                                                         termsToSecrets, txClientRedeemer)
-import           Encoins.Relay.Client.Opts             (EncoinsRequestTerm (RPBurn))
 import           Encoins.Relay.Client.Secrets          (HasEncoinsModeAndBulletproofSetup, getEncoinsTokensFromMode, mkSecretFile,
-                                                        randomMintTermWithUB)
-import           Encoins.Relay.Server.Config           (EncoinsRelayConfig (..), loadEncoinsRelayConfig)
-import           Encoins.Relay.Server.Server           (EncoinsApi, mkServerHandle)
+                                                        randomMintTermWithUB, EncoinsRequestTerm (..))
+import           Encoins.Relay.Server.Config           (EncoinsRelayConfig (..))
+import           Encoins.Relay.Server.Server           (EncoinsApi)
 import           Internal                              (runEncoinsServerM)
 import           Plutus.V2.Ledger.Api                  (Credential (PubKeyCredential), StakingCredential (..), TokenName (..))
 import           PlutusAppsExtra.IO.ChainIndex         (getAdaAt, getValueAt)
@@ -50,6 +49,7 @@ import           Test.Hspec                            (Expectation, HasCallStac
                                                         hspec, it, pendingWith, runIO, shouldBe, shouldSatisfy)
 import           Test.Hspec.Core.Spec                  (sequential)
 import           Test.QuickCheck                       (Arbitrary (..), choose, generate)
+import Encoins.Relay.Server.Endpoints.Tx.Server (ServerTxApi)
 
 spec :: (HasCallStack, HasServantClientEnv) => Spec
 spec = do
@@ -74,13 +74,13 @@ spec = do
                 -- it "burn tokens" propBurn
                 it "burn tokens" $ pendingWith "Pending until encoins-core ledger mode fix."
 
-propMint :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
+propMint :: (TxClientCosntraints ServerTxApi, HasEncoinsModeAndBulletproofSetup) => Expectation
 propMint = join $ runEncoinsServerM $ do
     l        <- randomRIO (1, 2)
     terms    <- replicateM l $ randomMintTermWithUB 5
     secrets  <- termsToSecrets terms
     liftIO $ createDirectoryIfMissing True "secrets"
-    sendTxClientRequest @ServerTxE secrets >>= \case
+    sendTxClientRequest @ServerTxApi secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
             mapM_ (uncurry mkSecretFile) secrets
@@ -89,12 +89,12 @@ propMint = join $ runEncoinsServerM $ do
             tokensMinted <- confirmTokens currentTime $ map (first TokenName) inputs
             pure $ tokensMinted `shouldBe` True
 
-propBurn :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
+propBurn :: (TxClientCosntraints ServerTxApi, HasEncoinsModeAndBulletproofSetup) => Expectation
 propBurn = join $ runEncoinsServerM $ do
     terms    <- map (RPBurn . Right . ("secrets/" <>)) <$> liftIO (listDirectory "secrets")
     secrets  <- termsToSecrets terms
     liftIO $ removeDirectoryRecursive "secrets"
-    sendTxClientRequest @ServerTxE secrets >>= \case
+    sendTxClientRequest @ServerTxApi secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
             ((_,(v, inputs),_,_),_) <- secretsToReqBody secrets

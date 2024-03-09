@@ -1,24 +1,23 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Encoins.Relay.Apps.Delegation.Internal where
 
 import           Cardano.Api                    (NetworkId)
-import           Cardano.Server.Config          (CardanoServerConfig (..), HyperTextProtocol (..))
-import           Cardano.Server.Utils.Logger    (HasLogger (..), Logger)
+import           Cardano.Server.Config          (decodeOrErrorFromFile)
+import           Cardano.Server.Internal        (AppT, AuxillaryEnvOf, getAuxillaryEnv)
+import           Cardano.Server.Utils.Logger    ((.<))
 import           Control.Applicative            ((<|>))
-import           Control.Exception              (throw)
 import           Control.Monad                  (forM, guard, when)
-import           Control.Monad.Catch            (MonadCatch, MonadThrow (..))
-import           Control.Monad.Except           (MonadError)
 import           Control.Monad.IO.Class         (MonadIO (..))
-import           Control.Monad.Reader           (MonadReader (ask), ReaderT (..), asks)
+import           Control.Monad.Trans            (MonadTrans (..))
 import           Control.Monad.Trans.Maybe      (MaybeT (..))
 import           Data.Aeson                     (FromJSON (..), FromJSONKey (..), FromJSONKeyFunction (..), ToJSON (..), ToJSONKey (..),
                                                  genericParseJSON)
@@ -26,7 +25,7 @@ import           Data.Aeson.Casing              (aesonPrefix, snakeCase)
 import           Data.Aeson.Types               (toJSONKeyText)
 import           Data.Function                  (on)
 import           Data.Functor                   ((<&>))
-import           Data.IORef                     (IORef, atomicWriteIORef)
+import           Data.IORef                     (IORef, atomicWriteIORef, newIORef)
 import           Data.List                      (sortBy)
 import qualified Data.List.NonEmpty             as NonEmpty
 import           Data.Map                       (Map)
@@ -35,7 +34,9 @@ import           Data.Maybe                     (catMaybes, fromMaybe, isJust, i
 import           Data.Ord                       (Down (..))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
+import qualified Data.Text.IO                   as T
 import qualified Data.Time                      as Time
+import           Encoins.Relay.Apps.Internal    (loadMostRecentFile)
 import           GHC.Generics                   (Generic)
 import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
                                                  TxId (..), TxOutRef (..))
@@ -48,86 +49,11 @@ import qualified PlutusAppsExtra.IO.Blockfrost  as Bf
 import qualified PlutusAppsExtra.IO.Maestro     as Maestro
 import           PlutusAppsExtra.Utils.Address  (getStakeKey)
 import           PlutusAppsExtra.Utils.Maestro  (TxDetailsOutput (..), TxDetailsResponse (..))
-import           PlutusAppsExtra.Utils.Network  (HasNetworkId (..))
 import           PlutusTx.Builtins              (decodeUtf8)
-import           Servant                        (Handler, ServerError, runHandler)
 import           Text.Read                      (readMaybe)
 
-newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
-    deriving newtype
-        ( Functor
-        , Applicative
-        , Monad
-        , MonadIO
-        , MonadThrow
-        , MonadCatch
-        , MonadReader DelegationEnv
-        , MonadError Servant.ServerError
-        )
-
-runDelegationM :: DelegationEnv -> DelegationM a -> IO a
-runDelegationM env = fmap (either throw id) . Servant.runHandler . (`runReaderT` env) . unDelegationM
-
-instance HasLogger DelegationM where
-    getLogger = asks dEnvLogger
-    getLoggerFilePath = asks dEnvLoggerFp
-
-instance HasNetworkId DelegationM where
-    getNetworkId = asks dEnvNetworkId
-
-instance MonadBlockfrost DelegationM where
-    getBlockfrostToken = asks dEnvBlockfrostToken
-
-instance MonadMaestro DelegationM where
-    getMaestroToken = asks dEnvMaestroToken
-
-data DelegationEnv = DelegationEnv
-    { dEnvLogger               :: Logger DelegationM
-    , dEnvLoggerFp             :: Maybe FilePath
-    , dEnvNetworkId            :: NetworkId
-    , dEnvHost                 :: Text
-    , dEnvPort                 :: Int
-    , dEnvHyperTextProtocol    :: HyperTextProtocol
-    , dEnvMaestroToken         :: MaestroToken
-    , dEnvBlockfrostToken      :: BlockfrostToken
-    , dEnvDelegationFolder     :: FilePath
-    , dEnvFrequency            :: Int
-    -- ^ Frequency of search for new delegations in seconds
-    , dEnvMaxDelay             :: Int
-    -- ^ Maximum permissible synchronization delay in seconds, if exceeded, an error will be thrown
-    , dEnvMinTokenNumber       :: Integer
-    -- ^ The number of tokens, exceeding which the server gets into the current servers endpoint
-    , dEnvRewardTokenThreshold :: Integer
-    -- ^ The number of tokens that limits the distribution of rewards
-    , dEnvCurrencySymbol       :: CurrencySymbol
-    , dEnvTokenName            :: TokenName
-    , dEnvCheckSig             :: Bool
-    -- ^ There is no signature checks in tests untill cardano-wallet signature fix
-    -- https://github.com/cardano-foundation/cardano-wallet/issues/4104
-    -- (They are still present outside of tests)
-    , dEnvProgress             :: IORef (Progress, Time.UTCTime)
-    -- ^ Last delegation progress with it's last update time
-    , dEnvTokenBalance         :: IORef (Map PubKeyHash Integer, Time.UTCTime)
-    -- ^ Last token balance with it's last update time
-    }
-
-setProgress :: Progress -> Time.UTCTime -> DelegationM ()
-setProgress p t = asks dEnvProgress >>= (liftIO . flip atomicWriteIORef (p, t))
-
-setTokenBalance :: Map PubKeyHash Integer -> Time.UTCTime -> DelegationM ()
-setTokenBalance b t = asks dEnvTokenBalance >>= (liftIO . flip atomicWriteIORef (b, t))
-
-instance CardanoServerConfig DelegationEnv where
-    configHost              = dEnvHost
-    configPort              = dEnvPort
-    configHyperTextProtocol = dEnvHyperTextProtocol
-
-
-data DelegConfig = DelegConfig
-    { cHost                     :: Text
-    , cPort                     :: Int
-    , cHyperTextProtocol        :: HyperTextProtocol
-    , cNetworkId                :: NetworkId
+data DelegationConfig = DelegationConfig
+    { cNetworkId                :: NetworkId
     , cBlockfrostTokenFilePath  :: Maybe FilePath
     , cMaestroTokenFilePath     :: Maybe FilePath
     , cDelegationCurrencySymbol :: CurrencySymbol
@@ -143,13 +69,58 @@ data DelegConfig = DelegConfig
     -- ^ The number of tokens that limits the distribution of rewards
     } deriving (Show, Generic)
 
-instance FromJSON DelegConfig where
+instance FromJSON DelegationConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-instance CardanoServerConfig DelegConfig where
-    configHost              = cHost
-    configPort              = cPort
-    configHyperTextProtocol = cHyperTextProtocol
+data DelegationEnv = DelegationEnv
+    { envNetworkId            :: NetworkId
+    , envMaestroToken         :: Maybe MaestroToken
+    , envBlockfrostToken      :: Maybe BlockfrostToken
+    , envDelegationFolder     :: FilePath
+    , envFrequency            :: Int
+    -- ^ Frequency of search for new delegations in seconds
+    , envMaxDelay             :: Int
+    -- ^ Maximum permissible synchronization delay in seconds, if exceeded, an error will be thrown
+    , envMinTokenNumber       :: Integer
+    -- ^ The number of tokens, exceeding which the server gets into the current servers endpoint
+    , envRewardTokenThreshold :: Integer
+    -- ^ The number of tokens that limits the distribution of rewards
+    , envCurrencySymbol       :: CurrencySymbol
+    , envTokenName            :: TokenName
+    , envCheckSig             :: Bool
+    -- ^ There is no signature checks in tests untill cardano-wallet signature fix
+    -- https://github.com/cardano-foundation/cardano-wallet/issues/4104
+    -- (They are still present outside of tests)
+    , envProgress             :: IORef (Progress, Time.UTCTime)
+    -- ^ Last delegation progress with it's last update time
+    , envTokenBalance         :: IORef (Map PubKeyHash Integer, Time.UTCTime)
+    -- ^ Last token balance with it's last update time
+    }
+
+loadDelegationEnv :: MonadIO m => DelegationConfig -> m DelegationEnv
+loadDelegationEnv DelegationConfig{..} = liftIO $ do
+    envProgress <- initProgress cDelegationFolder >>= newIORef
+    envTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
+    envBlockfrostToken <- decodeOrErrorFromFile $ fromMaybe "blockfrost.token" cMaestroTokenFilePath
+    envMaestroToken <- decodeOrErrorFromFile $ fromMaybe "maestro.token" cMaestroTokenFilePath
+    pure DelegationEnv
+        { envNetworkId            = cNetworkId
+        , envDelegationFolder     = cDelegationFolder
+        , envFrequency            = cFrequency
+        , envMaxDelay             = cMaxDelay
+        , envMinTokenNumber       = cMinTokenNumber
+        , envRewardTokenThreshold = cRewardTokenThreshold
+        , envCurrencySymbol       = cDelegationCurrencySymbol
+        , envTokenName            = cDelegationTokenName
+        , envCheckSig             = True
+        , ..
+        }
+
+setTokenBalance :: MonadIO m => AuxillaryEnvOf api ~ DelegationEnv => Map PubKeyHash Integer -> Time.UTCTime -> AppT api m ()
+setTokenBalance b t = (liftIO . flip atomicWriteIORef (b, t)) . envTokenBalance =<< getAuxillaryEnv
+
+getBalances :: MonadMaestro (AppT api m) => CurrencySymbol -> TokenName -> AppT api m (Map PubKeyHash Integer)
+getBalances = Maestro.getAccountAddressesHoldingAssets
 
 ------------------------------------------------------------------ Helpers ------------------------------------------------------------------
 
@@ -158,9 +129,28 @@ data Progress = Progress
     , pDelgations :: [Delegation]
     } deriving (Show, Generic, FromJSON, ToJSON)
 
-findDeleg :: TxId -> DelegationM (Maybe Delegation)
+setProgress :: MonadIO m => AuxillaryEnvOf api ~ DelegationEnv => Progress -> Time.UTCTime -> AppT api m ()
+setProgress p t = (liftIO . flip atomicWriteIORef (p, t)) . envProgress =<< getAuxillaryEnv
+
+initProgress :: FilePath -> IO (Progress, Time.UTCTime)
+initProgress delegFolder = initFromFile <|> initNew
+    where
+        initFromFile = do
+            Just (t, p) <- loadMostRecentFile delegFolder "delegatorsV2_"
+            T.putStrLn $ "Time of most recent progress file:" .< t
+            pure (p, t)
+        initNew = do
+            putStrLn "No progress file found."
+            pure (Progress Nothing [], Time.UTCTime (toEnum 0) 0)
+
+findDeleg ::
+    ( Monad m
+    , AuxillaryEnvOf api ~ DelegationEnv
+    , MonadBlockfrost (AppT api m)
+    , MonadMaestro (AppT api m)
+    ) => TxId -> AppT api m (Maybe Delegation)
 findDeleg txId = runMaybeT $ do
-    DelegationEnv{..} <- ask
+    DelegationEnv{..} <- lift getAuxillaryEnv
     TxDetailsResponse{..} <- MaybeT $ Maestro.getTxDetails txId
     MaybeT $ fmap (listToMaybe . catMaybes) $ forM tdrOutputs $ \TxDetailsOutput{..} -> runMaybeT $ do
         stakeKey  <- hoistMaybe $ getStakeKey tdoAddress
@@ -171,13 +161,10 @@ findDeleg txId = runMaybeT $ do
             DatumInBody da -> pure da
         ["ENCOINS", "Delegate", skBbs, ipBbs] <- hoistMaybe $ fromBuiltinData dat
         let ipAddr = fromBuiltin $ decodeUtf8 ipBbs
-        when dEnvCheckSig $ guard $ PubKeyHash skBbs `elem` tdrAdditionalSigners && isValidIp ipAddr
+        when envCheckSig $ guard $ PubKeyHash skBbs `elem` tdrAdditionalSigners && isValidIp ipAddr
         pure $ Delegation (addressCredential tdoAddress) stakeKey (TxOutRef tdoTxHash tdoIndex) tdrSlot ipAddr
     where
         hoistMaybe = MaybeT . pure
-
-getBalances :: MonadMaestro m => CurrencySymbol -> TokenName -> m (Map PubKeyHash Integer)
-getBalances = Maestro.getAccountAddressesHoldingAssets
 
 isValidIp :: Text -> Bool
 isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)

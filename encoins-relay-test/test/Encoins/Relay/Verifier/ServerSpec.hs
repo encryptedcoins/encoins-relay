@@ -1,11 +1,13 @@
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Encoins.Relay.Verifier.ServerSpec where
 
-import           Cardano.Server.Client.Handle  (HasServantClientEnv)
-import           Cardano.Server.Config         (decodeOrErrorFromFile)
+import           Cardano.Server.Client.Client  (HasServantClientEnv)
+import           Cardano.Server.Config         (Config (..), HasCreds, decodeOrErrorFromFile)
+import           Cardano.Server.Internal       (mkServantClientEnv)
 import           Control.Monad                 (replicateM)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Either                   (isLeft)
@@ -17,8 +19,9 @@ import           ENCOINS.Core.OffChain         (EncoinsMode (..), mkEncoinsRedee
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, hashRedeemer)
 import           Encoins.Relay.Client.Client   (secretsToReqBody, termsToSecrets)
 import           Encoins.Relay.Client.Secrets  (randomMintTerm)
-import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVerifierClientEnv, verifierClient)
-import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifierConfig (..))
+import           Encoins.Relay.Server.Server   (EncoinsApi)
+import           Encoins.Relay.Verifier.Client (VerifierClientError (..), verifierClient)
+import           Encoins.Relay.Verifier.Server (VerifierApi, VerifierApiError (..), VerifierConfig (..))
 import           Internal                      (runEncoinsServerM)
 import           PlutusAppsExtra.Utils.Crypto  (sign)
 import           PlutusTx.Extra.ByteString     (toBytes)
@@ -26,10 +29,10 @@ import           PlutusTx.Prelude              (sha2_256)
 import           System.Random                 (randomRIO)
 import           Test.Hspec                    (Expectation, Spec, describe, it, runIO, shouldBe, shouldSatisfy)
 
-spec :: Spec
+spec :: HasCreds => Spec
 spec = describe "encoins-verifier" $ do
-    VerifierConfig{..} <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/verifierConfig.json"
-    cEnv             <- runIO $ mkVerifierClientEnv cHost cPort
+    Config {..} <- runIO $ decodeOrErrorFromFile @(Config VerifierApi) "encoins-relay-test/test/configuration/verifierConfig.json"
+    cEnv             <- runIO $ mkServantClientEnv cPort cHost cHyperTextProtocol
     bulletproofSetup <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/bulletproof_setup.json"
 
     let ?mode = WalletMode

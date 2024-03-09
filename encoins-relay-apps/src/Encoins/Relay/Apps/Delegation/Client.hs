@@ -8,8 +8,8 @@
 
 module Encoins.Relay.Apps.Delegation.Client where
 
-import           Cardano.Server.Client.Handle           (HasServantClientEnv)
-import           Cardano.Server.Config                  (decodeOrErrorFromFile)
+import           Cardano.Server.Client.Client           (HasServantClientEnv)
+import           Cardano.Server.Config                  (decodeOrErrorFromFile, Config (..))
 import           Cardano.Server.Internal                (mkServantClientEnv)
 import           Control.Exception                      (Exception)
 import           Data.Bifunctor                         (Bifunctor (..))
@@ -23,9 +23,8 @@ import           Data.String                            (IsString (..))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
 import           Data.Text.Encoding                     (decodeUtf8')
-import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..))
 import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError, GetCurrentServers, GetDelegationInfo,
-                                                         GetServerDelegators, GetServers, creds, readDelegationServerError)
+                                                         GetServerDelegators, GetServers, creds, readDelegationServerError, DelegApi)
 import           Ledger                                 (Address)
 import           PlutusAppsExtra.Utils.Address          (bech32ToAddress)
 import           Servant.Client                         (ClientError (FailureResponse), ClientM, ResponseF (Response), client,
@@ -34,7 +33,8 @@ import           System.Environment                     (getArgs)
 
 main :: FilePath -> IO ()
 main delegConfigFp = do
-    DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
+    Config{..} <-decodeOrErrorFromFile @(Config DelegApi) delegConfigFp
+    -- DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     let ?creds = creds
     clientEnv <- mkServantClientEnv cPort cHost cHyperTextProtocol
     let ?servantClientEnv = clientEnv

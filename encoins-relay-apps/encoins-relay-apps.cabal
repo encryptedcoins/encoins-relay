@@ -84,6 +84,7 @@ library
       text                                   -any,
       time                                   -any,
       transformers                           -any,
+      unliftio                               -any,
       warp                                   -any,
       warp-tls                               -any,
     hs-source-dirs: src

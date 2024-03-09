@@ -1,18 +1,31 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DerivingVia                #-}
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Encoins.Relay.Server.Status where
 
 import qualified CSL
 import           CSL.Class                     (ToCSL (..))
-import           Cardano.Server.Error          (ConnectionError, Envelope, IsCardanoServerError (..), toEnvelope)
-import           Cardano.Server.Internal       (AuxillaryEnvOf, ServerM, getNetworkId)
+import           Cardano.Server.Error          (ConnectionError, IsCardanoServerError (..))
+import           Cardano.Server.Error.Servant  (Throws)
+import           Cardano.Server.Handler        (wrapHandler)
+import           Cardano.Server.Internal       (AuxillaryEnvOf, ServerM)
 import           Control.Arrow                 (Arrow ((&&&)))
 import           Control.Exception             (throw)
 import           Control.Lens                  ((^.))
@@ -23,19 +36,27 @@ import           Data.Aeson                    (FromJSON (..), ToJSON (..))
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe)
 import           ENCOINS.Core.OnChain          (minAdaTxOutInLedger)
-import           Encoins.Relay.Server.Internal (EncoinsRelayEnv, getEncoinsSymbol, getLedgerUtxos)
+import           Encoins.Relay.Server.Internal (EncoinsRelayEnv (..), getEncoinsSymbol, getLedgerUtxos)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (decoratedTxOutPlutusValue)
 import qualified Plutus.Script.Utils.Ada       as Ada
 import qualified Plutus.Script.Utils.Value     as P
+import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
+import           Servant                       (JSON, Post, ReqBody, type (:>))
 import           System.Random                 (Random (..))
+
+type StatusApi = "status"
+    :> Throws ConnectionError
+    :> Throws EncoinsStatusError
+    :> ReqBody '[JSON] EncoinsStatusReqBody
+    :> Post '[JSON] EncoinsStatusResult
 
 data EncoinsStatusReqBody
     -- | Get the maximum amount of ada that can be taken from a single utxo bound to a ledger address.
     = MaxAdaWithdraw
     -- | Get all ledger utxos containing 6 or fewer tokens (including ada) and at least one encoins token.
     | LedgerEncoins
-    deriving (Show, Eq, Generic, FromJSON, ToJSON)
+    deriving (Show, Eq, Enum, Generic, FromJSON, ToJSON)
 
 instance Read EncoinsStatusReqBody where
     readsPrec _ = \case
@@ -63,14 +84,15 @@ instance IsCardanoServerError EncoinsStatusError where
     errMsg  = \case
         EmptyLedger        -> "Ledger doesn't have any utxos."
         CslConversionError -> "Can't convert utxos to csl."
+    restore 422 "Ledger doesn't have any utxos." = Just EmptyLedger
+    restore 422 "Can't convert utxos to csl."    = Just CslConversionError
+    restore _ _ = Nothing
 
-type EncoinsStatusErrors = '[ConnectionError, EncoinsStatusError]
-
-encoinsStatusHandler :: AuxillaryEnvOf api ~ EncoinsRelayEnv =>
-    EncoinsStatusReqBody -> ServerM api (Envelope EncoinsStatusErrors EncoinsStatusResult)
-encoinsStatusHandler = \case
-    MaxAdaWithdraw -> toEnvelope getMaxAdaWithdraw
-    LedgerEncoins  -> toEnvelope getLedgerEncoins
+encoinsStatusHandler :: (AuxillaryEnvOf api ~ EncoinsRelayEnv) =>
+    EncoinsStatusReqBody -> ServerM api EncoinsStatusResult
+encoinsStatusHandler req = wrapHandler @StatusApi $ case req of
+    MaxAdaWithdraw -> getMaxAdaWithdraw
+    LedgerEncoins  -> getLedgerEncoins
 
 getMaxAdaWithdraw :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
 getMaxAdaWithdraw = do
@@ -79,7 +101,7 @@ getMaxAdaWithdraw = do
     let ada = maximum . map (Ada.fromValue . decoratedTxOutPlutusValue) $ Map.elems utxos
     pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger $ toInteger ada
 
-getLedgerEncoins :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
+getLedgerEncoins :: (AuxillaryEnvOf api ~ EncoinsRelayEnv) => ServerM api EncoinsStatusResult
 getLedgerEncoins = do
     ecs       <- getEncoinsSymbol
     networkId <- getNetworkId

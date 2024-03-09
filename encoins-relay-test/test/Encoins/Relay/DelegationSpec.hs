@@ -3,7 +3,7 @@
 module Encoins.Relay.DelegationSpec where
 
 import           Cardano.Api                            (NetworkId (Testnet), NetworkMagic (NetworkMagic))
-import           Cardano.Server.Client.Handle           (HasServantClientEnv)
+import           Cardano.Server.Client.Client           (HasServantClientEnv)
 import           Cardano.Server.Utils.Logger            (mutedLogger)
 import           Cardano.Server.Utils.Wait              (waitTime)
 import qualified Control.Concurrent                     as C
@@ -12,8 +12,7 @@ import qualified Data.Map                               as Map
 import           Data.Maybe                             (listToMaybe)
 import           Encoins.Relay.Apps.Delegation.Client   (DelegationClientError (DelegationServerError), currentServersClient,
                                                          serverDelegatesClient, serversClient)
-import           Encoins.Relay.Apps.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..),
-                                                         runDelegationM)
+import           Encoins.Relay.Apps.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..))
 import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError (..), runDelegationServer)
 import           System.Directory                       (setCurrentDirectory)
 import           Test.Hspec                             (Expectation, Spec, context, describe, hspec, it, shouldBe)

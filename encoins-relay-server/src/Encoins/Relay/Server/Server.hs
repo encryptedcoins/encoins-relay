@@ -1,89 +1,112 @@
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE DeriveAnyClass       #-}
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE DerivingVia          #-}
-{-# LANGUAGE EmptyDataDeriving    #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE ImplicitParams       #-}
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DerivingVia           #-}
+{-# LANGUAGE EmptyDataDeriving     #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE ImplicitParams        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Encoins.Relay.Server.Server where
 
-import           CSL                            (TransactionInputs)
-import qualified CSL
-import           CSL.Class                      (FromCSL (..))
-import           Cardano.Server.Client.Internal (statusC)
-import           Cardano.Server.Config          (Config (..), Creds)
-import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
-import           Cardano.Server.Input           (InputContext (..))
-import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM,
-                                                 getAuxillaryEnv, mkServantClientEnv, mkServerClientEnv)
-import           Cardano.Server.Main            (ServerApi)
-import           Cardano.Server.Tx              (mkTx)
-import           Cardano.Server.Utils.Logger    ((.<))
-import           Control.Arrow                  ((&&&))
-import           Control.Exception              (Exception, throw)
-import           Control.Monad                  (void)
-import           Control.Monad.Catch            (MonadThrow (..))
-import           Control.Monad.IO.Class         (MonadIO (..))
-import           Data.Aeson                     (FromJSON, ToJSON)
-import           Data.Default                   (def)
-import           Data.FileEmbed                 (embedFileIfExists)
-import qualified Data.Map                       as Map
-import           Data.Maybe                     (fromMaybe)
-import           Data.Text                      (Text)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..), beaconTx, delegateTx, encoinsSendTx, encoinsTx,
-                                                 postEncoinsPolicyTx, postLedgerValidatorTx, stakeOwnerTx)
-import           ENCOINS.Core.OnChain           (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress,
-                                                 minMaxTxOutValueInLedger)
-import           Encoins.Relay.Server.Config    (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
-                                                 treasuryWalletAddress)
-import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (..), getEncoinsProtocolParams, getTrackedAddresses)
-import           Encoins.Relay.Server.Status    (EncoinsStatusErrors, EncoinsStatusReqBody (MaxAdaWithdraw), EncoinsStatusResult,
-                                                 encoinsStatusHandler)
-import           Encoins.Relay.Server.Version   (ServerVersion, versionHandler)
-import           Encoins.Relay.Verifier.Client  (VerifierClientError (..), verifierClient)
-import           Encoins.Relay.Verifier.Server  (VerifierApiError (..))
-import           GHC.Generics                   (Generic)
-import           Ledger                         (Address, TxId (TxId), TxOutRef (..))
-import           PlutusAppsExtra.IO.ChainIndex  (ChainIndexProvider (..), getMapUtxoFromRefs)
-import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletUtxos)
-import           PlutusAppsExtra.Types.Tx       (TransactionBuilder, txBuilderRequirements)
-import qualified Servant.Client                 as Servant
+import           Cardano.Node.Emulator                    (Params (..), pParamsFromProtocolParams)
+import           Cardano.Server.Config                    (Config (..), Creds, decodeOrErrorFromFile, withDefault, AuxillaryConfigOf)
+import           Cardano.Server.Endpoints.Ping            (PingApi, pingHandler)
+import           Cardano.Server.Endpoints.Submit          (SubmitTxApi, submitTxHandler)
+import           Cardano.Server.Endpoints.Utxos           (UtxosApi, utxosHandler)
+import           Cardano.Server.Endpoints.Version         (VersionApi)
+import           Cardano.Server.Input                     (InputContext (..))
+import           Cardano.Server.Internal                  (AuxillaryEnvOf, ServerM, mkServantClientEnv, mkServerClientEnv, AppT)
+import           Cardano.Server.Tx                        (mkTx)
+import           Control.Lens                             ((^?))
+import           Control.Monad                            (void)
+import           Control.Monad.Catch                      (MonadThrow (..))
+import           Control.Monad.IO.Class                   (MonadIO (..))
+import           Data.Aeson                               (fromJSON)
+import qualified Data.Aeson                               as J
+import           Data.Aeson.Lens                          (key)
+import           Data.Data                                (Proxy (..))
+import           Data.Default                             (def)
+import           Data.FileEmbed                           (embedFileIfExists)
+import           Data.Functor                             ((<&>))
+import qualified Data.Map                                 as Map
+import           Data.Text                                (Text)
+import           ENCOINS.Core.OffChain                    (beaconTx, encoinsSendTx, postEncoinsPolicyTx, postLedgerValidatorTx,
+                                                           stakeOwnerTx)
+import           ENCOINS.Core.OnChain                     (ledgerValidatorAddress, minMaxTxOutValueInLedger)
+import           Encoins.Relay.Server.Config              (EncoinsRelayConfig (..), referenceScriptSalt)
+import           Encoins.Relay.Server.Endpoints.Tx.New    (NewTxApi, newTxHandler)
+import           Encoins.Relay.Server.Endpoints.Tx.Server (QueueRef, ServerTxApi, serverTxHandler)
+import           Encoins.Relay.Server.Internal            (EncoinsRelayEnv (..), getEncoinsProtocolParams)
+import           Encoins.Relay.Server.Status              (StatusApi, encoinsStatusHandler)
+import           Encoins.Relay.Server.Version             (versionHandler)
+import           Ledger                                   (TxId (TxId), TxOutRef (..))
+import qualified PlutusAppsExtra.IO.ChainIndex            as ChainIndex
+import qualified PlutusAppsExtra.IO.Tx                    as Tx
+import           PlutusAppsExtra.IO.Wallet                (getWalletAddr, getWalletUtxos)
+import qualified PlutusAppsExtra.IO.Wallet                as Wallet
+import           Servant                                  (type (:<|>) ((:<|>)))
+import           Servant.Client                           (client)
+import qualified Servant.Client                           as Servant
+import           Servant.Server                           (HasServer (..), ServerT)
+import           System.Random                            (randomIO)
 
-mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
-mkServerHandle c = do
-    EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
+encoinsServer :: FilePath -> QueueRef -> ServerT EncoinsApi (ServerM EncoinsApi)
+encoinsServer nodeFilePath queueRef
+    = pingHandler
+    :<|> versionHandler
+    :<|> utxosHandler
+    :<|> newTxHandler
+    :<|> serverTxHandler queueRef
+    :<|> submitTxHandler nodeFilePath
+    :<|> encoinsStatusHandler
+
+loadEncoinsEnv :: Config EncoinsApi -> IO EncoinsRelayEnv
+loadEncoinsEnv Config{cAuxilaryConfig = EncoinsRelayConfig{..}} = do
     let ?creds = embedCreds
-    verifierClientEnv      <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
-    pure $ ServerHandle
-        Kupo
-        (EncoinsRelayEnv
-            cRefStakeOwner
-            cRefBeacon
-            cVerifierPkh
-            verifierClientEnv
-            cDelegationCurrencySymbol
-            cDelegationTokenName
-            cDelegationServerHost
-            cDelegationServerPort
-            cDelegationServerProtocol
-            cDelegationIp
-        )
-        getTrackedAddresses
-        txBuilders
-        (pure ())
-        processRequest
-        encoinsStatusHandler
-        checkStatusEndpoint
-        versionHandler
+    envVerifierClientEnv  <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
+    pp <- decodeOrErrorFromFile cProtocolParametersFile
+    slotConfig <- do
+        val <- decodeOrErrorFromFile @J.Value cSlotConfigFile
+        case val ^? key "cicSlotConfig" <&> fromJSON of
+            Just (J.Success sc) -> pure sc
+            _                   -> error "There is no slot config in chain index config file."
+    envWallet <- sequence $ decodeOrErrorFromFile <$> cWalletFile
+    envBlockfrostToken <- sequence $ decodeOrErrorFromFile <$> cBlockfrostTokenFilePath
+    envMaestroToken <- sequence $ decodeOrErrorFromFile <$> cMaestroTokenFilePath
+    envWalletProvider <- withDefault Wallet.Cardano cWalletProvider
+    envChainIndexProvider <- withDefault ChainIndex.Kupo cChainIndexProvider
+    envTxProvider <- withDefault Tx.Cardano cTxProvider
+    envDiagnosticsInterval <- withDefault 1800 cDiagnosticsInteval
+    pure $ EncoinsRelayEnv
+        { envRefStakeOwner            = cRefStakeOwner
+        , envRefBeacon                = cRefBeacon
+        , envVerifierPKH              = cVerifierPkh
+        , envDelegationCurrencySymbol = cDelegationCurrencySymbol
+        , envDelegationTokenName      = cDelegationTokenName
+        , envDelegationSeverHost      = cDelegationServerHost
+        , envDelegationServerPort     = cDelegationServerPort
+        , envDelegationServerProtocol = cDelegationServerProtocol
+        , envDelegationIp             = cDelegationIp
+        , envCollateral               = cCollateral
+        , envProtocolParams           = Params slotConfig (pParamsFromProtocolParams pp) cNetworkId
+        , envMinUtxosNumber           = cMaxUtxosNumber
+        , envMaxUtxosNumber           = cMinUtxosNumber
+        , envNetworkId                = cNetworkId
+        , ..
+        }
 
 -- Embed https cert and key files on compilation
 embedCreds :: Creds
@@ -92,40 +115,17 @@ embedCreds =
         certCred = $(embedFileIfExists "../certificate.pem")
     in (,) <$> certCred <*> keyCred
 
-type EncoinsApi = ServerApi
-    (InputOfEncoinsApi, TransactionInputs)
-    EncoinsTxApiError
-    EncoinsStatusReqBody
-    EncoinsStatusErrors
-    EncoinsStatusResult
-    ServerVersion
+type EncoinsApi
+    =    PingApi
+    :<|> VersionApi
+    :<|> UtxosApi
+    :<|> NewTxApi
+    :<|> ServerTxApi
+    :<|> SubmitTxApi
+    :<|> StatusApi
 
-type instance InputOf        EncoinsApi = InputOfEncoinsApi
-type instance AuxillaryEnvOf EncoinsApi = EncoinsRelayEnv
-
-data InputOfEncoinsApi
-    = InputRedeemer   EncoinsRedeemer EncoinsMode
-    | InputSending    Address CSL.Value Address
-    | InputDelegation Address Text
-    deriving (Show, Generic, FromJSON, ToJSON)
-
-data EncoinsTxApiError
-    = CorruptedExternalInputs
-    | CorruptedValue
-    | VerifierError VerifierApiError
-    | UnavailableVerifier Servant.ClientError
-    deriving (Show, Exception)
-
-instance IsCardanoServerError EncoinsTxApiError where
-    errStatus = \case
-        UnavailableVerifier{} -> toEnum 500
-        _                     -> toEnum 422
-    errMsg = \case
-        CorruptedExternalInputs      -> "The request contained corrupted external transaction inputs data."
-        CorruptedValue               -> "The request contained corrupted value data."
-        VerifierError IncorrectInput -> "The request contained incorrect public input."
-        VerifierError IncorrectProof -> "The request contained incorrect proof."
-        UnavailableVerifier err      -> "The verifier is unavailable.\nDetails:" .< err
+type instance AuxillaryConfigOf EncoinsApi = EncoinsRelayConfig
+type instance AuxillaryEnvOf    EncoinsApi = EncoinsRelayEnv
 
 serverSetup :: ServerM EncoinsApi ()
 serverSetup = void $ do
@@ -144,51 +144,10 @@ serverSetup = void $ do
     mkTx [] (InputContextServer def) [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt]
     mkTx [] (InputContextServer def) [encoinsSendTx encoinsProtocolParams (ledgerValidatorAddress encoinsProtocolParams) minMaxTxOutValueInLedger]
 
-processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
-processRequest req = sequence $ case req of
-    r@(InputRedeemer ((_, changeAddr, _), _, _, _) mode, _) -> mkContext mode changeAddr <$> r
-    s@(InputSending _  _ changeAddr, _)                     -> mkContext WalletMode changeAddr <$> s
-    d@(InputDelegation changeAddr _, _)                     -> mkContext WalletMode changeAddr <$> d
-    where
-        mkContext mode addr inputsCSL = do
-            builders <- txBuilders (fst req)
-            reqs     <- liftIO $ txBuilderRequirements builders
-            case mode of
-                WalletMode -> do
-                    utxos    <- getMapUtxoFromRefs reqs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
-                    pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
-                LedgerMode -> do
-                    utxos    <- getWalletUtxos reqs
-                    InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
-
-txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
-txBuilders (InputRedeemer red mode) = do
-    encoinsProtocolParams <- getEncoinsProtocolParams
-    relayWalletAddress <- getWalletAddr
-    red' <- verifyRedeemer red
-    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) encoinsProtocolParams red' mode]
-
-txBuilders (InputSending addr valCSL _) = do
-    encoinsProtocolParams <- getEncoinsProtocolParams
-    pure [encoinsSendTx encoinsProtocolParams addr $ fromMaybe (throw CorruptedValue) $ fromCSL valCSL]
-
-txBuilders (InputDelegation addr ipAddr) = do
-    (cs, tokenName) <- (envDelegationCurrencySymbol &&& envDelegationTokenName) <$> getAuxillaryEnv
-    pure [delegateTx cs tokenName addr ipAddr]
-
-verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
-verifyRedeemer red = do
-        verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
-        let ?servantClientEnv = verifierClientEnv
-        liftIO (verifierClient red) >>= either rethrow pure
-    where
-        rethrow = \case
-            VerifierApiError    verifierErr -> throw $ VerifierError verifierErr
-            VerifierClientError clientErr   -> throw $ UnavailableVerifier clientErr
-
 -- Check if status endpoint is alive
-checkStatusEndpoint :: ServerM EncoinsApi (Either Text ())
+checkStatusEndpoint :: (MonadThrow m, MonadIO m) => AppT EncoinsApi m (Either Text ())
 checkStatusEndpoint = do
     env <- mkServerClientEnv
-    res <- liftIO $ Servant.runClientM (statusC @EncoinsApi MaxAdaWithdraw) env
+    req <- randomIO
+    res <- liftIO $ Servant.runClientM (client (Proxy @StatusApi) req) env
     either throwM (const $ pure $ Right ()) res

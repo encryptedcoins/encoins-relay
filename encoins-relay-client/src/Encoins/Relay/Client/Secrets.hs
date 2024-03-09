@@ -1,18 +1,20 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DeriveAnyClass  #-}
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE ImplicitParams  #-}
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImplicitParams    #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Encoins.Relay.Client.Secrets where
 
-import           Cardano.Server.Internal       (ServerM)
+import           Cardano.Server.Internal       (AppT)
 import           Control.Monad                 (replicateM)
 import           Control.Monad.Extra           (ifM)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Control.Monad.State           (MonadState (..), evalStateT, modify)
 import           Data.Aeson                    (FromJSON, ToJSON, eitherDecode, encode)
+import           Data.Bool                     (bool)
 import qualified Data.ByteString.Lazy          as LBS
 import           Data.Either.Extra             (eitherToMaybe)
 import           Data.Functor                  ((<&>))
@@ -23,19 +25,19 @@ import qualified Data.Time                     as Time
 import           ENCOINS.BaseTypes             (FieldElement, MintingPolarity (..))
 import           ENCOINS.Bulletproofs          (BulletproofSetup, Secret (..), fromSecret)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..))
-import           Encoins.Relay.Client.Opts     (EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Internal (getLedgerAddress, getEncoinsSymbol)
+import           Encoins.Relay.Server.Internal (EncoinsRelayEnv (..), getEncoinsSymbol, getLedgerAddress)
 import           Encoins.Relay.Server.Server   (EncoinsApi)
 import           GHC.Generics                  (Generic)
 import           Ledger                        (fromCardanoValue)
-import           Plutus.Script.Utils.Ada       (lovelaceOf)
+import           Plutus.Script.Utils.Ada       (Ada (..), lovelaceOf)
 import           Plutus.V2.Ledger.Api          (TokenName (..))
 import qualified Plutus.V2.Ledger.Api          as P
 import           PlutusAppsExtra.IO.ChainIndex (getValueAt)
 import           PlutusAppsExtra.IO.Wallet     (getWalletValue)
 import qualified PlutusTx.AssocMap             as PAM
 import           System.Directory              (listDirectory, removeFile)
-import           System.Random                 (randomIO, randomRIO)
+import           System.Random                 (Random (..), randomIO, randomRIO)
+import Control.Monad.Catch
 
 type HasEncoinsModeAndBulletproofSetup = (?mode :: EncoinsMode, ?bulletproofSetup :: BulletproofSetup)
 
@@ -75,7 +77,7 @@ mkSecretFile Secret{..} pol = do
         cs   = ClientSecret secretGamma secretV pol name False ct ?mode
     liftIO $ LBS.writeFile (clientSecretToFilePath cs) $ encode cs
 
-confirmTokens :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi ()
+confirmTokens :: (HasEncoinsModeAndBulletproofSetup, MonadIO m, MonadCatch m) => AppT EncoinsApi m ()
 confirmTokens = do
     tokens <- getEncoinsTokensFromMode
     (confirmMint, confirmBurn) <- partition ((== Mint) . csPolarity) . filter ((== False) . csConfirmed)
@@ -94,7 +96,7 @@ confirmFile fp = liftIO $ readSecretFile fp >>= \case
     Just sf -> LBS.writeFile fp $ encode sf{csConfirmed = True}
     Nothing -> removeFile fp
 
-getEncoinsTokensFromMode :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi [TokenName]
+getEncoinsTokensFromMode :: (HasEncoinsModeAndBulletproofSetup, MonadIO m, MonadCatch m) =>  AppT EncoinsApi m [TokenName]
 getEncoinsTokensFromMode = do
     encoinsSymb <- getEncoinsSymbol
     let filterCS cs tokenName = if cs == encoinsSymb then Just tokenName else Nothing
@@ -104,7 +106,7 @@ getEncoinsTokensFromMode = do
 
 -- It is possible to send 5 tokens, but in this case, the size of the tx will
 -- most likely not fit into the utxo size restrictions.
-genTerms :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi [EncoinsRequestTerm]
+genTerms :: (HasEncoinsModeAndBulletproofSetup, MonadIO m) => AppT EncoinsApi m [EncoinsRequestTerm]
 genTerms = do
     secrets <- map csName . filter (\ClientSecret{..} -> csPolarity == Mint && csConfirmed) <$> readSecretFiles
     l <- randomRIO (1, 4)
@@ -122,3 +124,22 @@ randomMintTerm = randomMintTermWithUB 100
 
 randomMintTermWithUB :: MonadIO m => Integer -> m EncoinsRequestTerm
 randomMintTermWithUB upperBound = randomRIO (1, upperBound) <&> RPMint . lovelaceOf
+
+data EncoinsRequestTerm
+    = RPMint Ada
+    | RPBurn (Either Secret FilePath)
+    deriving (Show, Eq, Generic, ToJSON)
+
+instance Random EncoinsRequestTerm where
+    random g =
+        let (b, g')   = random g
+            (a, g'')  = random g'
+            (s, g''') = random g''
+        in bool (RPMint $ Lovelace a, g'') (RPBurn $ Left s, g''') b
+    randomR _ = random
+
+instance Random [EncoinsRequestTerm] where
+    random g  =
+        let (reqTerms, gNew) = foldr (\_ (lst, g') -> let (e, g'') = random g' in (e:lst, g'')) ([], g) [1 :: Integer .. 5]
+        in (reqTerms, gNew)
+    randomR _ = random

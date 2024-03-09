@@ -51,7 +51,9 @@ library
       encoins-relay-server                   -any,
       encoins-relay-verifier                 -any,
       extra                                  -any,
+      exceptions                             -any,
       hex-text                               -any,
+      mmorph                                 -any,
       mtl                                    -any,
       optparse-applicative                   -any,
       plutus-apps-extra                      -any,
@@ -65,6 +67,7 @@ library
       servant-server                         -any,
       text                                   -any,
       time                                   -any,
+      QuickCheck                             -any,
 
     hs-source-dirs: src
 

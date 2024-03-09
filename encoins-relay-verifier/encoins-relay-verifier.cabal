@@ -47,10 +47,13 @@ library
         bytestring                             -any,
         cardano-server                         -any,
         cardano-server-client                  -any,
+        data-default                           -any,
         encoins-bulletproofs                   -any,
         encoins-core                           -any,
         exceptions                             -any,
         file-embed                             -any,
+        from-sum                               -any,
+        gitrev                                 -any,
         http-client                            -any,
         mtl                                    -any,
         plutus-apps-extra                      -any,
@@ -62,7 +65,10 @@ library
         servant-client                         -any,
         warp                                   -any,
         warp-tls                               -any,
+        world-peace                            -any,
     hs-source-dirs: src
+    other-modules: Paths_encoins_relay_verifier
+    autogen-modules: Paths_encoins_relay_verifier
 
 executable encoins-relay-verifier
   default-language: Haskell2010

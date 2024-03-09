@@ -37,7 +37,9 @@ test-suite encoins-relay-test
   Other-Modules:
     Encoins.Relay.DelegationSpec
     Encoins.Relay.Server.ServerSpec
+    Encoins.Relay.Server.SumbitTxSpec
     Encoins.Relay.Server.StatusSpec
+    Encoins.Relay.Server.UtxosSpec
     Encoins.Relay.Verifier.ServerSpec
     Internal
   build-depends:
@@ -67,7 +69,9 @@ test-suite encoins-relay-test
     plutus-tx                              -any,
     plutus-tx-extra                        -any,
     random                                 -any,
+    servant-server                         -any,
     servant-client                         -any,
     text                                   -any,
     time                                   -any,
     QuickCheck                             -any,
+    world-peace                            -any,

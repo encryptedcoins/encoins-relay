@@ -5,78 +5,66 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams             #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiWayIf                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Encoins.Relay.Verifier.Server where
 
-import           Cardano.Server.Config       (CardanoServerConfig (..), HyperTextProtocol (..), decodeOrErrorFromFile)
-import           Cardano.Server.Error        (IsCardanoServerError (..))
-import           Cardano.Server.Main         (runCardanoServer)
-import           Cardano.Server.Utils.Logger (HasLogger (..), Logger, logMsg, logger)
-import           Control.Exception           (Exception, throw)
-import           Control.Monad               (unless)
-import           Control.Monad.Catch         (MonadCatch, MonadThrow (..), handle)
-import           Control.Monad.Except        (MonadError)
-import           Control.Monad.IO.Class      (MonadIO)
-import           Control.Monad.Reader        (MonadReader, ReaderT (..), asks)
-import           Data.Aeson                  (FromJSON (..), genericParseJSON)
-import           Data.Aeson.Casing           (aesonPrefix, snakeCase)
-import           Data.ByteString             (ByteString)
-import           Data.FileEmbed              (embedFileIfExists)
-import           Data.Maybe                  (fromMaybe)
-import           Data.Text                   (Text)
-import           ENCOINS.BaseTypes           (toGroupElement)
-import           ENCOINS.Bulletproofs        (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
-import           ENCOINS.Core.OffChain       (mkEncoinsRedeemerOnChain)
-import           ENCOINS.Core.OnChain        (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           GHC.Generics                (Generic)
-import           PlutusTx.Extra.ByteString   (toBytes)
-import           PlutusTx.Prelude            (BuiltinByteString, sha2_256)
-import           Servant                     (Get, JSON, NoContent (..), ReqBody, ServerError, StdMethod (GET), UVerb, Union,
-                                              WithStatus (..), respond, type (:>), (:<|>) ((:<|>)))
+import           Cardano.Server.Config            (Creds, decodeOrErrorFromFile, Config (..), AuxillaryConfigOf)
+import           Cardano.Server.EndpointName      (EndpointWithName)
+import           Cardano.Server.Endpoints.Ping    (PingApi, pingHandler)
+import           Cardano.Server.Endpoints.Version (VersionApi, versionEndpointHandler)
+import           Cardano.Server.Error             (IsCardanoServerError (..), Throws)
+import           Cardano.Server.Handler           (wrapHandler)
+import           Cardano.Server.Internal          (AuxillaryEnvOf, ServerM, loadEnv)
+import           Cardano.Server.Main              (runServer, RunSettings (..))
+import           Control.Exception                (Exception (..), throw)
+import           Control.Monad                    (unless)
+import           Control.Monad.Catch              (MonadThrow (..))
+import           Data.Aeson                       (FromJSON (..), genericParseJSON)
+import           Data.Aeson.Casing                (aesonPrefix, snakeCase)
+import           Data.Default                     (Default (..))
+import           Data.FileEmbed                   (embedFileIfExists)
+import           Data.Maybe                       (fromMaybe)
+import           Development.GitRev               (gitCommitDate, gitHash)
+import           ENCOINS.BaseTypes                (toGroupElement)
+import           ENCOINS.Bulletproofs             (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
+import           ENCOINS.Core.OffChain            (mkEncoinsRedeemerOnChain)
+import           ENCOINS.Core.OnChain             (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           GHC.Generics                     (Generic)
+import           Paths_encoins_relay_verifier     (version)
+import           PlutusTx.Extra.ByteString        (toBytes)
+import           PlutusTx.Prelude                 (BuiltinByteString, sha2_256)
+import           Servant                          (Get, JSON, ReqBody, type (:>), (:<|>) ((:<|>)))
 import qualified Servant
 
 runVerifierServer :: FilePath -> IO ()
 runVerifierServer verifierConfigFp = do
-        VerifierConfig{..} <- decodeOrErrorFromFile verifierConfigFp
-        bulletproofSetup   <- decodeOrErrorFromFile cBulletproofSetupFilePath
-        verifierPrvKey     <- decodeOrErrorFromFile cVerifierPrvKeyFilePath
-        let ?creds = creds
-        runCardanoServer @VerifierApi
-            VerifierConfig{..}
-            ((`runReaderT` env) . unVerifierM)
-            (verifierApi bulletproofSetup verifierPrvKey)
-            beforeMainLoop
-    where
-        env = VerifierEnv logger (Just "verifier.log")
-        beforeMainLoop = logMsg "Starting verifier server..."
+    c@Config {cAuxilaryConfig = VerifierConfig {..}} <- decodeOrErrorFromFile verifierConfigFp
+    bulletproofSetup   <- decodeOrErrorFromFile cBulletproofSetupFilePath
+    verifierPrvKey     <- decodeOrErrorFromFile cVerifierPrvKeyFilePath
+    let ?creds = creds
+    env <- loadEnv c ()
+    runServer @VerifierApi (verifierApi bulletproofSetup verifierPrvKey) env def
+        { rsServerName = "verifier server"
+        }
 
-creds :: Maybe (ByteString, ByteString)
+creds :: Creds
 creds = let keyCred  = $(embedFileIfExists "../key.pem")
             certCred = $(embedFileIfExists "../certificate.pem")
         in (,) <$> certCred <*> keyCred
 
-newtype VerifierM a = VerifierM {unVerifierM :: ReaderT VerifierEnv Servant.Handler a}
-    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadReader VerifierEnv, MonadError Servant.ServerError)
-
-instance HasLogger VerifierM where
-    getLogger = asks vEnvLogger
-    getLoggerFilePath = asks vEnvLoggerFp
-
-data VerifierEnv = VerifierEnv
-    { vEnvLogger   :: Logger VerifierM
-    , vEnvLoggerFp :: Maybe FilePath
-    }
+type instance AuxillaryEnvOf    VerifierApi = ()
+type instance AuxillaryConfigOf VerifierApi = VerifierConfig
 
 data VerifierConfig = VerifierConfig
-    { cHost                     :: Text
-    , cPort                     :: Int
-    , cHyperTextProtocol        :: HyperTextProtocol
-    , cVerifierPkh              :: BuiltinByteString
+    { cVerifierPkh              :: BuiltinByteString
     , cVerifierPrvKeyFilePath   :: FilePath
     , cBulletproofSetupFilePath :: FilePath
     } deriving (Generic)
@@ -84,41 +72,34 @@ data VerifierConfig = VerifierConfig
 instance FromJSON VerifierConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-instance CardanoServerConfig VerifierConfig where
-    configHost              = cHost
-    configPort              = cPort
-    configHyperTextProtocol = cHyperTextProtocol
-
 -------------------------------------------------- API --------------------------------------------------
 
-type VerifierApi = PingEnpoint :<|> VerifyEndpoint
+type VerifierApi
+    =    PingApi
+    :<|> VersionApi
+    :<|> VerifyEndpoint
 
-verifierApi :: BulletproofSetup -> BuiltinByteString -> VerifierM NoContent :<|> (EncoinsRedeemer -> VerifierM (Union VerifierApiResult))
-verifierApi bulletproofSetup verifierPrvKey = pingHandler :<|> verifierHandler bulletproofSetup verifierPrvKey
-
----------------------------------------------- Ping endpoint ----------------------------------------------
-
-type PingEnpoint = "ping" :> Get '[JSON] NoContent
-
-pingHandler :: VerifierM NoContent
-pingHandler = NoContent <$ logMsg "Received ping request."
+verifierApi :: BulletproofSetup -> BuiltinByteString -> Servant.ServerT VerifierApi (ServerM VerifierApi)
+verifierApi bulletproofSetup verifierPrvKey
+    =   pingHandler
+    :<|> versionEndpointHandler version $(gitHash) $(gitCommitDate)
+    :<|> verifierHandler bulletproofSetup verifierPrvKey
 
 --------------------------------------------- Verify endpoint ---------------------------------------------
 
-type VerifyEndpoint = "API" :> ReqBody '[JSON] EncoinsRedeemer :> UVerb 'GET '[JSON] VerifierApiResult
+type VerifyEndpoint = "API"
+    :> Throws VerifierApiError
+    :> ReqBody '[JSON] EncoinsRedeemer
+    :> Get '[JSON] EncoinsRedeemerOnChain
 
-type VerifierApiResult = '[WithStatus 200 EncoinsRedeemerOnChain, WithStatus 422 Text]
-
-verifierHandler :: BulletproofSetup -> BuiltinByteString -> EncoinsRedeemer -> VerifierM (Union VerifierApiResult)
-verifierHandler bulletproofSetup verifierPrvKey red@(par, input, proof, _) = handle errHandler $ do
+verifierHandler :: BulletproofSetup -> BuiltinByteString -> EncoinsRedeemer -> ServerM VerifierApi EncoinsRedeemerOnChain
+verifierHandler bulletproofSetup verifierPrvKey red@(par, input, proof, _) =
+    wrapHandler @(EndpointWithName "verify" VerifyEndpoint) $ do
     let bp   = parseBulletproofParams $ sha2_256 $ toBytes par
         v    = fst input
         ins  = map (\(bs, p) -> Input (fromMaybe (throw IncorrectInput) $ toGroupElement bs) p) $ snd input
     unless (verify bulletproofSetup bp v ins proof) $ throwM IncorrectProof
-    respond $ WithStatus @200 $ mkEncoinsRedeemerOnChain verifierPrvKey red
-    where
-        errHandler :: VerifierApiError -> VerifierM (Union VerifierApiResult)
-        errHandler = respond . WithStatus @422 . errMsg
+    pure $ mkEncoinsRedeemerOnChain verifierPrvKey red
 
 data VerifierApiError
     = IncorrectInput
@@ -130,3 +111,8 @@ instance IsCardanoServerError VerifierApiError where
     errMsg = \case
         IncorrectInput -> "The request contained incorrect public input."
         IncorrectProof -> "The request contained incorrect proof."
+    restore 422 = \case
+        "The request contained incorrect public input." -> Just IncorrectInput
+        "The request contained incorrect proof."        -> Just IncorrectProof
+        _                                               -> Nothing
+    restore _ = const Nothing

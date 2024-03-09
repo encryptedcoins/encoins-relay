@@ -40,6 +40,9 @@ library
       Encoins.Relay.Server.Api
       Encoins.Relay.Server.Config
       Encoins.Relay.Server.Delegation
+      Encoins.Relay.Server.Endpoints.Tx.Intenral
+      Encoins.Relay.Server.Endpoints.Tx.New
+      Encoins.Relay.Server.Endpoints.Tx.Server
       Encoins.Relay.Server.Internal
       Encoins.Relay.Server.Main
       Encoins.Relay.Server.Opts
@@ -52,6 +55,7 @@ library
       aeson-casing                           -any,
       bytestring                             -any,
       cardano-api                            -any,
+      cardano-node-emulator                  -any,
       cardano-server                         -any,
       cardano-server-client                  -any,
       containers                             -any,
@@ -68,6 +72,7 @@ library
       gitrev                                 -any,
       hex-text                               -any,
       lens                                   -any,
+      lens-aeson                             -any,
       mtl                                    -any,
       optparse-applicative                   -any,
       plutus-apps-extra                      -any,
@@ -83,7 +88,8 @@ library
       servant-server                         -any,
       servant-client                         -any,
       text                                   -any,
-      time                                   -any
+      time                                   -any,
+      unliftio                               -any,
     hs-source-dirs: src
     other-modules: Paths_encoins_relay_server
     autogen-modules: Paths_encoins_relay_server

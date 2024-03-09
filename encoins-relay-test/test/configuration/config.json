@@ -1,17 +1,28 @@
-{ "host"                     : "localhost"
-, "port"                     : 3000
-, "hyper_text_protocol"      : "HTTP"
-, "auxiliary_env_file"       : "encoins-relay-test/test/configuration/relayConfig.json"
-, "wallet_file"              : "encoins-relay-test/test/configuration/wallets/test-wallet.json"
-, "node_file_path"           : "../../../../encoins-tools/testnet-preprod/apps/cardano-node/node.sock"
-, "node_db_file_path"        : "../../../../encoins-tools/testnet-preprod/data/chain"
-, "kupo_db_file_path"        : "../../../../encoins-tools/testnet-preprod/data"
-, "min_utxos_number"         : 1
-, "max_utxos_number"         : 15
-, "network_id"               : {"tag" : "Testnet", "contents" : 1}
-, "collateral"               : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
-, "protocol_parameters_file" : "encoins-relay-test/test/configuration/protocol-parameters.json"
-, "chain_index"              : "Kupo"
-, "slot_config_file"         : "encoins-relay-test/test/configuration/slotConfig.json"
-, "active_endpoints"         : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status"]
+{ "host"                       : "localhost"
+, "port"                       : 3000
+, "hyper_text_protocol"        : "HTTP"
+, "wallet_file"                : "encoins-relay-test/test/configuration/wallets/test-wallet.json"
+, "node_file_path"             : "../../../../encoins-tools/testnet-preprod/apps/cardano-node/node.sock"
+, "node_db_file_path"          : "../../../../encoins-tools/testnet-preprod/data/chain"
+, "kupo_db_file_path"          : "../../../../encoins-tools/testnet-preprod/data"
+, "min_utxos_number"           : 1
+, "max_utxos_number"           : 15
+, "network_id"                 : {"tag" : "Testnet", "contents" : 1}
+, "collateral"                 : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
+, "protocol_parameters_file"   : "encoins-relay-test/test/configuration/protocol-parameters.json"
+, "chain_index"                : "Kupo"
+, "slot_config_file"           : "encoins-relay-test/test/configuration/slotConfig.json"
+, "active_endpoints"           : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status"]
+, "ref_stake_owner"            : {"txOutRefId"  : {"getTxId" : "0f27a9384e175a98784932813bc087fbfe10afbb87d4c2bae7c3da2357a0effc"}, "txOutRefIdx" : 5}
+, "ref_beacon"                 : {"txOutRefId"  : {"getTxId" : "f25655007d89a1459fc0b2933e89888a7955dc8560e0440cb371a5c0a45d5967"}, "txOutRefIdx" : 2}
+, "verifier_host"              : "localhost"
+, "verifier_port"              : 3001
+, "verifier_protocol"          : "HTTP"
+, "verifier_pkh"               : "7F04730FC0F75A7D20BEB8CD152B2B8571591282EC8E5A3FC266C52049A3A5C6"
+, "delegation_currency_symbol" : {"unCurrencySymbol" : "f2cbed8817eee9bfa37e80a0a2f4e0dfcf661bb1298003a2e77cb237"}
+, "delegation_token_name"      : {"unTokenName" : "ENCSDelegationTest"}
+, "delegation_server_host"     : "localhost"
+, "delegation_server_port"     : 3002
+, "delegation_server_protocol" : "HTTP"
+, "delegation_ip"              : "https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com/"
 }
