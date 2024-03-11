@@ -75,9 +75,6 @@ type ServerIpfsApi =
       :<|> "pin"
               :> ReqBody '[JSON] (AesKeyHash, [PinRequest])
               :> Post '[JSON] (Map AssetName StatusResponse)
-      :<|> "status"
-              :> ReqBody '[JSON] [AssetName]
-              :> Post '[JSON] (Map AssetName StatusResponse)
 
     --  :<|> "restore"
     --           :> Capture "client_id" Text
@@ -89,7 +86,6 @@ serverIpfsApiProxy = Proxy
 serverIpfsApi :: ServerT ServerIpfsApi IpfsMonad
 serverIpfsApi = ping
            :<|> pin
-           :<|> status
           --  :<|> restore
 
 handlerServer :: IpfsEnv -> ServerT ServerIpfsApi Handler
@@ -125,7 +121,7 @@ pinToken :: AesKeyHash
 pinToken clientId tVar req = do
   isFormat <- asks envFormatMessage
   logInfo ""
-  logInfo "Minted token received"
+  logInfo "Unpinned token received"
   logInfoS isFormat req
   let assetName = ppAssetName req
   coinStatus <- checkCoinStatus assetName
@@ -134,52 +130,29 @@ pinToken clientId tVar req = do
   case coinStatus of
     CoinError err -> do
       logErrorS isFormat err
-      modifyCacheResponse tVar assetName $ MkStatusResponse (Just coinStatus) Nothing
-    Discarded -> do
+      modifyCacheResponse tVar assetName $ MkStatusResponse $ IpfsError err
+    CoinDiscarded m -> do
       logInfo "Token can't be rollback anymore"
-      modifyCacheResponse tVar assetName $ MkStatusResponse (Just Discarded) Nothing
-    cStatus -> do
-      ipfsStatus <- checkIpfsStatus assetName clientId
-      logInfo $ "IPFS status" <> column <> space <> toText ipfsStatus
-      case ipfsStatus of
-        IpfsError iErr -> do
+      modifyCacheResponse tVar assetName $ MkStatusResponse $ Discarded m
+    _ -> do
+      ipfsResp <- checkIpfsResponse assetName clientId
+      logInfo $ "IPFS status" <> column <> space <> toText ipfsResp
+      case ipfsResp of
+        IpfsFail iErr -> do
           logErrorS isFormat iErr
-          modifyCacheResponse tVar assetName $ MkStatusResponse (Just cStatus) (Just ipfsStatus)
-        Pinned -> do
-          modifyCacheResponse tVar assetName
-            (MkStatusResponse (Just cStatus) (Just Pinned))
-        Unpinned -> do
+          modifyCacheResponse tVar assetName $ MkStatusResponse $ IpfsError iErr
+        IpfsPinned -> do
+          modifyCacheResponse tVar assetName $ MkStatusResponse Pinned
+        IpfsUnpinned -> do
           res <- pinJsonRequest $ mkTokentoIpfs clientId req
           case res of
             Left err -> do
               logErrorS isFormat err
-              modifyCacheResponse tVar assetName $ MkStatusResponse
-                (Just cStatus) (Just $ IpfsError $ toText err)
+              modifyCacheResponse tVar assetName $ MkStatusResponse $ IpfsError $ toText err
             Right r -> do
               logInfo "Pin response:"
               logInfoS isFormat r
-              modifyCacheResponse tVar assetName
-                (MkStatusResponse (Just cStatus) (Just Pinned))
-
-status :: [AssetName] -> IpfsMonad (Map AssetName StatusResponse)
-status assets = do
-  responseTVar <- liftIO $ newTVarIO Map.empty
-  mapM_ (checkTokenStatus responseTVar) assets
-  liftIO $ readTVarIO responseTVar
-
--- Pin minted tokens on IPFS and return their statuses
-checkTokenStatus :: TVar (Map AssetName StatusResponse)
-  -> AssetName
-  -> IpfsMonad ()
-checkTokenStatus tVar assetName = do
-  isFormat <- asks envFormatMessage
-  logInfo ""
-  logInfo "Checking status"
-  logDebugS isFormat assetName
-  coinStatus <- checkCoinStatus assetName
-  logInfo $ "Coin status" <> column
-  logInfoS isFormat coinStatus
-  modifyCacheResponse tVar assetName $ MkStatusResponse (Just coinStatus) Nothing
+              modifyCacheResponse tVar assetName $ MkStatusResponse Pinned
 
 modifyCacheResponse :: TVar (Map AssetName StatusResponse)
   -> AssetName
@@ -207,47 +180,47 @@ checkCoinStatus assetName = do
       1 -> case NE.nonEmpty $ ambrData $ head resAssets of
         Nothing -> do
           logWarn "ambrData is empty"
-          pure Discarded
+          pure $ CoinDiscarded "ambrData is empty"
         Just (NE.last . NE.sortWith ambrSlot -> asset)
-          | ambrAmount asset == 1 -> pure Minted
+          | ambrAmount asset == 1 -> pure CoinMinted
           | ambrAmount asset == (-1) -> do
               now <- liftIO getCurrentTime
               let delta = discardTime (ambrTimestamp asset)
               if delta > now
                 then do
                   logInfo $ "Discarding time" <> space <> toText delta
-                  pure Burned
-                else pure Discarded
+                  pure CoinBurned
+                else pure $ CoinDiscarded "Rollback is impossible"
           | otherwise -> do
-              logError $ "Asset amount is invalid: "
-                <> toText (ambrAmount asset)
-              pure Discarded
+              let mes = "Asset amount is invalid: " <> toText (ambrAmount asset)
+              logError mes
+              pure $ CoinDiscarded mes
       _ -> do
         logError "getAssetMintsAndBurns returned more than one asset"
-        pure Discarded
+        pure $ CoinDiscarded "more than one asset"
 
-checkIpfsStatus :: AssetName -> AesKeyHash -> IpfsMonad IpfsStatus
-checkIpfsStatus assetName clientId  = do
+checkIpfsResponse :: AssetName -> AesKeyHash -> IpfsMonad IpfsResponse
+checkIpfsResponse assetName clientId  = do
   let assetNameT = getAssetName assetName
   logInfo $ "Check IPFS status for assetName" <> column <> space <> assetNameT
   files <- fetchByStatusNameKeyvalueRequest "pinned" assetName clientId
   case files of
     Left err -> do
       logError $ "fetchByStaIpfsErrortusNameRequest error" <> column <> space <> toText err
-      pure $ IpfsError $ toText err
+      pure $ IpfsFail $ toText err
     Right fs -> do
       let names = catMaybes . map (mrName . metadata) . rows $ fs
       let validNames = filter (== assetName) names
       case length validNames of
-        1 -> pure Pinned
-        0 -> pure Unpinned
+        1 -> pure IpfsPinned
+        0 -> pure IpfsUnpinned
         n -> do
           logWarn $ "Token"
             <> space <> assetNameT
             <> space <> "pinned"
             <> space <> toText n
             <> space <> "times"
-          pure Pinned
+          pure IpfsPinned
 
 withRecovery :: Text -> IO () -> IO ()
 withRecovery nameOfAction action = action `catchAny` handleException
@@ -296,7 +269,7 @@ restore clientId = do
           Just assetName -> do
             coinStatus <- checkCoinStatus assetName
             case coinStatus of
-              Minted -> do
+              CoinMinted -> do
                 eSecretIpfs <- fetchByCipRequest (ipfsPinHash file)
                 let eEncSecret = MkEncryptedSecret . getEncryptedToken <$> eSecretIpfs
                 pure $ mapLeft Client $ MkRestoreResponse assetName <$> eEncSecret
@@ -309,7 +282,7 @@ restore clientId = do
 
 -- burned :: PinRequest -> IpfsMonad Text
 -- burned t = do
---   logInfo "Burned token received"
+--   logInfo "CoinBurned token received"
 --   networkId <- asks envNetworkId
 --   currentSymbol <- asks envIpfsCurrencySymbol
 --   let assetName = ppAssetName t
@@ -329,7 +302,7 @@ restore clientId = do
 --           isFormat <- asks envFormatMessage
 --           logInfoS isFormat cips
 --           putInQueue burnDir assetName (ambrTimestamp asset) cips
---           pure "Burned token put in queue for unpinning from ipfs"
+--           pure "CoinBurned token put in queue for unpinning from ipfs"
 --       | otherwise -> do
 --           logInfo "Token found on the blockchain. Thus it is should not be unpinned"
 --           pure "Not unpinned"
@@ -368,13 +341,13 @@ removeRottenTokens  = do
       Left err ->
         logErrorS isFormat err
       Right _ -> do
-        logInfo "Burned token unpinned"
+        logInfo "CoinBurned token unpinned"
         eRemoved <- liftIO $ tryAny $ removeFile path
         case eRemoved of
           Left err -> do
             logError "Fail to remove file"
             logErrorS isFormat err
-          Right _  -> logInfo "Burned filed removed from queue"
+          Right _  -> logInfo "CoinBurned filed removed from queue"
   pure ()
 
 selectRottenCip :: POSIXTime -> FilePath -> IO (Maybe (Cip, FilePath))
