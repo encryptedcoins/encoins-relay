@@ -36,13 +36,13 @@ type ClientIpfsAPI =
   :<|> "data" :> "pinList"
               :> Auth
               :> QueryParam "status" Text
-              :> QueryParam "metadata[keyvalue][client_id]" AesKeyHash
+              :> QueryParam "metadata[keyvalues][client_id]" Text
               :> Get '[JSON] Files
   :<|> "data" :> "pinList"
               :> Auth
               :> QueryParam "status" Text
               :> QueryParam "metadata[name]" AssetName
-              :> QueryParam "metadata[keyvalue][client_id]" AesKeyHash
+              :> QueryParam "metadata[keyvalues][client_id]" Text
               :> Get '[JSON] Files
   :<|> "data" :> "testAuthentication"
               :> Auth
@@ -59,11 +59,11 @@ fetchMetaAll              :: Maybe Text -> ClientM Files
 unpinByCip                :: Maybe Text -> Cip -> ClientM Text
 fetchByStatus             :: Maybe Text -> Maybe Text -> ClientM Files
 fetchByStatusName         :: Maybe Text -> Maybe Text -> Maybe AssetName -> ClientM Files
-fetchByStatusKeyvalue     :: Maybe Text -> Maybe Text -> Maybe AesKeyHash -> ClientM Files
+fetchByStatusKeyvalue     :: Maybe Text -> Maybe Text -> Maybe Text -> ClientM Files
 fetchByStatusNameKeyvalue :: Maybe Text
   -> Maybe Text
   -> Maybe AssetName
-  -> Maybe AesKeyHash
+  -> Maybe Text
   -> ClientM Files
 testAuthentication        :: Maybe Text -> ClientM CheckTokenResponse
 pinJson :<|> fetchByCip :<|> fetchMetaAll :<|> unpinByCip :<|>

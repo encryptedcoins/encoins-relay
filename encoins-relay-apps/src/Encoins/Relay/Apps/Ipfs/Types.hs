@@ -11,23 +11,33 @@ module Encoins.Relay.Apps.Ipfs.Types where
 
 import           Cardano.Api                   (NetworkId)
 import           Cardano.Server.Config         (HyperTextProtocol (..))
-import           Control.Exception.Safe        (Exception, MonadCatch, MonadThrow)
+import           Control.Exception.Safe        (Exception, MonadCatch,
+                                                MonadThrow)
 import           Control.Monad.IO.Class        (MonadIO)
-import           Control.Monad.Reader          (MonadReader, ReaderT (..), asks, local)
+import           Control.Monad.Reader          (MonadReader, ReaderT (..), asks,
+                                                local)
 import           Data.Aeson                    (FromJSON (..), FromJSONKey,
                                                 Options (fieldLabelModifier),
-                                                ToJSON (..), ToJSONKey, camelTo2,
-                                                defaultOptions, genericParseJSON,
-                                                genericToJSON, withObject, (.:), (.:?))
-import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
+                                                SumEncoding (..), ToJSON (..),
+                                                ToJSONKey, camelTo2,
+                                                constructorTagModifier,
+                                                defaultOptions, encode,
+                                                genericParseJSON, genericToJSON,
+                                                sumEncoding, withObject, (.:),
+                                                (.:?))
+import           Data.Aeson.Casing             (aesonPrefix, camelCase,
+                                                snakeCase)
+import           Data.ByteString               (ByteString)
+import           Data.ByteString.Lazy          (toStrict)
 import           Data.Text                     (Text)
+import           Data.Text.Encoding            (decodeUtf8)
 import           Data.Time                     (UTCTime)
 import           Data.Time.Clock.POSIX         (POSIXTime)
 import           GHC.Generics                  (Generic)
 import           Katip
 import           Network.HTTP.Client           (Manager)
 import           Plutus.V1.Ledger.Api          (CurrencySymbol)
-import           PlutusAppsExtra.Api.Maestro   (MonadMaestro (..), MaestroToken)
+import           PlutusAppsExtra.Api.Maestro   (MaestroToken, MonadMaestro (..))
 import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
 import           Servant.API                   (ToHttpApiData)
 import           Servant.Client                (BaseUrl (..), ClientError)
@@ -148,6 +158,58 @@ data MetadataLoose = MkMetadataLoose
 
 instance FromJSON MetadataLoose where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+data PinataValue = Pvs Text | Pvi Integer | Pvd Double | Pvt UTCTime
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON PinataValue where
+   parseJSON = genericParseJSON $ defaultOptions{sumEncoding = UntaggedValue}
+
+instance ToJSON PinataValue where
+   toJSON = genericToJSON $ defaultOptions{sumEncoding = UntaggedValue}
+
+data PinataOption
+  = PoGt -- (greater than)
+  | PoGte -- (greater than or equal)
+  | PoLt -- (less than)
+  | PoLte -- (less than or equal)
+  | PoNe -- (not equal to)
+  | PoEq -- (equal to)
+  | PoBetween
+  | PoNotBetween
+  | PoLike
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON PinataOption where
+   parseJSON = genericParseJSON $
+    defaultOptions{constructorTagModifier = camelCase . drop 2}
+
+instance ToJSON PinataOption where
+   toJSON = genericToJSON $
+    defaultOptions{constructorTagModifier = camelCase . drop 2}
+
+data KeyValue = MkKeyValue
+  { kvValue :: PinataValue
+  , kvOp    :: PinataOption
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON KeyValue where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON KeyValue where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
+
+toJsonText :: ToJSON a => a -> Text
+toJsonText = decodeUtf8 . toJsonStrict
+
+toJsonStrict :: ToJSON a => a -> ByteString
+toJsonStrict = toStrict . encode
+
+mkKeyvalueClientId :: AesKeyHash -> Text
+mkKeyvalueClientId (MkAesKeyHash key) =
+  let keyValue = MkKeyValue (Pvs key) PoEq
+  in toJsonText keyValue
 
 -- Request body from backend to IPFS
 data TokenToIpfs = MkTokenToIpfs
