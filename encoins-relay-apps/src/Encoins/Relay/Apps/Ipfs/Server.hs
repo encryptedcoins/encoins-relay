@@ -13,8 +13,9 @@
 module Encoins.Relay.Apps.Ipfs.Server where
 
 import           Encoins.Common.Constant        (column, space)
-import           Encoins.Common.Log             (logDebugS, logError, logErrorS,
-                                                 logInfo, logInfoS, logWarn)
+import           Encoins.Common.Log             (logDebug, logDebugS, logError,
+                                                 logErrorS, logInfo, logInfoS,
+                                                 logWarn)
 import           Encoins.Common.Transform       (toText)
 import           Encoins.Common.Version         (appVersion, showAppVersion)
 import           Encoins.Relay.Apps.Ipfs.Client
@@ -39,7 +40,6 @@ import           Data.Either.Extra              (mapLeft)
 import qualified Data.List.NonEmpty             as NE
 import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
-import           Data.Maybe                     (catMaybes)
 import           Data.String                    (IsString (fromString))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
@@ -122,37 +122,40 @@ pinToken clientId tVar req = do
   isFormat <- asks envFormatMessage
   logInfo ""
   logInfo "Unpinned token received"
-  logInfoS isFormat req
+  logDebugS isFormat req
   let assetName = ppAssetName req
   coinStatus <- checkCoinStatus assetName
-  logInfo $ "Coin status" <> column
-  logInfoS isFormat coinStatus
-  case coinStatus of
+  logInfo $ "Coin status" <> column <> space <> toText coinStatus
+  ipfsStatus <- case coinStatus of
     CoinError err -> do
       logErrorS isFormat err
-      modifyCacheResponse tVar assetName $ MkStatusResponse $ IpfsError err
+      pure $ MkStatusResponse $ IpfsError err
     CoinDiscarded m -> do
       logInfo "Token can't be rollback anymore"
-      modifyCacheResponse tVar assetName $ MkStatusResponse $ Discarded m
+      pure $ MkStatusResponse $ Discarded m
     _ -> do
-      ipfsResp <- checkIpfsResponse assetName clientId
-      logInfo $ "IPFS status" <> column <> space <> toText ipfsResp
+      ipfsResp <- checkIpfsStatus assetName clientId
+      logInfo $ "Old IPFS status" <> column <> space <> toText ipfsResp
       case ipfsResp of
         IpfsFail iErr -> do
           logErrorS isFormat iErr
-          modifyCacheResponse tVar assetName $ MkStatusResponse $ IpfsError iErr
+          pure $ MkStatusResponse $ IpfsError iErr
         IpfsPinned -> do
-          modifyCacheResponse tVar assetName $ MkStatusResponse Pinned
+          pure $ MkStatusResponse Pinned
         IpfsUnpinned -> do
           res <- pinJsonRequest $ mkTokentoIpfs clientId req
           case res of
             Left err -> do
               logErrorS isFormat err
-              modifyCacheResponse tVar assetName $ MkStatusResponse $ IpfsError $ toText err
+              pure $ MkStatusResponse $ IpfsError $ toText err
             Right r -> do
-              logInfo "Pin response:"
-              logInfoS isFormat r
-              modifyCacheResponse tVar assetName $ MkStatusResponse Pinned
+              logDebug "Pin response:"
+              logDebugS isFormat r
+              pure $ MkStatusResponse Pinned
+  logInfo $ "New IPFS status" <> column <> space <>
+    toText (spStatusResponse ipfsStatus)
+  modifyCacheResponse tVar assetName ipfsStatus
+
 
 modifyCacheResponse :: TVar (Map AssetName StatusResponse)
   -> AssetName
@@ -170,8 +173,8 @@ checkCoinStatus assetName = do
   logInfo $ "Check coin status for assetName" <> column <> space <> getAssetName assetName
   eAssets <- tryAny $ getAssetMintsAndBurns currentSymbol
     $ fromString $ T.unpack $ getAssetName assetName
-  logInfo $ "Maestro response:"
-  logInfoS isFormat eAssets
+  logDebug "Maestro response:"
+  logDebugS isFormat eAssets
   case eAssets of
     Left err -> do
       logErrorS isFormat err
@@ -199,28 +202,28 @@ checkCoinStatus assetName = do
         logError "getAssetMintsAndBurns returned more than one asset"
         pure $ CoinDiscarded "more than one asset"
 
-checkIpfsResponse :: AssetName -> AesKeyHash -> IpfsMonad IpfsResponse
-checkIpfsResponse assetName clientId  = do
+checkIpfsStatus :: AssetName -> AesKeyHash -> IpfsMonad IpfsResponse
+checkIpfsStatus assetName clientId  = do
   let assetNameT = getAssetName assetName
-  logInfo $ "Check IPFS status for assetName" <> column <> space <> assetNameT
+  let clientIdT = getAesKeyHash clientId
+  logInfo $ "Check IPFS status"
+  logInfo $ "for assetName" <> column <> space <> assetNameT
+  logInfo $ "and clientId" <> column <> space <> clientIdT
   files <- fetchByStatusNameKeyvalueRequest "pinned" assetName clientId
   case files of
     Left err -> do
-      logError $ "fetchByStaIpfsErrortusNameRequest error" <> column <> space <> toText err
+      logError $ "fetchByStatusNameKeyvalueRequest error" <> column <> space <> toText err
       pure $ IpfsFail $ toText err
-    Right fs -> do
-      let names = catMaybes . map (mrName . metadata) . rows $ fs
-      let validNames = filter (== assetName) names
-      case length validNames of
-        1 -> pure IpfsPinned
-        0 -> pure IpfsUnpinned
-        n -> do
-          logWarn $ "Token"
-            <> space <> assetNameT
-            <> space <> "pinned"
-            <> space <> toText n
-            <> space <> "times"
-          pure IpfsPinned
+    Right fs -> case length $ rows fs of
+      1 -> pure IpfsPinned
+      0 -> pure IpfsUnpinned
+      n -> do
+        logWarn $ "Token"
+          <> space <> assetNameT
+          <> space <> "pinned"
+          <> space <> toText n
+          <> space <> "times"
+        pure IpfsPinned
 
 withRecovery :: Text -> IO () -> IO ()
 withRecovery nameOfAction action = action `catchAny` handleException
