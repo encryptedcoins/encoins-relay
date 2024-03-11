@@ -246,17 +246,21 @@ data PinRequest = MkPinRequest
 instance FromJSON PinRequest where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-data IpfsStatus = Pinned | Unpinned | IpfsError Text
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON)
+-- Used to tag ipfs status
+data IpfsResponse = IpfsPinned | IpfsUnpinned | IpfsFail Text
+  deriving stock (Eq, Show)
 
-data CoinStatus = Minted | Burned | Discarded | CoinError Text
-  deriving stock (Eq, Show, Generic)
+-- Used to tag maestro status
+data CoinStatus = CoinMinted | CoinBurned | CoinDiscarded Text | CoinError Text
+  deriving stock (Eq, Show)
+
+-- Used to response to the client
+data IpfsStatus = Pinned | Unpinned | IpfsError Text | Discarded Text
+  deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON)
 
 data StatusResponse = MkStatusResponse
-  { spCoinStatus :: Maybe CoinStatus
-  , spIpfsStatus :: Maybe IpfsStatus
+  { spStatusResponse :: IpfsStatus
   }
   deriving stock (Show, Eq, Generic)
 
