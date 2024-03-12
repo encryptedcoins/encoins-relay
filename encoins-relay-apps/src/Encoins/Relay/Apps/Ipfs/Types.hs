@@ -9,6 +9,8 @@
 
 module Encoins.Relay.Apps.Ipfs.Types where
 
+import           Encoins.Common.Transform      (toJsonText)
+
 import           Cardano.Api                   (NetworkId)
 import           Cardano.Server.Config         (HyperTextProtocol (..))
 import           Control.Exception.Safe        (Exception, MonadCatch,
@@ -21,17 +23,14 @@ import           Data.Aeson                    (FromJSON (..), FromJSONKey,
                                                 SumEncoding (..), ToJSON (..),
                                                 ToJSONKey, camelTo2,
                                                 constructorTagModifier,
-                                                defaultOptions, encode,
+                                                defaultOptions,
                                                 genericParseJSON, genericToJSON,
                                                 sumEncoding,
                                                 tagSingleConstructors,
                                                 withObject, (.:), (.:?))
 import           Data.Aeson.Casing             (aesonPrefix, camelCase,
                                                 snakeCase)
-import           Data.ByteString               (ByteString)
-import           Data.ByteString.Lazy          (toStrict)
 import           Data.Text                     (Text)
-import           Data.Text.Encoding            (decodeUtf8)
 import           Data.Time                     (UTCTime)
 import           Data.Time.Clock.POSIX         (POSIXTime)
 import           GHC.Generics                  (Generic)
@@ -200,12 +199,6 @@ instance FromJSON KeyValue where
 
 instance ToJSON KeyValue where
    toJSON = genericToJSON $ aesonPrefix snakeCase
-
-toJsonText :: ToJSON a => a -> Text
-toJsonText = decodeUtf8 . toStrictJson
-
-toStrictJson :: ToJSON a => a -> ByteString
-toStrictJson = toStrict . encode
 
 mkKeyvalueClientId :: AesKeyHash -> Text
 mkKeyvalueClientId (MkAesKeyHash key) =
