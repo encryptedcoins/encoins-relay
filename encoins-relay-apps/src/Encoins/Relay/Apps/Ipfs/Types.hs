@@ -23,8 +23,9 @@ import           Data.Aeson                    (FromJSON (..), FromJSONKey,
                                                 constructorTagModifier,
                                                 defaultOptions, encode,
                                                 genericParseJSON, genericToJSON,
-                                                sumEncoding, withObject, (.:),
-                                                (.:?))
+                                                sumEncoding,
+                                                tagSingleConstructors,
+                                                withObject, (.:), (.:?))
 import           Data.Aeson.Casing             (aesonPrefix, camelCase,
                                                 snakeCase)
 import           Data.ByteString               (ByteString)
@@ -201,10 +202,10 @@ instance ToJSON KeyValue where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
 toJsonText :: ToJSON a => a -> Text
-toJsonText = decodeUtf8 . toJsonStrict
+toJsonText = decodeUtf8 . toStrictJson
 
-toJsonStrict :: ToJSON a => a -> ByteString
-toJsonStrict = toStrict . encode
+toStrictJson :: ToJSON a => a -> ByteString
+toStrictJson = toStrict . encode
 
 mkKeyvalueClientId :: AesKeyHash -> Text
 mkKeyvalueClientId (MkAesKeyHash key) =
@@ -317,9 +318,13 @@ data CoinStatus = CoinMinted | CoinBurned | CoinDiscarded Text | CoinError Text
   deriving stock (Eq, Show)
 
 -- Used to response to the client
-data IpfsStatus = Pinned | Unpinned | IpfsError Text | Discarded Text
+data IpfsStatus = Pinned | Unpinned | IpfsError | Discarded
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (ToJSON)
+
+instance ToJSON IpfsStatus where
+  toJSON = genericToJSON $
+    defaultOptions{tagSingleConstructors = True}
+
 
 data StatusResponse = MkStatusResponse
   { spStatusResponse :: IpfsStatus

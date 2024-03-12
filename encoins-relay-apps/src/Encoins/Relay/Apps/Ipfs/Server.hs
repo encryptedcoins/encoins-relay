@@ -129,17 +129,18 @@ pinToken clientId tVar req = do
   ipfsStatus <- case coinStatus of
     CoinError err -> do
       logErrorS isFormat err
-      pure $ MkStatusResponse $ IpfsError err
+      pure $ MkStatusResponse IpfsError
     CoinDiscarded m -> do
-      logInfo "Token can't be rollback anymore"
-      pure $ MkStatusResponse $ Discarded m
+      logInfo "Token has been discarded and can't be rollback anymore"
+      logInfo $ "The reason of discarding" <> column <> space <> m
+      pure $ MkStatusResponse Discarded
     _ -> do
       ipfsResp <- checkIpfsStatus assetName clientId
       logInfo $ "Old IPFS status" <> column <> space <> toText ipfsResp
       case ipfsResp of
-        IpfsFail iErr -> do
-          logErrorS isFormat iErr
-          pure $ MkStatusResponse $ IpfsError iErr
+        IpfsFail ipfsErr -> do
+          logErrorS isFormat ipfsErr
+          pure $ MkStatusResponse IpfsError
         IpfsPinned -> do
           pure $ MkStatusResponse Pinned
         IpfsUnpinned -> do
@@ -147,7 +148,7 @@ pinToken clientId tVar req = do
           case res of
             Left err -> do
               logErrorS isFormat err
-              pure $ MkStatusResponse $ IpfsError $ toText err
+              pure $ MkStatusResponse IpfsError
             Right r -> do
               logDebug "Pin response:"
               logDebugS isFormat r
