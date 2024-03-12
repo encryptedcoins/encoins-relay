@@ -28,7 +28,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-common
-  tag: v0.1.0.0
+  tag: eec1ffe5735f1cebeef74e8646ee98bcc97d7261
   subdir:
     encoins-common-constant
     encoins-common-log
