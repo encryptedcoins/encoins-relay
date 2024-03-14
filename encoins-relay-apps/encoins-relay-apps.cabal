@@ -43,11 +43,12 @@ library
       Encoins.Relay.Apps.Delegation.Client
       Encoins.Relay.Apps.Delegation.Internal
       Encoins.Relay.Apps.Delegation.Server
-      Encoins.Relay.Apps.Ipfs.Client
-      Encoins.Relay.Apps.Ipfs.ClientApi
-      Encoins.Relay.Apps.Ipfs.Config
-      Encoins.Relay.Apps.Ipfs.Server
-      Encoins.Relay.Apps.Ipfs.Types
+      Encoins.Relay.Apps.Save.Ipfs.Api
+      Encoins.Relay.Apps.Save.Ipfs.Request
+      Encoins.Relay.Apps.Save.Ipfs.Server
+      Encoins.Relay.Apps.Save.Config
+      Encoins.Relay.Apps.Save.Server
+      Encoins.Relay.Apps.Save.Types
       Encoins.Relay.Apps.Internal
       Encoins.Relay.Apps.Poll.Config
       Encoins.Relay.Apps.Poll.Main
@@ -107,6 +108,7 @@ library
       wai                                    -any,
       warp                                   -any,
       warp-tls                               -any,
+      witherable                             -any,
 
 executable encoins-relay-poll
   default-language: Haskell2010
