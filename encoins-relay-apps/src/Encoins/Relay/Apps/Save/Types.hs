@@ -7,7 +7,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeOperators              #-}
 
-module Encoins.Relay.Apps.Ipfs.Types where
+module Encoins.Relay.Apps.Save.Types where
 
 import           Encoins.Common.Transform      (toJsonText)
 
@@ -36,46 +36,43 @@ import           Data.Time.Clock.POSIX         (POSIXTime)
 import           GHC.Generics                  (Generic)
 import           Katip
 import           Network.HTTP.Client           (Manager)
+import           Numeric.Natural               (Natural)
 import           Plutus.V1.Ledger.Api          (CurrencySymbol)
 import           PlutusAppsExtra.Api.Maestro   (MaestroToken, MonadMaestro (..))
 import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
 import           Servant.API                   (ToHttpApiData)
-import           Servant.Client                (BaseUrl (..), ClientError)
+import           Servant.Client                (ClientError)
+import           Data.Semigroup                 (Max (..))
 
 -- General types
 
-data IpfsEnv = MkIpfsEnv
-  { envHyperTextProtocol  :: HyperTextProtocol
-  , envHost               :: Text
-  , envPort               :: Int
-  , envNetworkId          :: NetworkId
-  , envMaestroToken       :: MaestroToken
-  , envIpfsCurrencySymbol :: CurrencySymbol
-  , envPinataFetchHost    :: BaseUrl
-  , envPinataPinHost      :: BaseUrl
-  , envScheduleDirectory  :: FilePath
-  , envPinataAuthToken    :: Text
-  , envManager            :: Manager
-  , envLogEnv             :: LogEnv
-  , envKContext           :: LogContexts
-  , envKNamespace         :: Namespace
-  , envFormatMessage      :: Bool -- Pretty print message or not
+data SaveEnv = MkIpfsEnv
+  { envHyperTextProtocol :: HyperTextProtocol
+  , envHost              :: Text
+  , envPort              :: Int
+  , envNetworkId         :: NetworkId
+  , envMaestroToken      :: MaestroToken
+  , envCurrencySymbol    :: CurrencySymbol
+  , envSaveDirectory     :: FilePath
+  , envManager           :: Manager
+  , envLogEnv            :: LogEnv
+  , envKContext          :: LogContexts
+  , envKNamespace        :: Namespace
+  , envFormatMessage     :: Bool -- Pretty print message or not
   }
 
 -- Format of severity in json file:
 -- debug, info, notice, warning, error, critical, alert, emergency
 -- Format of verbosity in json file: V0, V1, V2, V3
-data IpfsConfig = MkIpfsConfig
+data SaveConfig = MkSaveConfig
   {
     icHyperTextProtocol    :: HyperTextProtocol
   , icHost                 :: Text
   , icPort                 :: Int
   , icNetworkId            :: NetworkId
   , icMaestroTokenFilePath :: FilePath
-  , icIpfsCurrencySymbol   :: CurrencySymbol
-  , icPinataFetchHost      :: Text
-  , icPinataPinHost        :: Text
-  , icScheduleDirectory    :: FilePath
+  , icCurrencySymbol       :: CurrencySymbol
+  , icSaveDirectory        :: FilePath
   , icEnvironment          :: Environment
   , icVerbosity            :: Verbosity
   , icSeverity             :: Severity
@@ -83,10 +80,10 @@ data IpfsConfig = MkIpfsConfig
   }
   deriving stock (Eq,Show, Generic)
 
-instance FromJSON IpfsConfig where
+instance FromJSON SaveConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-newtype IpfsMonad a = MkIpfsMonad {unIpfsMonad :: ReaderT IpfsEnv IO a}
+newtype SaveMonad a = MkSaveMonad {getSaveMonad :: ReaderT SaveEnv IO a}
     deriving newtype
         ( Functor
         , Applicative
@@ -94,30 +91,30 @@ newtype IpfsMonad a = MkIpfsMonad {unIpfsMonad :: ReaderT IpfsEnv IO a}
         , MonadIO
         , MonadThrow
         , MonadCatch
-        , MonadReader IpfsEnv
+        , MonadReader SaveEnv
         )
 
-runIpfsMonad :: IpfsEnv -> IpfsMonad a -> IO a
-runIpfsMonad env = (`runReaderT` env) . unIpfsMonad
+runSaveMonad :: SaveEnv -> SaveMonad a -> IO a
+runSaveMonad env = (`runReaderT` env) . getSaveMonad
 
-instance HasNetworkId IpfsMonad where
+instance HasNetworkId SaveMonad where
   getNetworkId = asks envNetworkId
 
-instance MonadMaestro IpfsMonad where
+instance MonadMaestro SaveMonad where
   getMaestroToken = asks envMaestroToken
 
-instance Katip IpfsMonad where
+instance Katip SaveMonad where
   getLogEnv = asks envLogEnv
-  localLogEnv f (MkIpfsMonad m) =
-    MkIpfsMonad (local (\s -> s {envLogEnv = f (envLogEnv s)}) m)
+  localLogEnv f (MkSaveMonad m) =
+    MkSaveMonad (local (\s -> s {envLogEnv = f (envLogEnv s)}) m)
 
-instance KatipContext IpfsMonad where
+instance KatipContext SaveMonad where
   getKatipContext = asks envKContext
-  localKatipContext f (MkIpfsMonad m) =
-    MkIpfsMonad (local (\s -> s {envKContext = f (envKContext s)}) m)
+  localKatipContext f (MkSaveMonad m) =
+    MkSaveMonad (local (\s -> s {envKContext = f (envKContext s)}) m)
   getKatipNamespace = asks envKNamespace
-  localKatipNamespace f (MkIpfsMonad m) =
-    MkIpfsMonad (local (\s -> s {envKNamespace = f (envKNamespace s)}) m)
+  localKatipNamespace f (MkSaveMonad m) =
+    MkSaveMonad (local (\s -> s {envKNamespace = f (envKNamespace s)}) m)
 
 newtype EncryptedToken= MkEncryptedToken { getEncryptedToken :: Text }
   deriving newtype (Show, Eq)
@@ -213,7 +210,7 @@ data TokenToIpfs = MkTokenToIpfs
   deriving stock (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
-mkTokentoIpfs :: AesKeyHash -> PinRequest -> TokenToIpfs
+mkTokentoIpfs :: AesKeyHash -> SaveRequest -> TokenToIpfs
 mkTokentoIpfs clientId req = MkTokenToIpfs
   { pinataContent = MkEncryptedToken $ getEncryptedSecret $ ppSecretKey req
   , pinataMetadata = MkMetadata
@@ -293,13 +290,13 @@ instance ToJSON Metadata where
    toJSON = genericToJSON $ aesonPrefix snakeCase
 
 -- Request body from frontend to backend
-data PinRequest = MkPinRequest
+data SaveRequest = MkSaveRequest
   { ppAssetName :: AssetName
   , ppSecretKey :: EncryptedSecret
   }
   deriving stock (Show, Eq, Generic)
 
-instance FromJSON PinRequest where
+instance FromJSON SaveRequest where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 -- Used to tag ipfs status
@@ -310,22 +307,43 @@ data IpfsResponse = IpfsPinned | IpfsUnpinned | IpfsFail Text
 data CoinStatus = CoinMinted | CoinBurned | CoinDiscarded Text | CoinError Text
   deriving stock (Eq, Show)
 
+-- Used to tag save status
+data FilterAssetStatus = Exist | FMax (Max Natural)
+  deriving stock (Eq, Show)
+
+instance Semigroup FilterAssetStatus where
+  Exist <> _ = Exist
+  _ <> Exist = Exist
+  FMax n <> FMax m = FMax (n <> m)
+
 -- Used to response to the client
-data IpfsStatus = Pinned | Unpinned | IpfsError | Discarded
+data SaveStatus = Saved | SaveError | Discarded
   deriving stock (Show, Eq, Generic)
 
-instance ToJSON IpfsStatus where
+instance ToJSON SaveStatus where
   toJSON = genericToJSON $
     defaultOptions{tagSingleConstructors = True}
 
-
 data StatusResponse = MkStatusResponse
-  { spStatusResponse :: IpfsStatus
+  { spStatusResponse :: SaveStatus
   }
   deriving stock (Show, Eq, Generic)
 
 instance ToJSON StatusResponse where
    toJSON = genericToJSON $ aesonPrefix snakeCase
+
+data SaveToken = MkSaveToken
+  { stAssetName :: AssetName
+  , stSecret    :: EncryptedSecret
+  , stDuplicate :: Natural
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance ToJSON SaveToken where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
+
+instance FromJSON SaveToken where
+   parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 data RottenToken = MkRottenToken
   { rtAssetName  :: AssetName

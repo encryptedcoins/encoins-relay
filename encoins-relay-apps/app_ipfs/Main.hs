@@ -1,6 +1,6 @@
 module Main where
 
-import           Encoins.Relay.Apps.Ipfs.Server
+import           Encoins.Relay.Apps.Save.Server (saveServer)
 
 main :: IO ()
-main = ipfsServer
+main = saveServer

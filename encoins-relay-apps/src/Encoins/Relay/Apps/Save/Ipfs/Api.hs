@@ -8,9 +8,9 @@
 {-# LANGUAGE TypeOperators              #-}
 
 
-module Encoins.Relay.Apps.Ipfs.ClientApi where
+module Encoins.Relay.Apps.Save.Ipfs.Api where
 
-import           Encoins.Relay.Apps.Ipfs.Types
+import           Encoins.Relay.Apps.Save.Types
 
 import           Data.Proxy                    (Proxy (..))
 import           Data.Text                     (Text)
