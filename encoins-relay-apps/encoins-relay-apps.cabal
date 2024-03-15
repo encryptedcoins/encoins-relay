@@ -44,8 +44,10 @@ library
       Encoins.Relay.Apps.Delegation.Internal
       Encoins.Relay.Apps.Delegation.Server
       Encoins.Relay.Apps.Save.Ipfs.Api
+      Encoins.Relay.Apps.Save.Ipfs.Config
       Encoins.Relay.Apps.Save.Ipfs.Request
       Encoins.Relay.Apps.Save.Ipfs.Server
+      Encoins.Relay.Apps.Save.Ipfs.Types
       Encoins.Relay.Apps.Save.Config
       Encoins.Relay.Apps.Save.Server
       Encoins.Relay.Apps.Save.Types
