@@ -8,13 +8,10 @@ import           Encoins.Common.Log            (mkLogEnv, withLogEnv)
 import           Encoins.Relay.Apps.Save.Types
 
 import           Cardano.Server.Config         (decodeOrErrorFromFile)
-import           Data.Text                     (Text)
-import qualified Data.Text                     as T
 import           Katip
 import           Network.HTTP.Client           hiding (Proxy)
 import           Network.HTTP.Client.TLS
 import           PlutusAppsExtra.Api.Maestro   (MaestroToken)
-import           Servant.Client                (BaseUrl (..), Scheme (..))
 import           Text.Pretty.Simple            (pPrint)
 
 withSaveEnv :: (SaveEnv -> IO ()) -> IO ()

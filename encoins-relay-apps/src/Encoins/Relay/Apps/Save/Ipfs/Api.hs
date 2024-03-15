@@ -10,7 +10,7 @@
 
 module Encoins.Relay.Apps.Save.Ipfs.Api where
 
-import           Encoins.Relay.Apps.Save.Types
+import           Encoins.Relay.Apps.Save.Ipfs.Types
 
 import           Data.Proxy                    (Proxy (..))
 import           Data.Text                     (Text)
