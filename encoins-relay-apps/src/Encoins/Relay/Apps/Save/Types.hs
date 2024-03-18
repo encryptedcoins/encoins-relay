@@ -143,15 +143,6 @@ instance FromJSON SaveRequest where
 data CoinStatus = CoinMinted | CoinBurned | CoinDiscarded Text | CoinError Text
   deriving stock (Eq, Show)
 
--- Used to tag save status
-data FilterAssetStatus = Exist | FMax (Max Natural)
-  deriving stock (Eq, Show)
-
-instance Semigroup FilterAssetStatus where
-  Exist <> _ = Exist
-  _ <> Exist = Exist
-  FMax n <> FMax m = FMax (n <> m)
-
 -- Used to response to the client
 data SaveStatus = Saved | SaveError | Discarded
   deriving stock (Show, Eq, Generic)

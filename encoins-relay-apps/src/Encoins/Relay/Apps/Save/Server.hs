@@ -135,11 +135,7 @@ saveToken tVar req = do
           let newToken = MkSaveToken (ppAssetName req) (ppSecretKey req) dupNum
           status <- saveTokenFile newToken dupNum
           pure $ MkStatusResponse status
-        Just filterStatus -> case filterStatus of
-          Exist -> do
-            logInfo "The same token was saved before. No need to save it anymore"
-            pure $ MkStatusResponse Saved
-          FMax (getMax -> lastDuplicateNumber) -> do
+        Just lastDuplicateNumber -> do
             let nextDupNum = lastDuplicateNumber + 1
             logInfo $ "There are" <> space
               <> toText nextDupNum <> space
@@ -196,18 +192,18 @@ checkCoinStatus assetName = do
         logError "getAssetMintsAndBurns returned more than one asset"
         pure $ CoinDiscarded "more than one asset"
 
-checkSaveStatus :: SaveRequest -> SaveMonad (Maybe FilterAssetStatus)
+checkSaveStatus :: SaveRequest -> SaveMonad (Maybe Natural)
 checkSaveStatus req = do
   logInfo "Check SaveStatus"
   saveDirectory <- asks envSaveDirectory
   savedFiles <- liftIO $ listFiles saveDirectory
-  foldM (filterAssets req) Nothing savedFiles
+  fmap getMax <$> foldM (filterAssets req) Nothing savedFiles
 
 -- if all are Nothing then file is absent, no matter there is error or not.
 filterAssets :: SaveRequest
-  -> Maybe FilterAssetStatus
+  -> Maybe (Max Natural)
   -> FilePath
-  -> SaveMonad (Maybe FilterAssetStatus)
+  -> SaveMonad (Maybe (Max Natural))
 filterAssets (MkSaveRequest name secret) acc fp = do
   let bn = takeBaseName fp
   case stripInfix dash bn of
@@ -223,16 +219,7 @@ filterAssets (MkSaveRequest name secret) acc fp = do
             logError $ "Failed to read duplicate number of filepath"
               <> column <> space <> toText bn
             pure $ acc <> Nothing -- Error: Invalid Duplicate Number
-          Just n -> do
-              eFile <- liftIO $ eitherDecodeFileStrict' @SaveToken fp
-              case eFile of
-                Left err -> do
-                  logError $ T.pack err
-                  pure $ acc <> Nothing -- Error: Invalid file
-                Right file -> do
-                  case stSecret file == secret of
-                    True  -> pure $ acc <> Just Exist
-                    False -> pure $ acc <> Just (FMax $ Max n)
+          Just n -> pure $ acc <> Just (Max n)
 
 saveTokenFile :: SaveToken -> Natural -> SaveMonad SaveStatus
 saveTokenFile sToken num = do
