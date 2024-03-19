@@ -30,6 +30,7 @@ import           Ledger.Tx.Constraints                (mustPayToPubKeyAddress)
 import           Plutus.Script.Utils.Ada              (Ada)
 import qualified Plutus.Script.Utils.Ada              as Ada
 import           Plutus.V2.Ledger.Api                 (Credential (..))
+import           PlutusAppsExtra.IO.Wallet            (HasWalletProvider (..))
 import           PlutusAppsExtra.Types.Tx             (TxConstructor (..))
 import           PlutusAppsExtra.Utils.Address        (bech32ToAddress)
 
@@ -39,14 +40,15 @@ distributeRewards totalReward = void $ do
         debts <- liftIO $ decodeOrErrorFromFile debtFile <|> pure []
         let (distribution', debts') = partition ((> minAdaTxOutEstimated) . snd) $ concatDistrubutions distribution debts
         when (null distribution' && null debts') $ error "Server doesn't has any delegates."
-        mapM_ sendFunds $ mkConstrs distribution'
+        addrs <- getWalletAddresses
+        mapM_ (sendFunds addrs) $ mkConstrs distribution'
         liftIO $ writeFileJSON debtFile debts'
     where
         mkConstrs recepients = fmap mconcat $ chunksOf 5 $ flip mapMaybe recepients $ \(addr, reward) -> case addr of
             Address (PubKeyCredential pkh) (Just scred) -> Just $ mustPayToPubKeyAddress (PaymentPubKeyHash pkh) scred (Ada.toValue reward)
             _ -> Nothing
 
-        sendFunds constrs = mkTx [] def (pure $ modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)})
+        sendFunds addrs constrs = mkTx addrs def (pure $ modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)})
 
         debtFile = "debts.json"
 
