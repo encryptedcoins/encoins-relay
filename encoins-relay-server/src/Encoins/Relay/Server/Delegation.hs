@@ -1,20 +1,25 @@
 {-# LANGUAGE ImplicitParams    #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant <$>" #-}
 
 module Encoins.Relay.Server.Delegation where
 
 import           Cardano.Api                          (writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
 import           Cardano.Server.Internal              (Env (..), ServerM, getAuxillaryEnv, mkServantClientEnv)
-import           Cardano.Server.Tx                    (mkTx)
+import           Cardano.Server.Tx                    (mkBalanceTx, mkTx)
+import           Cardano.Server.Utils.Logger          (logMsg, logPretty)
 import           Control.Applicative                  ((<|>))
 import           Control.Monad                        (void, when)
 import           Control.Monad.IO.Class               (MonadIO (..))
 import           Control.Monad.Reader                 (asks)
 import           Control.Monad.State                  (modify)
 import           Data.Bifunctor                       (Bifunctor (..))
+import           Data.Char                            (toUpper)
 import           Data.Default                         (Default (..))
 import           Data.Function                        (on)
 import           Data.Functor                         ((<&>))
@@ -22,6 +27,7 @@ import           Data.List.Extra                      (chunksOf, partition, sort
 import qualified Data.List.NonEmpty                   as NonEmpty
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (mapMaybe)
+import qualified Data.Text                            as T
 import           Encoins.Relay.Apps.Delegation.Client (serverDelegatesClient)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (..))
 import           Encoins.Relay.Server.Server          (EncoinsApi)
@@ -44,13 +50,31 @@ distributeRewards totalReward = void $ do
         mapM_ (sendFunds addrs) $ mkConstrs distribution'
         liftIO $ writeFileJSON debtFile debts'
     where
-        mkConstrs recepients = fmap mconcat $ chunksOf 5 $ flip mapMaybe recepients $ \(addr, reward) -> case addr of
+        mkConstrs recepients = fmap mconcat $ chunksOf maxParticipants $ flip mapMaybe recepients $ \(addr, reward) -> case addr of
             Address (PubKeyCredential pkh) (Just scred) -> Just $ mustPayToPubKeyAddress (PaymentPubKeyHash pkh) scred (Ada.toValue reward)
             _ -> Nothing
 
-        sendFunds addrs constrs = mkTx addrs def (pure $ modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)})
+        sendFunds addrs constrs = do
+            let txBuilder = [modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)}]
+            tx <- mkBalanceTx addrs def txBuilder
+            logPretty tx
+            logMsg $ "Please enter \"Y\" to complete the above transaction or \"N\" to cancel.\n\
+                   \Keep in mind that each transaction contains no more than "
+                   <> T.pack (show maxParticipants)
+                   <> " participants."
+            doConfirmation
+            mkTx addrs def txBuilder
 
         debtFile = "debts.json"
+
+        doConfirmation = do
+            map toUpper <$> liftIO getLine >>= \case
+                "Y" -> pure ()
+                "N" -> error "Interrupted."
+                _   -> doConfirmation
+
+maxParticipants :: Int
+maxParticipants = 5
 
 getRewardsDistribution :: Ada -> ServerM EncoinsApi [(Address, Ada)]
 getRewardsDistribution totalReward = calculateReward <$> getRecepients
