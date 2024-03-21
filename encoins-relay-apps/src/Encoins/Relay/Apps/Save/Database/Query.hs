@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes       #-}
 
 module Encoins.Relay.Apps.Save.Database.Query
-    ( dbExe
+    ( insertOnAbsentS
     ) where
 
 import           Encoins.Relay.Apps.Save.Database.Migration (migration)
@@ -45,7 +45,7 @@ dbExe = do
         -- result <- S.run (insertTokenSession assetName secret) connection
 
         pPrintString "Insert encoins..."
-        result <- S.run (insertOnAbsentS"assetname" "secret") connection
+        result <- S.run (insertOnAbsentS "assetname" "secret") connection
         pPrintString "Inserted id:"
         pPrint result
 

@@ -8,6 +8,7 @@ import           Encoins.Common.Log            (mkLogEnv, withLogEnv)
 import           Encoins.Relay.Apps.Save.Types
 
 import           Cardano.Server.Config         (decodeOrErrorFromFile)
+import qualified Hasql.Connection              as Connection
 import           Katip
 import           Network.HTTP.Client           hiding (Proxy)
 import           Network.HTTP.Client.TLS
@@ -26,11 +27,17 @@ withSaveEnv action = do
         (icSeverity config)
   withLogEnv logEnv $ \le -> do
     manager <- newManager tlsManagerSettings
-    let env = mkSaveEnv manager config le maestroToken
+    let connSettings = Connection.settings "127.0.0.1" 5432 "postgres" "" "encoins"
+    let env = mkSaveEnv manager config le maestroToken connSettings
     action env
 
-mkSaveEnv :: Manager -> SaveConfig -> LogEnv -> MaestroToken -> SaveEnv
-mkSaveEnv manager saveConfig logEnv maestroToken =
+mkSaveEnv :: Manager
+  -> SaveConfig
+  -> LogEnv
+  -> MaestroToken
+  -> Connection.Settings
+  -> SaveEnv
+mkSaveEnv manager saveConfig logEnv maestroToken connSettings =
   MkIpfsEnv
     { envHyperTextProtocol = icHyperTextProtocol saveConfig
     , envHost              = icHost saveConfig
@@ -38,10 +45,10 @@ mkSaveEnv manager saveConfig logEnv maestroToken =
     , envNetworkId         = icNetworkId saveConfig
     , envMaestroToken      = maestroToken
     , envCurrencySymbol    = icCurrencySymbol saveConfig
-    , envSaveDirectory     = icSaveDirectory saveConfig
     , envManager           = manager
     , envLogEnv            = logEnv
     , envKContext          = mempty
     , envKNamespace        = mempty
     , envFormatMessage     = icFormatMessage saveConfig
+    , envConnection        = connSettings
     }

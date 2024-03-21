@@ -43,6 +43,7 @@ import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
 import           Servant.API                   (ToHttpApiData)
 import           Servant.Client                (ClientError)
 import           Data.Semigroup                 (Max (..))
+import qualified Hasql.Connection              as Connection
 
 -- General types
 
@@ -53,12 +54,12 @@ data SaveEnv = MkIpfsEnv
   , envNetworkId         :: NetworkId
   , envMaestroToken      :: MaestroToken
   , envCurrencySymbol    :: CurrencySymbol
-  , envSaveDirectory     :: FilePath
   , envManager           :: Manager
   , envLogEnv            :: LogEnv
   , envKContext          :: LogContexts
   , envKNamespace        :: Namespace
   , envFormatMessage     :: Bool -- Pretty print message or not
+  , envConnection        :: Connection.Settings
   }
 
 -- Format of severity in json file:
@@ -72,7 +73,6 @@ data SaveConfig = MkSaveConfig
   , icNetworkId            :: NetworkId
   , icMaestroTokenFilePath :: FilePath
   , icCurrencySymbol       :: CurrencySymbol
-  , icSaveDirectory        :: FilePath
   , icEnvironment          :: Environment
   , icVerbosity            :: Verbosity
   , icSeverity             :: Severity
@@ -90,6 +90,7 @@ newtype SaveMonad a = MkSaveMonad {getSaveMonad :: ReaderT SaveEnv IO a}
         , Monad
         , MonadIO
         , MonadThrow
+        , MonadFail
         , MonadCatch
         , MonadReader SaveEnv
         )
