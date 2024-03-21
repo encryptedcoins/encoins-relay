@@ -65,6 +65,7 @@ import           Control.Monad.Reader                   (MonadReader (ask, local
                                                          ReaderT (..))
 import           Data.Aeson                             (FromJSON, ToJSON)
 import           Data.ByteString                        (ByteString)
+import qualified Data.ByteString.Char8                  as B
 import           Data.FileEmbed                         (embedFileIfExists)
 import           Data.Fixed                             (Pico)
 import           Data.Function                          (on)
@@ -79,6 +80,7 @@ import           Data.Maybe                             (catMaybes, fromMaybe,
 import           Data.String                            (IsString (..))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
+import qualified Data.Text.Encoding                     as TE
 import qualified Data.Text.IO                           as T
 import qualified Data.Time                              as Time
 import           Development.GitRev                     (gitCommitDate, gitHash)
@@ -96,13 +98,14 @@ import           Servant.Server.Internal.ServerError    (ServerError (..))
 import           System.Directory                       (createDirectoryIfMissing)
 import qualified System.Process                         as Process
 import           System.ProgressBar                     (incProgress)
-import           Text.Pretty.Simple                     (pPrint)
 import           Text.Read                              (readMaybe)
 
 
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
-    pPrint $ showAppVersion "Delegation server" $ appVersion version $(gitHash) $(gitCommitDate)
+    B.putStrLn
+      $ TE.encodeUtf8
+      $ showAppVersion "Delegation server" $ appVersion version $(gitHash) $(gitCommitDate)
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     dEnvProgress <- initProgress cDelegationFolder >>= newIORef
     dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)

@@ -37,6 +37,7 @@ import           Control.Monad.IO.Class               (MonadIO (liftIO))
 import           Control.Monad.Reader                 (ReaderT (..), asks)
 import           Data.Aeson                           (eitherDecodeFileStrict',
                                                        encodeFile)
+import qualified Data.ByteString.Char8                as B
 import           Data.Either                          (partitionEithers)
 import           Data.Either.Extra                    (mapLeft)
 import qualified Data.List.NonEmpty                   as NE
@@ -45,6 +46,7 @@ import qualified Data.Map                             as Map
 import           Data.String                          (IsString (fromString))
 import           Data.Text                            (Text)
 import qualified Data.Text                            as T
+import qualified Data.Text.Encoding                   as TE
 import           Data.Time                            (UTCTime, addUTCTime,
                                                        getCurrentTime)
 import           Data.Time.Clock.POSIX                (POSIXTime, getPOSIXTime,
@@ -66,7 +68,9 @@ import           Text.Pretty.Simple                   (pPrint, pPrintString)
 
 ipfsServer :: IO ()
 ipfsServer = do
-  pPrint $ showAppVersion "IPFS server" $ appVersion version $(gitHash) $(gitCommitDate)
+  B.putStrLn
+    $ TE.encodeUtf8
+    $  showAppVersion "IPFS server" $ appVersion version $(gitHash) $(gitCommitDate)
   withIpfsEnv $ \env -> do
     checkPinataToken env
     -- withAsync (rottenTokenHandler env) $ \_ -> do

@@ -32,12 +32,14 @@ import           Control.Exception.Safe                 (SomeException,
                                                          catchAny, tryAny)
 import           Control.Monad.IO.Class                 (MonadIO (liftIO))
 import           Control.Monad.Reader                   (asks)
+import qualified Data.ByteString.Char8                  as B
 import qualified Data.List.NonEmpty                     as NE
 import           Data.Map                               (Map)
 import qualified Data.Map                               as Map
 import           Data.String                            (IsString (fromString))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
+import qualified Data.Text.Encoding                     as TE
 import           Data.Time                              (UTCTime, addUTCTime,
                                                          getCurrentTime)
 import           Development.GitRev                     (gitCommitDate, gitHash)
@@ -49,12 +51,13 @@ import           Network.Wai.Middleware.Cors            (CorsResourcePolicy (..)
                                                          simpleCorsResourcePolicy)
 import           Paths_encoins_relay_apps               (version)
 import           Servant
-import           Text.Pretty.Simple                     (pPrint)
 
 
 cloudServer :: IO ()
 cloudServer = do
-  pPrint $ showAppVersion "Save server" $ appVersion version $(gitHash) $(gitCommitDate)
+  B.putStrLn
+    $ TE.encodeUtf8
+    $ showAppVersion "Save server" $ appVersion version $(gitHash) $(gitCommitDate)
   withSaveEnv $ \env -> do
     -- withAsync (rottenTokenHandler env) $ \_ -> do
     withRecovery "server" $ run (envPort env) $ app env
