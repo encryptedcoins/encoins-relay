@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
 
-module Encoins.Relay.Apps.Save.Database
+module Encoins.Relay.Apps.Save.Database.Database
     ( dbExe
     ) where
 
@@ -76,7 +76,7 @@ getTokensSession = TS.transaction TS.ReadCommitted TS.Read $
   getTokensT
 
 deleteTokensByNameSession :: Text -> Session (Vector (Text, Text))
-deleteTokensByNameSession assetName = TS.transaction TS.Serializable TS.Write $
+deleteTokensByNameSession assetName = TS.transaction TS.ReadCommitted TS.Write $
   deleteTokensByNameT assetName
 
 -- * Transaction

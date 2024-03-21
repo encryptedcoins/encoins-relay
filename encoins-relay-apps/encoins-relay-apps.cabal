@@ -38,7 +38,8 @@ library
     Encoins.Relay.Apps.Poll.Config
     Encoins.Relay.Apps.Poll.Main
     Encoins.Relay.Apps.Save.Config
-    Encoins.Relay.Apps.Save.Database
+    Encoins.Relay.Apps.Save.Database.Database
+    Encoins.Relay.Apps.Save.Database.Migration
     Encoins.Relay.Apps.Save.Ipfs.Api
     Encoins.Relay.Apps.Save.Ipfs.Config
     Encoins.Relay.Apps.Save.Ipfs.Request
@@ -73,6 +74,7 @@ library
     , filepath
     , gitrev
     , hasql
+    , hasql-migration
     , hasql-transaction
     , http-client
     , http-client-tls
