@@ -12,68 +12,49 @@
 
 module Encoins.Relay.Apps.Save.Server where
 
-import           Encoins.Common.Constant                    (column, dash,
-                                                             space)
-import           Encoins.Common.Log                         (logDebug,
-                                                             logDebugS,
-                                                             logError,
-                                                             logErrorS, logInfo,
-                                                             logWarn)
-import           Encoins.Common.Transform                   (toJsonStrict,
-                                                             toText)
-import           Encoins.Common.Version                     (appVersion,
-                                                             showAppVersion)
+import           Encoins.Common.Constant                (column, space)
+import           Encoins.Common.Log                     (logDebug, logDebugS,
+                                                         logError, logErrorS,
+                                                         logInfo, logWarn)
+import           Encoins.Common.Transform               (toText)
+import           Encoins.Common.Version                 (appVersion,
+                                                         showAppVersion)
 import           Encoins.Relay.Apps.Save.Config
-import           Encoins.Relay.Apps.Save.Database.Migration (migration)
-import           Encoins.Relay.Apps.Save.Database.Query     (insertOnAbsentS)
+import           Encoins.Relay.Apps.Save.Database.Query (insertOnAbsentS)
 import           Encoins.Relay.Apps.Save.Types
 import           PlutusAppsExtra.IO.Maestro
-import           PlutusAppsExtra.Utils.Maestro              (AssetMintsAndBurnsData (..),
-                                                             AssetMintsAndBurnsResponse (..))
+import           PlutusAppsExtra.Utils.Maestro          (AssetMintsAndBurnsData (..),
+                                                         AssetMintsAndBurnsResponse (..))
 
-import           Control.Concurrent                         (threadDelay)
+import           Control.Concurrent                     (threadDelay)
 import           Control.Concurrent.STM
-import           Control.Exception.Safe                     (SomeException,
-                                                             catchAny, throw,
-                                                             tryAny)
-import           Control.Monad                              (foldM)
-import           Control.Monad.IO.Class                     (MonadIO (liftIO))
-import           Control.Monad.Reader                       (asks)
-import           Data.Aeson                                 (eitherDecodeFileStrict')
-import qualified Data.ByteString                            as BS
-import           Data.List.Extra                            (stripInfix)
-import qualified Data.List.NonEmpty                         as NE
-import           Data.Map                                   (Map)
-import qualified Data.Map                                   as Map
-import           Data.Semigroup                             (Max (..))
-import           Data.String                                (IsString (fromString))
-import           Data.Text                                  (Text)
-import qualified Data.Text                                  as T
-import           Data.Time                                  (UTCTime,
-                                                             addUTCTime,
-                                                             getCurrentTime)
-import           Development.GitRev                         (gitCommitDate,
-                                                             gitHash)
-import qualified Hasql.Connection                           as Connection
-import qualified Hasql.Session                              as S
-import qualified Network.Wai                                as Wai
+import           Control.Exception.Safe                 (SomeException,
+                                                         catchAny, tryAny)
+import           Control.Monad.IO.Class                 (MonadIO (liftIO))
+import           Control.Monad.Reader                   (asks)
+import qualified Data.List.NonEmpty                     as NE
+import           Data.Map                               (Map)
+import qualified Data.Map                               as Map
+import           Data.String                            (IsString (fromString))
+import           Data.Text                              (Text)
+import qualified Data.Text                              as T
+import           Data.Time                              (UTCTime, addUTCTime,
+                                                         getCurrentTime)
+import           Development.GitRev                     (gitCommitDate, gitHash)
+import qualified Hasql.Pool                             as Pool
+import qualified Network.Wai                            as Wai
 import           Network.Wai.Handler.Warp
-import           Network.Wai.Middleware.Cors                (CorsResourcePolicy (..),
-                                                             cors,
-                                                             simpleCorsResourcePolicy)
-import           Numeric.Natural                            (Natural)
-import           Paths_encoins_relay_apps                   (version)
-import           Say
+import           Network.Wai.Middleware.Cors            (CorsResourcePolicy (..),
+                                                         cors,
+                                                         simpleCorsResourcePolicy)
+import           Paths_encoins_relay_apps               (version)
 import           Servant
-import           System.Directory.Extra                     (listFiles)
-import           System.FilePath.Posix                      (takeBaseName,
-                                                             (</>))
-import           Text.Read                                  (readMaybe)
+import           Text.Pretty.Simple                     (pPrint)
 
 
-saveServer :: IO ()
-saveServer = do
-  say $ showAppVersion "Save server" $ appVersion version $(gitHash) $(gitCommitDate)
+cloudServer :: IO ()
+cloudServer = do
+  pPrint $ showAppVersion "Save server" $ appVersion version $(gitHash) $(gitCommitDate)
   withSaveEnv $ \env -> do
     -- withAsync (rottenTokenHandler env) $ \_ -> do
     withRecovery "server" $ run (envPort env) $ app env
@@ -109,8 +90,6 @@ corsWithContentType = cors (const $ Just policy)
 app :: SaveEnv -> Application
 app = corsWithContentType . serve serverSaveApiProxy . handlerServer
 
--- TODO: get rid of liftIO
-
 ping :: SaveMonad NoContent
 ping = do
   logInfo "Ping request"
@@ -119,17 +98,16 @@ ping = do
 save :: [SaveRequest] -> SaveMonad (Map AssetName StatusResponse)
 save reqs = do
   responseTVar <- liftIO $ newTVarIO Map.empty
-  connectionSettings <- asks envConnection
-  Right connection <- liftIO $ Connection.acquire connectionSettings
-  mapM_ (saveToken responseTVar connection) reqs
+  pool <- asks envPool
+  mapM_ (saveToken responseTVar pool) reqs
   liftIO $ readTVarIO responseTVar
 
--- Save minted tokens and return their statuses
+-- Save unsaved token and return their status
 saveToken :: TVar (Map AssetName StatusResponse)
-  -> Connection.Connection
+  -> Pool.Pool
   -> SaveRequest
   -> SaveMonad ()
-saveToken tVar con req = do
+saveToken tVar pool req = do
   isFormat <- asks envFormatMessage
   logInfo ""
   logInfo "Unsaved token received"
@@ -148,31 +126,14 @@ saveToken tVar con req = do
     _ -> do
       let name = getAssetName $ ppAssetName req
       let secret = getEncryptedSecret $ ppSecretKey req
-      eResult <- liftIO $ S.run (insertOnAbsentS name secret) con
+      eResult <- liftIO $ Pool.use pool $ insertOnAbsentS name secret
       case eResult of
         Left err -> do
           logErrorS isFormat err
           pure $ MkStatusResponse SaveError
-        Right r -> do
+        Right _ -> do
           logInfo "Token is saved"
           pure $ MkStatusResponse Saved
-
-      -- mDup <- checkSaveStatus req
-      -- case mDup of
-      --   Nothing -> do
-      --     logInfo "Token is not saved"
-      --     let dupNum = 0
-      --     let newToken = MkSaveToken (ppAssetName req) (ppSecretKey req) dupNum
-      --     status <- saveTokenFile newToken dupNum
-      --     pure $ MkStatusResponse status
-      --   Just lastDuplicateNumber -> do
-      --       let nextDupNum = lastDuplicateNumber + 1
-      --       logInfo $ "There are" <> space
-      --         <> toText nextDupNum <> space
-      --         <> "tokens that already saved with other aes keys"
-      --       let newToken = MkSaveToken (ppAssetName req) (ppSecretKey req) nextDupNum
-      --       status <- saveTokenFile newToken nextDupNum
-      --       pure $ MkStatusResponse status
   logInfo $ "Final SaveStatus" <> column <> space <>
     toText (spStatusResponse saveStatus)
   modifyCacheResponse tVar assetName saveStatus
@@ -222,60 +183,15 @@ checkCoinStatus assetName = do
         logError "getAssetMintsAndBurns returned more than one asset"
         pure $ CoinDiscarded "more than one asset"
 
--- checkSaveStatus :: SaveRequest -> SaveMonad (Maybe Natural)
--- checkSaveStatus req = do
---   logInfo "Check SaveStatus"
---   saveDirectory <- asks envSaveDirectory
---   savedFiles <- liftIO $ listFiles saveDirectory
---   fmap getMax <$> foldM (filterAssets req) Nothing savedFiles
-
--- if all are Nothing then file is absent, no matter there is error or not.
--- filterAssets :: SaveRequest
---   -> Maybe (Max Natural)
---   -> FilePath
---   -> SaveMonad (Maybe (Max Natural))
--- filterAssets (MkSaveRequest name secret) acc fp = do
---   let bn = takeBaseName fp
---   case stripInfix dash bn of
---     Nothing -> do
---       logError $ "Failed to strip filepath"
---         <> column <> space <> toText bn
---       pure $ acc <> Nothing -- Error: Invalid filepath
---     Just (aName, dupNumber) -> do
---       case getAssetName name == T.pack aName of -- select by name
---         False -> pure $ acc <> Nothing -- Absent
---         True -> case readMaybe @Natural dupNumber of -- select by number
---           Nothing -> do
---             logError $ "Failed to read duplicate number of filepath"
---               <> column <> space <> toText bn
---             pure $ acc <> Nothing -- Error: Invalid Duplicate Number
---           Just n -> pure $ acc <> Just (Max n)
-
--- saveTokenFile :: SaveToken -> Natural -> SaveMonad SaveStatus
--- saveTokenFile sToken num = do
---   saveDirectory <- asks envSaveDirectory
---   let mkFilePath = saveDirectory
---         </> (T.unpack $ getAssetName $ stAssetName sToken)
---         <> dash
---         <> show num
---   let tokenJson = toJsonStrict sToken
---   eRes <- liftIO <$> tryAny $ BS.writeFile mkFilePath tokenJson
---   case eRes of
---     Left err -> do
---       isFormat <- asks envFormatMessage
---       logErrorS isFormat err
---       pure SaveError
---     Right _ -> pure Saved
-
 withRecovery :: Text -> IO () -> IO ()
 withRecovery nameOfAction action = action `catchAny` handleException
   where
     handleException :: SomeException -> IO ()
     handleException e = do
-      say $ "Exception caught in" <> space <> nameOfAction <> column <> space <> toText e
+      print $ "Exception caught in" <> space <> nameOfAction <> column <> space <> toText e
       liftIO $ threadDelay $ 5 * 1000000
       withRecovery nameOfAction action
 
--- Discarding burned token in 12 hours
+-- Burned token is discarded in 12 hours
 discardTime :: UTCTime -> UTCTime
 discardTime = addUTCTime (12 * 60 * 60)

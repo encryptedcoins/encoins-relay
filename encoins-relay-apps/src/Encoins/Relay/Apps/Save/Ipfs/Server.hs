@@ -57,16 +57,16 @@ import           Network.Wai.Middleware.Cors          (CorsResourcePolicy (..),
                                                        cors,
                                                        simpleCorsResourcePolicy)
 import           Paths_encoins_relay_apps             (version)
-import           Say
 import           Servant
 import           System.Directory                     (createDirectoryIfMissing,
                                                        removeFile)
 import           System.Directory.Extra               (listFiles)
 import           System.FilePath.Posix                ((<.>), (</>))
+import           Text.Pretty.Simple                   (pPrint, pPrintString)
 
 ipfsServer :: IO ()
 ipfsServer = do
-  say $ showAppVersion "IPFS server" $ appVersion version $(gitHash) $(gitCommitDate)
+  pPrint $ showAppVersion "IPFS server" $ appVersion version $(gitHash) $(gitCommitDate)
   withIpfsEnv $ \env -> do
     checkPinataToken env
     -- withAsync (rottenTokenHandler env) $ \_ -> do
@@ -234,7 +234,7 @@ withRecovery nameOfAction action = action `catchAny` handleException
   where
     handleException :: SomeException -> IO ()
     handleException e = do
-      say $ "Exception caught in" <> space <> nameOfAction <> column <> space <> toText e
+      pPrint $ "Exception caught in" <> space <> nameOfAction <> column <> space <> toText e
       liftIO $ threadDelay $ 5 * 1000000
       withRecovery nameOfAction action
 
@@ -266,7 +266,7 @@ restore clientId = do
   eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
   case eFiles of
     Left err -> do
-      sayShow err
+      pPrint err
       pure []
     Right (rows -> files) -> do
       (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
@@ -284,7 +284,7 @@ restore clientId = do
       case errors of
         [] -> pure rRes
         _ -> do
-          mapM_ sayShow errors
+          mapM_ pPrint errors
           pure []
 
 -- burned :: PinRequest -> IpfsMonad Text
@@ -362,7 +362,7 @@ selectRottenCip now tokenPath = do
   eRotten <- liftIO $ eitherDecodeFileStrict' tokenPath
   case eRotten of
     Left err -> do
-      sayString err
+      pPrintString err
       pure Nothing
     Right rotten
       | rtRemoveTime rotten <= now -> pure $ Just $ (rtCip rotten, tokenPath)
@@ -372,9 +372,9 @@ selectRottenCip now tokenPath = do
 rottenTokenHandler :: IpfsEnv -> IO ()
 -- rottenTokenHandler env = withRecovery "removeRottenTokens" $ forever $ do
 rottenTokenHandler env = forever $ do
-      say "run removeRottenTokens"
-      sayShow =<< getCurrentTime
-      sayShow =<< getPOSIXTime
+      pPrintString "run removeRottenTokens"
+      pPrint =<< getCurrentTime
+      pPrint =<< getPOSIXTime
       runReaderT (unIpfsMonad removeRottenTokens) env
       -- Sleep for 1 hour (in microseconds)
       -- liftIO $ threadDelay $ 60 * 60 * 1000000

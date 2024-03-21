@@ -17,28 +17,52 @@
 
 module Encoins.Relay.Apps.Delegation.Server where
 
-import           Cardano.Api                            (NetworkId (Mainnet), writeFileJSON)
-import           Cardano.Server.Config                  (HasCreds, decodeOrErrorFromFile)
+import           Cardano.Api                            (NetworkId (Mainnet),
+                                                         writeFileJSON)
+import           Cardano.Server.Config                  (HasCreds,
+                                                         decodeOrErrorFromFile)
 import           Cardano.Server.Main                    (runCardanoServer)
-import           Cardano.Server.Utils.Logger            (logMsg, logSmth, logger, (.<))
+import           Cardano.Server.Utils.Logger            (logMsg, logSmth,
+                                                         logger, (.<))
 import           Cardano.Server.Utils.Wait              (waitTime)
 import           Encoins.Common.Constant                (column, newLine, space)
 import           Encoins.Common.Transform               (toText)
-import           Encoins.Common.Version                 (appVersion, showAppVersion)
-import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..), Delegation (..), DelegationEnv (..), DelegationM (..),
-                                                         Progress (..), RelayAddress, concatIpsWithBalances, delegAddress, findDeleg,
-                                                         fromRelayAddress, getBalances, removeDuplicates, runDelegationM, setProgress,
-                                                         setTokenBalance, toRelayAddress, trimIp)
-import           Encoins.Relay.Apps.Internal            (formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
+import           Encoins.Common.Version                 (appVersion,
+                                                         showAppVersion)
+import           Encoins.Relay.Apps.Delegation.Internal (DelegConfig (..),
+                                                         Delegation (..),
+                                                         DelegationEnv (..),
+                                                         DelegationM (..),
+                                                         Progress (..),
+                                                         RelayAddress,
+                                                         concatIpsWithBalances,
+                                                         delegAddress,
+                                                         findDeleg,
+                                                         fromRelayAddress,
+                                                         getBalances,
+                                                         removeDuplicates,
+                                                         runDelegationM,
+                                                         setProgress,
+                                                         setTokenBalance,
+                                                         toRelayAddress, trimIp)
+import           Encoins.Relay.Apps.Internal            (formatTime,
+                                                         janitorFiles,
+                                                         loadMostRecentFile,
+                                                         newProgressBar)
 
 import           Control.Applicative                    (liftA2, (<|>))
 import           Control.Concurrent                     (forkIO)
 import           Control.Concurrent.Async               (async, wait)
 import           Control.Exception                      (throw)
-import           Control.Monad                          (forM, forever, void, when, (>=>))
-import           Control.Monad.Catch                    (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
+import           Control.Monad                          (forM, forever, void,
+                                                         when, (>=>))
+import           Control.Monad.Catch                    (Exception,
+                                                         MonadCatch (catch),
+                                                         MonadThrow (..),
+                                                         SomeException, handle)
 import           Control.Monad.IO.Class                 (MonadIO (..))
-import           Control.Monad.Reader                   (MonadReader (ask, local), ReaderT (..))
+import           Control.Monad.Reader                   (MonadReader (ask, local),
+                                                         ReaderT (..))
 import           Data.Aeson                             (FromJSON, ToJSON)
 import           Data.ByteString                        (ByteString)
 import           Data.FileEmbed                         (embedFileIfExists)
@@ -50,7 +74,8 @@ import           Data.List                              (find, sortBy)
 import           Data.List.Extra                        (notNull, stripSuffix)
 import           Data.Map                               (Map, filterWithKey)
 import qualified Data.Map                               as Map
-import           Data.Maybe                             (catMaybes, fromMaybe, listToMaybe, mapMaybe)
+import           Data.Maybe                             (catMaybes, fromMaybe,
+                                                         listToMaybe, mapMaybe)
 import           Data.String                            (IsString (..))
 import           Data.Text                              (Text)
 import qualified Data.Text                              as T
@@ -60,19 +85,24 @@ import           Development.GitRev                     (gitCommitDate, gitHash)
 import           Ledger                                 (Address, PubKeyHash)
 import           Paths_encoins_relay_apps               (version)
 import qualified PlutusAppsExtra.IO.Blockfrost          as Bf
-import           PlutusAppsExtra.Utils.Address          (addressToBech32, getStakeKey)
-import           Say                                    (say)
-import           Servant                                (Get, JSON, Post, ReqBody, err404, err500, throwError, type (:<|>) ((:<|>)), (:>))
+import           PlutusAppsExtra.Utils.Address          (addressToBech32,
+                                                         getStakeKey)
+import           Servant                                (Get, JSON, Post,
+                                                         ReqBody, err404,
+                                                         err500, throwError,
+                                                         type (:<|>) ((:<|>)),
+                                                         (:>))
 import           Servant.Server.Internal.ServerError    (ServerError (..))
 import           System.Directory                       (createDirectoryIfMissing)
 import qualified System.Process                         as Process
 import           System.ProgressBar                     (incProgress)
+import           Text.Pretty.Simple                     (pPrint)
 import           Text.Read                              (readMaybe)
 
 
 runDelegationServer :: FilePath -> IO ()
 runDelegationServer delegConfigFp = do
-    say $ showAppVersion "Delegation server" $ appVersion version $(gitHash) $(gitCommitDate)
+    pPrint $ showAppVersion "Delegation server" $ appVersion version $(gitHash) $(gitCommitDate)
     DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
     dEnvProgress <- initProgress cDelegationFolder >>= newIORef
     dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)

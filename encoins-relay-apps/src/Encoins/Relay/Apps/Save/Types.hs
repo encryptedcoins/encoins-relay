@@ -9,31 +9,21 @@
 
 module Encoins.Relay.Apps.Save.Types where
 
-import           Encoins.Common.Transform      (toJsonText)
-
 import           Cardano.Api                   (NetworkId)
 import           Cardano.Server.Config         (HyperTextProtocol (..))
-import           Control.Exception.Safe        (Exception, MonadCatch,
-                                                MonadThrow)
+import           Control.Exception.Safe        (MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class        (MonadIO)
 import           Control.Monad.Reader          (MonadReader, ReaderT (..), asks,
                                                 local)
 import           Data.Aeson                    (FromJSON (..), FromJSONKey,
-                                                Options (fieldLabelModifier),
-                                                SumEncoding (..), ToJSON (..),
-                                                ToJSONKey, camelTo2,
-                                                constructorTagModifier,
+                                                ToJSON (..), ToJSONKey,
                                                 defaultOptions,
                                                 genericParseJSON, genericToJSON,
-                                                sumEncoding,
-                                                tagSingleConstructors,
-                                                withObject, (.:), (.:?))
-import           Data.Aeson.Casing             (aesonPrefix, camelCase,
-                                                snakeCase)
+                                                tagSingleConstructors)
+import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Text                     (Text)
-import           Data.Time                     (UTCTime)
-import           Data.Time.Clock.POSIX         (POSIXTime)
 import           GHC.Generics                  (Generic)
+import qualified Hasql.Pool                    as P
 import           Katip
 import           Network.HTTP.Client           (Manager)
 import           Numeric.Natural               (Natural)
@@ -41,9 +31,6 @@ import           Plutus.V1.Ledger.Api          (CurrencySymbol)
 import           PlutusAppsExtra.Api.Maestro   (MaestroToken, MonadMaestro (..))
 import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
 import           Servant.API                   (ToHttpApiData)
-import           Servant.Client                (ClientError)
-import           Data.Semigroup                 (Max (..))
-import qualified Hasql.Connection              as Connection
 
 -- General types
 
@@ -59,7 +46,7 @@ data SaveEnv = MkIpfsEnv
   , envKContext          :: LogContexts
   , envKNamespace        :: Namespace
   , envFormatMessage     :: Bool -- Pretty print message or not
-  , envConnection        :: Connection.Settings
+  , envPool              :: P.Pool
   }
 
 -- Format of severity in json file:
@@ -119,8 +106,6 @@ instance KatipContext SaveMonad where
 
 -- Backend Request/Response types
 
--- EncryptedToken and EncryptedSecret are semantically the same.
--- The difference is in their JSON instances.
 -- EncryptedSecret is encoded as Text
 newtype EncryptedSecret = MkEncryptedSecret { getEncryptedSecret :: Text }
   deriving newtype (Eq, Show, ToJSON, FromJSON)

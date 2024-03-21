@@ -1,64 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
 
-module Encoins.Relay.Apps.Save.Database.Query
-    ( insertOnAbsentS
-    ) where
-
-import           Encoins.Relay.Apps.Save.Database.Migration (migration)
+module Encoins.Relay.Apps.Save.Database.Query where
 
 import           Contravariant.Extras.Contrazip
-import           Data.Functor.Contravariant
 import           Data.Int
-import           Data.Text                                  (Text)
-import           Data.UUID
-import           Data.UUID.V4
-import           Data.Vector                                (Vector)
-import           Text.Pretty.Simple
-
-
-import qualified Hasql.Connection                           as Connection
-import qualified Hasql.Decoders                             as D
-import qualified Hasql.Encoders                             as E
-import           Hasql.Session                              (Session)
-import qualified Hasql.Session                              as S
-import           Hasql.Statement                            (Statement (..))
-import           Hasql.Transaction                          (Transaction)
-import qualified Hasql.Transaction                          as T
-import qualified Hasql.Transaction.Sessions                 as TS
-
-dbExe :: IO ()
-dbExe = do
-  let connectionSettings = Connection.settings "127.0.0.1" 5432 "postgres" "" "encoins"
-  Right connection <- Connection.acquire connectionSettings
-  res <- migration connection
-  case res of
-    Left err -> pPrint err
-    Right (Right (Just err)) -> pPrint err
-    _ -> do
-        pPrintString "Encoins..."
-        tokens <- S.run getTokensS connection
-        pPrint tokens
-
-        -- assetName <- toText <$> nextRandom
-        -- secret <- toText <$> nextRandom
-        -- result <- S.run (insertTokenSession assetName secret) connection
-
-        pPrintString "Insert encoins..."
-        result <- S.run (insertOnAbsentS "assetname" "secret") connection
-        pPrintString "Inserted id:"
-        pPrint result
-
-        pPrintString "Encoins..."
-        tokens <- S.run getTokensS connection
-        pPrint tokens
-
+import           Data.Text                      (Text)
+import           Data.Vector                    (Vector)
+import qualified Hasql.Decoders                 as D
+import qualified Hasql.Encoders                 as E
+import           Hasql.Session                  (Session)
+import           Hasql.Statement                (Statement (..))
+import           Hasql.Transaction              (Transaction)
+import qualified Hasql.Transaction              as T
+import qualified Hasql.Transaction.Sessions     as TS
 
 -- * Sessions
---
--- Session is an abstraction over the database connection and all possible errors.
--- It is used to execute statements.
--- It is composable and has a Monad instance.
 
 insertTokenS :: Text -> Text -> Session Int32
 insertTokenS assetName encryptedSecret = TS.transaction TS.Serializable TS.Write $
@@ -110,10 +67,6 @@ deleteTokensByNameT assetName =
   T.statement assetName deleteTokensByName
 
 -- * Statements
---
--- Statement is a definition of an individual SQL-statement,
--- accompanied by a specification of how to encode its parameters and
--- decode its result.
 
 insertToken :: Statement (Text, Text) Int32
 insertToken = let

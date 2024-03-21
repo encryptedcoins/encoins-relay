@@ -1,6 +1,6 @@
 module Main where
 
-import           Encoins.Relay.Apps.Save.Server (saveServer)
+import           Encoins.Relay.Apps.Save.Server (cloudServer)
 
 main :: IO ()
-main = saveServer
+main = cloudServer

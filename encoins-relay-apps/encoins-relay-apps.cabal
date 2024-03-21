@@ -75,6 +75,7 @@ library
     , gitrev
     , hasql
     , hasql-migration
+    , hasql-pool
     , hasql-transaction
     , http-client
     , http-client-tls
@@ -94,7 +95,6 @@ library
     , pretty-simple
     , process
     , safe-exceptions
-    , say
     , servant
     , servant-client
     , servant-server
