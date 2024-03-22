@@ -4,12 +4,12 @@
 {-# LANGUAGE RecordWildCards    #-}
 
 
-module Encoins.Relay.Apps.Save.Config where
+module Encoins.Relay.Apps.Cloud.Config where
 
 import           Encoins.Common.Log                         (mkLogEnv,
                                                              withLogEnv)
-import           Encoins.Relay.Apps.Save.Database.Migration (migration)
-import           Encoins.Relay.Apps.Save.Types
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Migration (migration)
+import           Encoins.Relay.Apps.Cloud.Types
 
 import           Cardano.Server.Config                      (decodeOrErrorFromFile)
 import           Control.Exception.Safe                     (bracket)
@@ -22,9 +22,9 @@ import           Network.HTTP.Client.TLS
 import           PlutusAppsExtra.Api.Maestro                (MaestroToken)
 import           Text.Pretty.Simple                         (pPrint)
 
-withSaveEnv :: (SaveEnv -> IO ()) -> IO ()
-withSaveEnv action = do
-  config <- decodeOrErrorFromFile "save_config.json"
+withCloudEnv :: (CloudEnv -> IO ()) -> IO ()
+withCloudEnv action = do
+  config <- decodeOrErrorFromFile "cloud_config.json"
   maestroToken <- decodeOrErrorFromFile $ icMaestroTokenFilePath config
   pPrint config
   let logEnv = mkLogEnv
@@ -41,7 +41,7 @@ withSaveEnv action = do
         Right (Right (Just err)) -> pPrint err
         _ -> do
           manager <- newManager tlsManagerSettings
-          let env = mkSaveEnv manager config le maestroToken pool
+          let env = mkCloudEnv manager config le maestroToken pool
           action env
 
 withPool :: Int
@@ -57,24 +57,24 @@ withPool poolSize acqTimeout maxLifetime connSettings = bracket
 withDefaultPool :: Conn.Settings -> (P.Pool -> IO ()) -> IO ()
 withDefaultPool connSettings = withPool 3 10 1_800 connSettings
 
-mkSaveEnv :: Manager
-  -> SaveConfig
+mkCloudEnv :: Manager
+  -> CloudConfig
   -> LogEnv
   -> MaestroToken
   -> P.Pool
-  -> SaveEnv
-mkSaveEnv manager saveConfig logEnv maestroToken pool =
-  MkIpfsEnv
-    { envHyperTextProtocol = icHyperTextProtocol saveConfig
-    , envHost              = icHost saveConfig
-    , envPort              = icPort saveConfig
-    , envNetworkId         = icNetworkId saveConfig
+  -> CloudEnv
+mkCloudEnv manager cloudConfig logEnv maestroToken pool =
+  MkCloudEnv
+    { envHyperTextProtocol = icHyperTextProtocol cloudConfig
+    , envHost              = icHost cloudConfig
+    , envPort              = icPort cloudConfig
+    , envNetworkId         = icNetworkId cloudConfig
     , envMaestroToken      = maestroToken
-    , envCurrencySymbol    = icCurrencySymbol saveConfig
+    , envCurrencySymbol    = icCurrencySymbol cloudConfig
     , envManager           = manager
     , envLogEnv            = logEnv
     , envKContext          = mempty
     , envKNamespace        = mempty
-    , envFormatMessage     = icFormatMessage saveConfig
+    , envFormatMessage     = icFormatMessage cloudConfig
     , envPool              = pool
     }

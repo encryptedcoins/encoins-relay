@@ -7,11 +7,11 @@
 {-# LANGUAGE TypeOperators      #-}
 
 
-module Encoins.Relay.Apps.Save.Ipfs.Request where
+module Encoins.Relay.Apps.Cloud.Ipfs.Request where
 
-import           Encoins.Relay.Apps.Save.Ipfs.Api
-import           Encoins.Relay.Apps.Save.Ipfs.Config    (withIpfsEnv)
-import           Encoins.Relay.Apps.Save.Ipfs.Types
+import           Encoins.Relay.Apps.Cloud.Ipfs.Api
+import           Encoins.Relay.Apps.Cloud.Ipfs.Config    (withIpfsEnv)
+import           Encoins.Relay.Apps.Cloud.Ipfs.Types
 
 import           Control.Monad.IO.Class                 (MonadIO (liftIO))
 import           Control.Monad.Reader                   (MonadReader (ask))

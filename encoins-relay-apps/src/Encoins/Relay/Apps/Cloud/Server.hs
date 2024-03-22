@@ -10,7 +10,7 @@
 
 
 
-module Encoins.Relay.Apps.Save.Server where
+module Encoins.Relay.Apps.Cloud.Server where
 
 import           Encoins.Common.Constant                (column, space)
 import           Encoins.Common.Log                     (logDebug, logDebugS,
@@ -19,9 +19,9 @@ import           Encoins.Common.Log                     (logDebug, logDebugS,
 import           Encoins.Common.Transform               (toText)
 import           Encoins.Common.Version                 (appVersion,
                                                          showAppVersion)
-import           Encoins.Relay.Apps.Save.Config
-import           Encoins.Relay.Apps.Save.Database.Query (insertOnAbsentS)
-import           Encoins.Relay.Apps.Save.Types
+import           Encoins.Relay.Apps.Cloud.Config
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (insertOnAbsentS)
+import           Encoins.Relay.Apps.Cloud.Types
 import           PlutusAppsExtra.IO.Maestro
 import           PlutusAppsExtra.Utils.Maestro          (AssetMintsAndBurnsData (..),
                                                          AssetMintsAndBurnsResponse (..))
@@ -58,7 +58,7 @@ cloudServer = do
   B.putStrLn
     $ TE.encodeUtf8
     $ showAppVersion "Save server" $ appVersion version $(gitHash) $(gitCommitDate)
-  withSaveEnv $ \env -> do
+  withCloudEnv $ \env -> do
     -- withAsync (rottenTokenHandler env) $ \_ -> do
     withRecovery "server" $ run (envPort env) $ app env
 
@@ -76,13 +76,13 @@ type ServerSaveApi =
 serverSaveApiProxy :: Proxy ServerSaveApi
 serverSaveApiProxy = Proxy
 
-serverSaveApi :: ServerT ServerSaveApi SaveMonad
+serverSaveApi :: ServerT ServerSaveApi CloudMonad
 serverSaveApi = ping
            :<|> save
           --  :<|> restore
 
-handlerServer :: SaveEnv -> ServerT ServerSaveApi Handler
-handlerServer env = hoistServer serverSaveApiProxy (liftIO . runSaveMonad env) serverSaveApi
+handlerServer :: CloudEnv -> ServerT ServerSaveApi Handler
+handlerServer env = hoistServer serverSaveApiProxy (liftIO . runCloudMonad env) serverSaveApi
 
 corsWithContentType :: Wai.Middleware
 corsWithContentType = cors (const $ Just policy)
@@ -90,15 +90,15 @@ corsWithContentType = cors (const $ Just policy)
             { corsRequestHeaders = ["Content-Type"]
             }
 
-app :: SaveEnv -> Application
+app :: CloudEnv -> Application
 app = corsWithContentType . serve serverSaveApiProxy . handlerServer
 
-ping :: SaveMonad NoContent
+ping :: CloudMonad NoContent
 ping = do
   logInfo "Ping request"
   pure NoContent
 
-save :: [SaveRequest] -> SaveMonad (Map AssetName StatusResponse)
+save :: [SaveRequest] -> CloudMonad (Map AssetName StatusResponse)
 save reqs = do
   responseTVar <- liftIO $ newTVarIO Map.empty
   pool <- asks envPool
@@ -109,7 +109,7 @@ save reqs = do
 saveToken :: TVar (Map AssetName StatusResponse)
   -> Pool.Pool
   -> SaveRequest
-  -> SaveMonad ()
+  -> CloudMonad ()
 saveToken tVar pool req = do
   isFormat <- asks envFormatMessage
   logInfo ""
@@ -144,13 +144,13 @@ saveToken tVar pool req = do
 modifyCacheResponse :: TVar (Map AssetName StatusResponse)
   -> AssetName
   -> StatusResponse
-  -> SaveMonad ()
+  -> CloudMonad ()
 modifyCacheResponse tVar assetName resp
   = liftIO
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
 
-checkCoinStatus :: AssetName -> SaveMonad CoinStatus
+checkCoinStatus :: AssetName -> CloudMonad CoinStatus
 checkCoinStatus assetName = do
   isFormat <- asks envFormatMessage
   currentSymbol <- asks envCurrencySymbol

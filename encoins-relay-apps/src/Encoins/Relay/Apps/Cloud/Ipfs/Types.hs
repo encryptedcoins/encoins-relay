@@ -8,7 +8,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeOperators              #-}
 
-module Encoins.Relay.Apps.Save.Ipfs.Types where
+module Encoins.Relay.Apps.Cloud.Ipfs.Types where
 
 import           Cardano.Api                   (NetworkId)
 import           Cardano.Server.Config         (HyperTextProtocol (..))

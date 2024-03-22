@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Encoins.Relay.Apps.Save.Database.Migration where
+module Encoins.Relay.Apps.Cloud.PostgreSQL.Migration where
 
 import           Control.Monad              (void)
 import           Hasql.Migration

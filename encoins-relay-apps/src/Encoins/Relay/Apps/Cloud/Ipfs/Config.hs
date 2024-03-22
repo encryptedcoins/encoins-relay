@@ -2,11 +2,11 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Encoins.Relay.Apps.Save.Ipfs.Config where
+module Encoins.Relay.Apps.Cloud.Ipfs.Config where
 
 import           Encoins.Common.Constant            (space)
 import           Encoins.Common.Log                 (mkLogEnv, withLogEnv)
-import           Encoins.Relay.Apps.Save.Ipfs.Types
+import           Encoins.Relay.Apps.Cloud.Ipfs.Types
 import           PlutusAppsExtra.Api.Maestro        (MaestroToken)
 
 import           Cardano.Server.Config              (decodeOrErrorFromFile)

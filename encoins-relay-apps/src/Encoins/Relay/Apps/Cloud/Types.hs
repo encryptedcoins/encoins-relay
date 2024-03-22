@@ -7,7 +7,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeOperators              #-}
 
-module Encoins.Relay.Apps.Save.Types where
+module Encoins.Relay.Apps.Cloud.Types where
 
 import           Cardano.Api                   (NetworkId)
 import           Cardano.Server.Config         (HyperTextProtocol (..))
@@ -34,7 +34,7 @@ import           Servant.API                   (ToHttpApiData)
 
 -- General types
 
-data SaveEnv = MkIpfsEnv
+data CloudEnv = MkCloudEnv
   { envHyperTextProtocol :: HyperTextProtocol
   , envHost              :: Text
   , envPort              :: Int
@@ -52,7 +52,7 @@ data SaveEnv = MkIpfsEnv
 -- Format of severity in json file:
 -- debug, info, notice, warning, error, critical, alert, emergency
 -- Format of verbosity in json file: V0, V1, V2, V3
-data SaveConfig = MkSaveConfig
+data CloudConfig = MkCloudConfig
   {
     icHyperTextProtocol    :: HyperTextProtocol
   , icHost                 :: Text
@@ -67,10 +67,10 @@ data SaveConfig = MkSaveConfig
   }
   deriving stock (Eq,Show, Generic)
 
-instance FromJSON SaveConfig where
+instance FromJSON CloudConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-newtype SaveMonad a = MkSaveMonad {getSaveMonad :: ReaderT SaveEnv IO a}
+newtype CloudMonad a = MkCloudMonad {getCloudMonad :: ReaderT CloudEnv IO a}
     deriving newtype
         ( Functor
         , Applicative
@@ -79,30 +79,30 @@ newtype SaveMonad a = MkSaveMonad {getSaveMonad :: ReaderT SaveEnv IO a}
         , MonadThrow
         , MonadFail
         , MonadCatch
-        , MonadReader SaveEnv
+        , MonadReader CloudEnv
         )
 
-runSaveMonad :: SaveEnv -> SaveMonad a -> IO a
-runSaveMonad env = (`runReaderT` env) . getSaveMonad
+runCloudMonad :: CloudEnv -> CloudMonad a -> IO a
+runCloudMonad env = (`runReaderT` env) . getCloudMonad
 
-instance HasNetworkId SaveMonad where
+instance HasNetworkId CloudMonad where
   getNetworkId = asks envNetworkId
 
-instance MonadMaestro SaveMonad where
+instance MonadMaestro CloudMonad where
   getMaestroToken = asks envMaestroToken
 
-instance Katip SaveMonad where
+instance Katip CloudMonad where
   getLogEnv = asks envLogEnv
-  localLogEnv f (MkSaveMonad m) =
-    MkSaveMonad (local (\s -> s {envLogEnv = f (envLogEnv s)}) m)
+  localLogEnv f (MkCloudMonad m) =
+    MkCloudMonad (local (\s -> s {envLogEnv = f (envLogEnv s)}) m)
 
-instance KatipContext SaveMonad where
+instance KatipContext CloudMonad where
   getKatipContext = asks envKContext
-  localKatipContext f (MkSaveMonad m) =
-    MkSaveMonad (local (\s -> s {envKContext = f (envKContext s)}) m)
+  localKatipContext f (MkCloudMonad m) =
+    MkCloudMonad (local (\s -> s {envKContext = f (envKContext s)}) m)
   getKatipNamespace = asks envKNamespace
-  localKatipNamespace f (MkSaveMonad m) =
-    MkSaveMonad (local (\s -> s {envKNamespace = f (envKNamespace s)}) m)
+  localKatipNamespace f (MkCloudMonad m) =
+    MkCloudMonad (local (\s -> s {envKNamespace = f (envKNamespace s)}) m)
 
 -- Backend Request/Response types
 

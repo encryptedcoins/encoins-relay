@@ -10,7 +10,7 @@
 
 
 
-module Encoins.Relay.Apps.Save.Ipfs.Server where
+module Encoins.Relay.Apps.Cloud.Ipfs.Server where
 
 import           Encoins.Common.Constant              (column, space)
 import           Encoins.Common.Log                   (logDebug, logDebugS,
@@ -20,9 +20,9 @@ import           Encoins.Common.Log                   (logDebug, logDebugS,
 import           Encoins.Common.Transform             (toText)
 import           Encoins.Common.Version               (appVersion,
                                                        showAppVersion)
-import           Encoins.Relay.Apps.Save.Ipfs.Config
-import           Encoins.Relay.Apps.Save.Ipfs.Request
-import           Encoins.Relay.Apps.Save.Ipfs.Types
+import           Encoins.Relay.Apps.Cloud.Ipfs.Config
+import           Encoins.Relay.Apps.Cloud.Ipfs.Request
+import           Encoins.Relay.Apps.Cloud.Ipfs.Types
 import           PlutusAppsExtra.IO.Maestro
 import           PlutusAppsExtra.Utils.Maestro        (AssetMintsAndBurnsData (..),
                                                        AssetMintsAndBurnsResponse (..))

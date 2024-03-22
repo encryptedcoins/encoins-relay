@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
 
-module Encoins.Relay.Apps.Save.Database.Query where
+module Encoins.Relay.Apps.Cloud.PostgreSQL.Query where
 
 import           Contravariant.Extras.Contrazip
 import           Data.Int
