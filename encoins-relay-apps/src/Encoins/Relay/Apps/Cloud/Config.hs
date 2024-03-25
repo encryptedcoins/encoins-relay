@@ -6,21 +6,23 @@
 
 module Encoins.Relay.Apps.Cloud.Config where
 
-import           Encoins.Common.Log                         (mkLogEnv,
-                                                             withLogEnv)
+import           Encoins.Common.Log                            (mkLogEnv,
+                                                                withLogEnv)
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Migration (migration)
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query     (getTokenNumberS)
 import           Encoins.Relay.Apps.Cloud.Types
 
-import           Cardano.Server.Config                      (decodeOrErrorFromFile)
-import           Control.Exception.Safe                     (bracket)
-import           Data.Time                                  (DiffTime)
-import qualified Hasql.Connection                           as Conn
-import qualified Hasql.Pool                                 as P
+import           Cardano.Server.Config                         (decodeOrErrorFromFile)
+import           Control.Exception.Safe                        (bracket)
+import           Data.Time                                     (DiffTime)
+import qualified Hasql.Connection                              as Conn
+import qualified Hasql.Pool                                    as P
 import           Katip
-import           Network.HTTP.Client                        hiding (Proxy)
+import           Network.HTTP.Client                           hiding (Proxy)
 import           Network.HTTP.Client.TLS
-import           PlutusAppsExtra.Api.Maestro                (MaestroToken)
-import           Text.Pretty.Simple                         (pPrint)
+import           PlutusAppsExtra.Api.Maestro                   (MaestroToken)
+import           Text.Pretty.Simple                            (pPrint,
+                                                                pPrintString)
 
 withCloudEnv :: (CloudEnv -> IO ()) -> IO ()
 withCloudEnv action = do
@@ -40,6 +42,8 @@ withCloudEnv action = do
         Left err -> pPrint err
         Right (Right (Just err)) -> pPrint err
         _ -> do
+          rowNumber <- P.use pool getTokenNumberS
+          pPrintString $ "Number of rows in encoins table: " <> show rowNumber
           manager <- newManager tlsManagerSettings
           let env = mkCloudEnv manager config le maestroToken pool
           action env

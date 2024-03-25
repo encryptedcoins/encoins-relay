@@ -55,6 +55,10 @@ insertOnAbsentS assetName encryptedSecret createTime =
       Nothing -> insertTokenT assetName encryptedSecret createTime
       Just i  -> pure i
 
+getTokenNumberS :: Session Int32
+getTokenNumberS = TS.transaction TS.ReadCommitted TS.Read $
+  getTokenNumberT
+
 -- * Transaction
 
 insertTokenT :: AssetName
@@ -81,6 +85,10 @@ getTokensT =
 deleteTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
 deleteTokensByNameT assetName =
   T.statement assetName deleteTokensByName
+
+getTokenNumberT :: Transaction Int32
+getTokenNumberT =
+  T.statement () getTokenNumber
 
 -- * Statements
 
@@ -144,9 +152,9 @@ getTokens = let
 deleteTokensByName :: Statement AssetName (Vector (Text, Text))
 deleteTokensByName = let
   sql =
-    "delete from encoins \
-    \where asset_name = $1 \
-    \returning asset_name, encrypted_secret"
+    "DELETE FROM encoins \
+    \WHERE asset_name = $1 \
+    \RETURNING asset_name, encrypted_secret"
   encoder =
     contramap getAssetName $ E.param (E.nonNullable E.text)
   decoder =
@@ -154,4 +162,16 @@ deleteTokensByName = let
       (,) <$>
         D.column (D.nonNullable D.text) <*>
         D.column (D.nonNullable D.text)
+  in Statement sql encoder decoder True
+
+getTokenNumber :: Statement () Int32
+getTokenNumber = let
+  sql =
+    "SELECT COUNT(*) \
+    \FROM encoins"
+  encoder = E.noParams
+  decoder = D.foldlRows
+    (\acc _ -> acc + 1)
+    0
+    (D.column (D.nonNullable D.int4))
   in Statement sql encoder decoder True
