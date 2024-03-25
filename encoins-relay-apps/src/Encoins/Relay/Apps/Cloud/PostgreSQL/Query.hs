@@ -20,6 +20,10 @@ import qualified Hasql.Transaction              as T
 import qualified Hasql.Transaction.Sessions     as TS
 import Data.Functor.Contravariant (contramap)
 
+import qualified Control.Foldl as F
+import qualified Hasql.CursorQuery as CQ
+import qualified Hasql.CursorQuery.Sessions as CQS
+
 -- * Sessions
 
 insertTokenS :: AssetName
@@ -55,9 +59,8 @@ insertOnAbsentS assetName encryptedSecret createTime =
       Nothing -> insertTokenT assetName encryptedSecret createTime
       Just i  -> pure i
 
-getTokenNumberS :: Session Int32
-getTokenNumberS = TS.transaction TS.ReadCommitted TS.Read $
-  getTokenNumberT
+countRowsS :: Session Int
+countRowsS = CQS.cursorQuery () countRows
 
 -- * Transaction
 
@@ -85,10 +88,6 @@ getTokensT =
 deleteTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
 deleteTokensByNameT assetName =
   T.statement assetName deleteTokensByName
-
-getTokenNumberT :: Transaction Int32
-getTokenNumberT =
-  T.statement () getTokenNumber
 
 -- * Statements
 
@@ -164,14 +163,13 @@ deleteTokensByName = let
         D.column (D.nonNullable D.text)
   in Statement sql encoder decoder True
 
-getTokenNumber :: Statement () Int32
-getTokenNumber = let
-  sql =
-    "SELECT COUNT(asset_name) \
-    \FROM encoins"
-  encoder = E.noParams
-  decoder = D.foldlRows
-    (\acc _ -> acc + 1)
-    0
-    (D.column (D.nonNullable D.int4))
-  in Statement sql encoder decoder True
+countRows :: CQ.CursorQuery () Int
+countRows =
+  CQ.cursorQuery sql encoder decoder CQ.batchSize_10
+  where
+    sql = "SELECT asset_name FROM encoins"
+    encoder = E.noParams
+    decoder = CQ.reducingDecoder rowDecoder fold
+      where
+        rowDecoder = D.column (D.nonNullable D.text)
+        fold = F.length

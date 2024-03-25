@@ -72,8 +72,10 @@ library
     , extra
     , file-embed
     , filepath
+    , foldl
     , gitrev
     , hasql
+    , hasql-cursor-query
     , hasql-migration
     , hasql-pool
     , hasql-transaction
