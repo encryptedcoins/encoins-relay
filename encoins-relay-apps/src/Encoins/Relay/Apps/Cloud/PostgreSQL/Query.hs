@@ -95,8 +95,8 @@ getTokenNumberT =
 insertToken :: Statement (AssetName, EncryptedSecret, POSIXTime) Int32
 insertToken = let
   sql =
-    "insert into encoins (asset_name, encrypted_secret) \
-    \values ($1, $2) \
+    "insert into encoins (asset_name, encrypted_secret, save_time) \
+    \values ($1, $2, $3) \
     \returning id"
   encoder =
     contrazip3
@@ -167,7 +167,7 @@ deleteTokensByName = let
 getTokenNumber :: Statement () Int32
 getTokenNumber = let
   sql =
-    "SELECT COUNT(*) \
+    "SELECT COUNT(asset_name) \
     \FROM encoins"
   encoder = E.noParams
   decoder = D.foldlRows

@@ -108,11 +108,11 @@ saveToken :: TVar (Map AssetName StatusResponse)
   -> CloudMonad ()
 saveToken tVar pool req = do
   isFormat <- asks envFormatMessage
-  logInfo ""
-  logInfo "Unsaved token received"
-  logDebugS isFormat req
   let name = ppAssetName req
   let secret = ppSecretKey req
+  logInfo ""
+  logInfo $ "Received unsaved token: " <> getAssetName name
+  logDebugS isFormat req
   now <- liftIO getPOSIXTime
   eResult <- liftIO $ Pool.use pool $ insertOnAbsentS name secret now
   resp <- case eResult of
