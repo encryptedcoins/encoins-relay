@@ -33,15 +33,11 @@ import           Control.Exception.Safe                 (SomeException,
 import           Control.Monad.IO.Class                 (MonadIO (liftIO))
 import           Control.Monad.Reader                   (asks)
 import qualified Data.ByteString.Char8                  as B
-import qualified Data.List.NonEmpty                     as NE
+import           Data.Time.Clock.POSIX          (getPOSIXTime)
 import           Data.Map                               (Map)
 import qualified Data.Map                               as Map
-import           Data.String                            (IsString (fromString))
 import           Data.Text                              (Text)
-import qualified Data.Text                              as T
 import qualified Data.Text.Encoding                     as TE
-import           Data.Time                              (UTCTime, addUTCTime,
-                                                         getCurrentTime)
 import           Development.GitRev                     (gitCommitDate, gitHash)
 import qualified Hasql.Pool                             as Pool
 import qualified Network.Wai                            as Wai
@@ -115,31 +111,19 @@ saveToken tVar pool req = do
   logInfo ""
   logInfo "Unsaved token received"
   logDebugS isFormat req
-  let assetName = ppAssetName req
-  coinStatus <- checkCoinStatus assetName
-  logInfo $ "Coin status" <> column <> space <> toText coinStatus
-  saveStatus <- case coinStatus of
-    CoinError err -> do
+  let name = ppAssetName req
+  let secret = ppSecretKey req
+  now <- liftIO getPOSIXTime
+  eResult <- liftIO $ Pool.use pool $ insertOnAbsentS name secret now
+  resp <- case eResult of
+    Left err -> do
+      logError "Insert error:"
       logErrorS isFormat err
-      pure $ MkStatusResponse SaveError
-    CoinDiscarded m -> do
-      logInfo "Token has been discarded and can't be rollback anymore"
-      logInfo $ "The reason of discarding" <> column <> space <> m
-      pure $ MkStatusResponse Discarded
-    _ -> do
-      let name = getAssetName $ ppAssetName req
-      let secret = getEncryptedSecret $ ppSecretKey req
-      eResult <- liftIO $ Pool.use pool $ insertOnAbsentS name secret
-      case eResult of
-        Left err -> do
-          logErrorS isFormat err
-          pure $ MkStatusResponse SaveError
-        Right _ -> do
-          logInfo "Token is saved"
-          pure $ MkStatusResponse Saved
-  logInfo $ "Final SaveStatus" <> column <> space <>
-    toText (spStatusResponse saveStatus)
-  modifyCacheResponse tVar assetName saveStatus
+      pure $ MkStatusResponse Unsaved
+    Right _ -> do
+      logInfo "Token is saved"
+      pure $ MkStatusResponse Saved
+  modifyCacheResponse tVar name resp
 
 modifyCacheResponse :: TVar (Map AssetName StatusResponse)
   -> AssetName
@@ -150,41 +134,41 @@ modifyCacheResponse tVar assetName resp
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
 
-checkCoinStatus :: AssetName -> CloudMonad CoinStatus
-checkCoinStatus assetName = do
-  isFormat <- asks envFormatMessage
-  currentSymbol <- asks envCurrencySymbol
-  logInfo $ "Check coin status for assetName" <> column <> space <> getAssetName assetName
-  eAssets <- tryAny $ getAssetMintsAndBurns currentSymbol
-    $ fromString $ T.unpack $ getAssetName assetName
-  logDebug "Maestro response:"
-  logDebugS isFormat eAssets
-  case eAssets of
-    Left err -> do
-      logErrorS isFormat err
-      pure $ CoinError $ toText err
-    Right resAssets -> case length resAssets of
-      1 -> case NE.nonEmpty $ ambrData $ head resAssets of
-        Nothing -> do
-          logWarn "ambrData is empty"
-          pure $ CoinDiscarded "ambrData is empty"
-        Just (NE.last . NE.sortWith ambrSlot -> asset)
-          | ambrAmount asset == 1 -> pure CoinMinted
-          | ambrAmount asset == (-1) -> do
-              now <- liftIO getCurrentTime
-              let delta = discardTime (ambrTimestamp asset)
-              if delta > now
-                then do
-                  logInfo $ "Discarding time" <> space <> toText delta
-                  pure CoinBurned
-                else pure $ CoinDiscarded "Rollback is impossible"
-          | otherwise -> do
-              let mes = "Asset amount is invalid: " <> toText (ambrAmount asset)
-              logError mes
-              pure $ CoinDiscarded mes
-      _ -> do
-        logError "getAssetMintsAndBurns returned more than one asset"
-        pure $ CoinDiscarded "more than one asset"
+-- checkCoinStatus :: AssetName -> CloudMonad CoinStatus
+-- checkCoinStatus assetName = do
+--   isFormat <- asks envFormatMessage
+--   currentSymbol <- asks envCurrencySymbol
+--   logInfo $ "Check coin status for assetName" <> column <> space <> getAssetName assetName
+--   eAssets <- tryAny $ getAssetMintsAndBurns currentSymbol
+--     $ fromString $ T.unpack $ getAssetName assetName
+--   logDebug "Maestro response:"
+--   logDebugS isFormat eAssets
+--   case eAssets of
+--     Left err -> do
+--       logErrorS isFormat err
+--       pure $ CoinError $ toText err
+--     Right resAssets -> case length resAssets of
+--       1 -> case NE.nonEmpty $ ambrData $ head resAssets of
+--         Nothing -> do
+--           logWarn "ambrData is empty"
+--           pure $ CoinDiscarded "ambrData is empty"
+--         Just (NE.last . NE.sortWith ambrSlot -> asset)
+--           | ambrAmount asset == 1 -> pure CoinMinted
+--           | ambrAmount asset == (-1) -> do
+--               now <- liftIO getCurrentTime
+--               let delta = discardTime (ambrTimestamp asset)
+--               if delta > now
+--                 then do
+--                   logInfo $ "Discarding time" <> space <> toText delta
+--                   pure CoinBurned
+--                 else pure $ CoinDiscarded "Rollback is impossible"
+--           | otherwise -> do
+--               let mes = "Asset amount is invalid: " <> toText (ambrAmount asset)
+--               logError mes
+--               pure $ CoinDiscarded mes
+--       _ -> do
+--         logError "getAssetMintsAndBurns returned more than one asset"
+--         pure $ CoinDiscarded "more than one asset"
 
 withRecovery :: Text -> IO () -> IO ()
 withRecovery nameOfAction action = action `catchAny` handleException
@@ -196,5 +180,5 @@ withRecovery nameOfAction action = action `catchAny` handleException
       withRecovery nameOfAction action
 
 -- Burned token is discarded in 12 hours
-discardTime :: UTCTime -> UTCTime
-discardTime = addUTCTime (12 * 60 * 60)
+-- discardTime :: UTCTime -> UTCTime
+-- discardTime = addUTCTime (12 * 60 * 60)

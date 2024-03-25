@@ -130,7 +130,7 @@ data CoinStatus = CoinMinted | CoinBurned | CoinDiscarded Text | CoinError Text
   deriving stock (Eq, Show)
 
 -- Used to response to the client
-data SaveStatus = Saved | SaveError | Discarded
+data SaveStatus = Saved | Unsaved
   deriving stock (Show, Eq, Generic)
 
 instance ToJSON SaveStatus where
