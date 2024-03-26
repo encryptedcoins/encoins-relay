@@ -43,7 +43,7 @@ getIdOfNameSecretS :: AssetName
 getIdOfNameSecretS assetName encryptedSecret = TS.transaction TS.ReadCommitted TS.Read $
   getIdOfNameSecretT assetName encryptedSecret
 
-getTokensS :: Session (Vector (Text, Text))
+getTokensS :: Session (Vector RestoreResponse)
 getTokensS = TS.transaction TS.ReadCommitted TS.Read $
   getTokensT
 
@@ -81,7 +81,7 @@ getIdOfNameSecretT :: AssetName
 getIdOfNameSecretT assetName encryptedSecret =
   T.statement (assetName, encryptedSecret) getIdOfNameSecret
 
-getTokensT :: Transaction (Vector (Text, Text))
+getTokensT :: Transaction (Vector RestoreResponse)
 getTokensT =
   T.statement () getTokens
 
@@ -135,7 +135,7 @@ getIdOfNameSecret = let
     D.rowMaybe $ D.column (D.nonNullable D.int4)
   in Statement sql encoder decoder True
 
-getTokens :: Statement () (Vector (Text, Text))
+getTokens :: Statement () (Vector RestoreResponse)
 getTokens = let
   sql =
     "select asset_name, encrypted_secret \
@@ -143,10 +143,10 @@ getTokens = let
   encoder = E.noParams
   decoder =
     D.rowVector $
-      (,) <$>
-        D.column (D.nonNullable D.text) <*>
-        D.column (D.nonNullable D.text)
-  in Statement sql encoder decoder True
+      MkRestoreResponse <$>
+        (fmap MkAssetName (D.column (D.nonNullable D.text))) <*>
+        (fmap MkEncryptedSecret (D.column (D.nonNullable D.text)))
+  in Statement sql encoder decoder False
 
 deleteTokensByName :: Statement AssetName (Vector (Text, Text))
 deleteTokensByName = let

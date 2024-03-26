@@ -14,21 +14,19 @@ module Encoins.Relay.Apps.Cloud.Server where
 import           Encoins.Common.Constant                   (column, space)
 import           Encoins.Common.Log                        (logDebug, logDebugS,
                                                             logError, logErrorS,
-                                                            logInfo, logWarn)
+                                                            logInfo)
 import           Encoins.Common.Transform                  (toText)
 import           Encoins.Common.Version                    (appVersion,
                                                             showAppVersion)
 import           Encoins.Relay.Apps.Cloud.Config
-import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (insertOnAbsentS)
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (getTokensS,
+                                                            insertOnAbsentS)
 import           Encoins.Relay.Apps.Cloud.Types
-import           PlutusAppsExtra.IO.Maestro
-import           PlutusAppsExtra.Utils.Maestro             (AssetMintsAndBurnsData (..),
-                                                            AssetMintsAndBurnsResponse (..))
 
 import           Control.Concurrent                        (threadDelay)
 import           Control.Concurrent.STM
 import           Control.Exception.Safe                    (SomeException,
-                                                            catchAny, tryAny)
+                                                            catchAny)
 import           Control.Monad.IO.Class                    (MonadIO (liftIO))
 import           Control.Monad.Reader                      (asks)
 import qualified Data.ByteString.Char8                     as B
@@ -38,6 +36,8 @@ import           Data.Text                                 (Text)
 import qualified Data.Text                                 as T
 import qualified Data.Text.Encoding                        as TE
 import           Data.Time.Clock.POSIX                     (getPOSIXTime)
+import           Data.Vector                               (Vector)
+import qualified Data.Vector                               as V
 import           Development.GitRev                        (gitCommitDate,
                                                             gitHash)
 import qualified Hasql.Pool                                as Pool
@@ -49,6 +49,8 @@ import           Network.Wai.Middleware.Cors               (CorsResourcePolicy (
 import           Paths_encoins_relay_apps                  (version)
 import           Servant
 
+-- import           PlutusAppsExtra.IO.Maestro                (getAccountAddressesHoldingAssets)
+-- import           Data.String                               (IsString (fromString))
 
 cloudServer :: IO ()
 cloudServer = do
@@ -65,10 +67,8 @@ type ServerSaveApi =
       :<|> "save"
               :> ReqBody '[JSON] [SaveRequest]
               :> Post '[JSON] (Map AssetName StatusResponse)
-
-    --  :<|> "restore"
-    --           :> Capture "client_id" Text
-    --           :> Get '[JSON] [RestoreResponse]
+      :<|> "restore"
+              :> Get '[JSON] (Vector RestoreResponse)
 
 serverSaveApiProxy :: Proxy ServerSaveApi
 serverSaveApiProxy = Proxy
@@ -76,7 +76,7 @@ serverSaveApiProxy = Proxy
 serverSaveApi :: ServerT ServerSaveApi CloudMonad
 serverSaveApi = ping
            :<|> save
-          --  :<|> restore
+           :<|> restore
 
 handlerServer :: CloudEnv -> ServerT ServerSaveApi Handler
 handlerServer env = hoistServer serverSaveApiProxy (liftIO . runCloudMonad env) serverSaveApi
@@ -184,3 +184,39 @@ withRecovery nameOfAction action = action `catchAny` handleException
 -- Burned token is discarded in 12 hours
 -- discardTime :: UTCTime -> UTCTime
 -- discardTime = addUTCTime (12 * 60 * 60)
+
+
+restore :: CloudMonad (Vector RestoreResponse)
+restore = do
+  isFormat <- asks envFormatMessage
+  pool <- asks envPool
+  logInfo ""
+  logInfo "Restore query received"
+  evTokens <- liftIO $ Pool.use pool getTokensS
+  case evTokens of
+    Left err -> do
+      logErrorS isFormat err
+      pure V.empty
+    Right tokens -> do
+      logInfo $ "Restored"
+        <> space <> toText (V.length tokens)
+        <> space <> "tokens"
+      pure tokens
+
+
+-- tokenInUtxos :: (AssetName, EncryptedSecret) -> CloudMonad (Maybe RestoreResponse)
+-- tokenInUtxos (name, secret)  = do
+--   isFormat <- asks envFormatMessage
+--   currentSymbol <- asks envCurrencySymbol
+--   logInfo $ "Check coin status for assetName" <> column <> space <> name
+--   logInfoS isFormat $ "Unpacked assetName" <> column <> space <> fromString (T.unpack name)
+--   eAssets <- tryAny $ getAccountAddressesHoldingAssets currentSymbol $ TokenName $ fromString $ T.unpack name
+--   logDebug "Maestro response:"
+--   logDebugS isFormat eAssets
+--   case eAssets of
+--     Left err -> do
+--       logErrorS isFormat err
+--       pure Nothing
+--     Right res -> case Map.null res of
+--       False -> pure $ Just $ MkRestoreResponse (MkAssetName name) (MkEncryptedSecret secret)
+--       True -> pure Nothing
