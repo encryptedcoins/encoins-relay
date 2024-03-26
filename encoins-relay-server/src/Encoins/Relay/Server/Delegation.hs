@@ -62,7 +62,7 @@ distributeRewards totalReward = void $ do
 
         sendFunds addrs constrs reward = do
             relayUrl <- envDelegationIp <$> getAuxillaryEnv
-            metaData <- either (error . show) (pure . Just) $ mkCip20Metadata [relayUrl, T.pack $ show $ toInteger reward]
+            metaData <- either (error . show) (pure . Just) $ mkCip20Metadata ["ENCOINS", relayUrl, T.pack $ show $ toInteger reward]
             let txBuilder = [modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)}]
             tx <- mkBalanceTx addrs def txBuilder metaData
             logPretty tx
