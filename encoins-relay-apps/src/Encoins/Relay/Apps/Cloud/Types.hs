@@ -171,14 +171,14 @@ instance FromJSON SaveToken where
 -- instance ToJSON RottenToken where
 --    toJSON = genericToJSON $ aesonPrefix snakeCase
 
--- data RestoreResponse = MkRestoreResponse
---   { rrAssetName       :: AssetName
---   , rrEncryptedSecret :: EncryptedSecret
---   }
---   deriving stock (Show, Eq, Generic)
+data RestoreResponse = MkRestoreResponse
+  { rrAssetName       :: AssetName
+  , rrEncryptedSecret :: EncryptedSecret
+  }
+  deriving stock (Show, Eq, Generic)
 
--- instance ToJSON RestoreResponse where
---    toJSON = genericToJSON $ aesonPrefix snakeCase
+instance ToJSON RestoreResponse where
+   toJSON = genericToJSON $ aesonPrefix snakeCase
 
 -- data RestoreError = Client ClientError | InvalidStatus CoinStatus
 --   deriving stock (Show, Eq)
