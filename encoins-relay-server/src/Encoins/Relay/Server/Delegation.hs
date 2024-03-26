@@ -64,7 +64,7 @@ distributeRewards totalReward = void $ do
             relayUrl <- envDelegationIp <$> getAuxillaryEnv
             utxos <- getWalletUtxos mempty
             addrs <- getWalletAddresses
-            metaData <- either (error . show) (pure . Just) $ mkCip20Metadata ["ENCOINS", relayUrl, T.pack $ show $ toInteger reward]
+            metaData <- either (error . show) (pure . Just) $ mkCip20Metadata ["ENCOINS", "Reward", relayUrl, T.pack $ show $ toInteger reward]
             let txBuilder = [modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)}]
                 ctx = InputContextClient mempty utxos (TxOutRef "" 0) (head addrs)
             tx <- mkBalanceTx addrs ctx txBuilder metaData
