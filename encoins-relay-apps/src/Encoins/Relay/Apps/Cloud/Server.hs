@@ -6,46 +6,47 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 
 
 module Encoins.Relay.Apps.Cloud.Server where
 
-import           Encoins.Common.Constant                (column, space)
-import           Encoins.Common.Log                     (logDebug, logDebugS,
-                                                         logError, logErrorS,
-                                                         logInfo, logWarn)
-import           Encoins.Common.Transform               (toText)
-import           Encoins.Common.Version                 (appVersion,
-                                                         showAppVersion)
+import           Encoins.Common.Constant                   (column, space)
+import           Encoins.Common.Log                        (logDebug, logDebugS,
+                                                            logError, logErrorS,
+                                                            logInfo, logWarn)
+import           Encoins.Common.Transform                  (toText)
+import           Encoins.Common.Version                    (appVersion,
+                                                            showAppVersion)
 import           Encoins.Relay.Apps.Cloud.Config
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (insertOnAbsentS)
 import           Encoins.Relay.Apps.Cloud.Types
 import           PlutusAppsExtra.IO.Maestro
-import           PlutusAppsExtra.Utils.Maestro          (AssetMintsAndBurnsData (..),
-                                                         AssetMintsAndBurnsResponse (..))
+import           PlutusAppsExtra.Utils.Maestro             (AssetMintsAndBurnsData (..),
+                                                            AssetMintsAndBurnsResponse (..))
 
-import           Control.Concurrent                     (threadDelay)
+import           Control.Concurrent                        (threadDelay)
 import           Control.Concurrent.STM
-import           Control.Exception.Safe                 (SomeException,
-                                                         catchAny, tryAny)
-import           Control.Monad.IO.Class                 (MonadIO (liftIO))
-import           Control.Monad.Reader                   (asks)
-import qualified Data.ByteString.Char8                  as B
-import           Data.Time.Clock.POSIX          (getPOSIXTime)
-import           Data.Map                               (Map)
-import qualified Data.Map                               as Map
-import           Data.Text                              (Text)
-import qualified Data.Text.Encoding                     as TE
-import           Development.GitRev                     (gitCommitDate, gitHash)
-import qualified Hasql.Pool                             as Pool
-import qualified Network.Wai                            as Wai
+import           Control.Exception.Safe                    (SomeException,
+                                                            catchAny, tryAny)
+import           Control.Monad.IO.Class                    (MonadIO (liftIO))
+import           Control.Monad.Reader                      (asks)
+import qualified Data.ByteString.Char8                     as B
+import           Data.Map                                  (Map)
+import qualified Data.Map                                  as Map
+import           Data.Text                                 (Text)
+import qualified Data.Text                                 as T
+import qualified Data.Text.Encoding                        as TE
+import           Data.Time.Clock.POSIX                     (getPOSIXTime)
+import           Development.GitRev                        (gitCommitDate,
+                                                            gitHash)
+import qualified Hasql.Pool                                as Pool
+import qualified Network.Wai                               as Wai
 import           Network.Wai.Handler.Warp
-import           Network.Wai.Middleware.Cors            (CorsResourcePolicy (..),
-                                                         cors,
-                                                         simpleCorsResourcePolicy)
-import           Paths_encoins_relay_apps               (version)
+import           Network.Wai.Middleware.Cors               (CorsResourcePolicy (..),
+                                                            cors,
+                                                            simpleCorsResourcePolicy)
+import           Paths_encoins_relay_apps                  (version)
 import           Servant
 
 
@@ -111,7 +112,8 @@ saveToken tVar pool req = do
   let name = ppAssetName req
   let secret = ppSecretKey req
   logInfo ""
-  logInfo $ "Received unsaved token: " <> getAssetName name
+  logInfo $ "Received unsaved token" <> column <> space <> getAssetName name
+  -- logInfo $ "Secret length" <> column <> space <> toText (T.length $ getEncryptedSecret secret)
   logDebugS isFormat req
   now <- liftIO getPOSIXTime
   eResult <- liftIO $ Pool.use pool $ insertOnAbsentS name secret now
@@ -119,7 +121,7 @@ saveToken tVar pool req = do
     Left err -> do
       logError "Insert error:"
       logErrorS isFormat err
-      pure $ MkStatusResponse Unsaved
+      pure $ MkStatusResponse SaveError
     Right _ -> do
       logInfo "Token is saved"
       pure $ MkStatusResponse Saved
