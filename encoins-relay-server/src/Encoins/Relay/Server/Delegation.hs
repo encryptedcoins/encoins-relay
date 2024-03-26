@@ -12,6 +12,7 @@ module Encoins.Relay.Server.Delegation where
 
 import           Cardano.Api                          (writeFileJSON)
 import           Cardano.Server.Config                (decodeOrErrorFromFile)
+import           Cardano.Server.Input                 (InputContext (..))
 import           Cardano.Server.Internal              (Env (..), ServerM, getAuxillaryEnv, mkServantClientEnv, getNetworkId)
 import           Cardano.Server.Tx                    (mkBalanceTx, mkTx)
 import           Cardano.Server.Utils.Logger          (logMsg, logPretty)
@@ -33,12 +34,12 @@ import qualified Data.Text                            as T
 import           Encoins.Relay.Apps.Delegation.Client (serverDelegatesClient)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (..))
 import           Encoins.Relay.Server.Server          (EncoinsApi)
-import           Ledger                               (Address (..), PaymentPubKeyHash (..), minAdaTxOutEstimated)
+import           Ledger                               (Address (..), PaymentPubKeyHash (..), minAdaTxOutEstimated, TxOutRef (TxOutRef))
 import           Ledger.Tx.Constraints                (mustPayToPubKeyAddress)
 import           Plutus.Script.Utils.Ada              (Ada)
 import qualified Plutus.Script.Utils.Ada              as Ada
 import           Plutus.V2.Ledger.Api                 (Credential (..))
-import           PlutusAppsExtra.IO.Wallet            (HasWalletProvider (..))
+import           PlutusAppsExtra.IO.Wallet            (HasWalletProvider (..), getWalletUtxos)
 import           PlutusAppsExtra.Types.Tx             (TxConstructor (..))
 import           PlutusAppsExtra.Utils.Address        (bech32ToAddress, addressToBech32)
 import           PlutusAppsExtra.Utils.Tx             (mkCip20Metadata)
@@ -49,22 +50,24 @@ distributeRewards totalReward = void $ do
         debts <- liftIO $ decodeOrErrorFromFile debtFile <|> pure []
         let (distribution', debts') = partition ((> minAdaTxOutEstimated) . snd) $ concatDistrubutions distribution debts
         when (null distribution' && null debts') $ error "Server doesn't has any delegates."
-        addrs <- getWalletAddresses
         let constrsWithRewards = mkConstrsWithReward distribution'
         mkConfirmationMsg distribution' debts' (snd <$> constrsWithRewards)
         doConfirmation
-        mapM_ (uncurry $ sendFunds addrs) constrsWithRewards
+        mapM_ (uncurry sendFunds) constrsWithRewards
         liftIO $ writeFileJSON debtFile debts'
     where
         mkConstrsWithReward recepients = fmap mconcat $ chunksOf maxParticipants $ flip mapMaybe recepients $ \(addr, reward) -> case addr of
             Address (PubKeyCredential pkh) (Just scred) -> Just $ (, reward) $ mustPayToPubKeyAddress (PaymentPubKeyHash pkh) scred (Ada.toValue reward)
             _ -> Nothing
 
-        sendFunds addrs constrs reward = do
+        sendFunds constrs reward = do
             relayUrl <- envDelegationIp <$> getAuxillaryEnv
             metaData <- either (error . show) (pure . Just) $ mkCip20Metadata [relayUrl, T.pack $ show $ toInteger reward]
+            utxos <- getWalletUtxos mempty
+            addrs <- getWalletAddresses
             let txBuilder = [modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)}]
-            tx <- mkBalanceTx addrs def txBuilder metaData
+                ctx = InputContextClient mempty utxos (TxOutRef "" 0) (head addrs)
+            tx <- mkBalanceTx addrs ctx txBuilder metaData
             logPretty tx
             mkTx addrs def txBuilder metaData
 
