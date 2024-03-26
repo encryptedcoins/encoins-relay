@@ -79,6 +79,11 @@ distributeRewards totalReward = void $ do
                 reward = renderAda (sum rewards)
                 rewardSplitted =  " (" <> T.intercalate ", " (map renderAda rewards) <> ")"
                 renderedDistribution = fmap (\(a,r) -> fromMaybe (T.pack $ show a) (addressToBech32 networkId a) <> " : " <> renderAda r)
+                debtsMsg = case debts of
+                    [] -> ""
+                    _  -> "\n\nRewards of these addresses are too small to be included. \
+                           \They will be added to debt file and rewarded in next distributions:\n"
+                        <> T.intercalate "\n" (renderedDistribution debts)
             logMsg $ mconcat
                 [ "Please enter \"Y\" to complete ", txs
                 , " and distribute rewards - ", reward, onMultipleTxs "" rewardSplitted
@@ -88,8 +93,7 @@ distributeRewards totalReward = void $ do
                 , T.pack (show maxParticipants), " participants.\n\n"
                 , rewardUrl, " delegates:\n"
                 , T.intercalate "\n" $ renderedDistribution distribution
-                , "\n\nRewards of these addresses are too small to be included. They will be added to debt file and rewarded in next distributions:\n"
-                , T.intercalate "\n" $ renderedDistribution debts
+                , debtsMsg
                 ]
 
         renderAda = T.pack . (\(f, w) -> case w of {"" -> "0"; _ -> w}  <> "." <> f <> "₳")
