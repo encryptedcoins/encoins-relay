@@ -55,7 +55,7 @@ import           System.ProgressBar                 (Progress (..), ProgressBar,
                                                      exact, incProgress, msg)
 
 encoinsTokenName :: TokenName
-encoinsTokenName = "ENCS"
+encoinsTokenName = "454e4353"
 
 -- Mainnet only
 encoinsCS :: CurrencySymbol

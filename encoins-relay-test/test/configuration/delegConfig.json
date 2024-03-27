@@ -3,7 +3,7 @@
 , "hyper_text_protocol"        : "HTTP"
 , "network_id"                 : {"tag" : "Testnet", "contents" : 1}
 , "delegation_currency_symbol" : {"unCurrencySymbol" : "f2cbed8817eee9bfa37e80a0a2f4e0dfcf661bb1298003a2e77cb237"}
-, "delegation_token_name"      : {"unTokenName" : "ENCSDelegationTest"}
+, "delegation_token_name"      : {"unTokenName" : "454e435344656c65676174696f6e54657374"}
 , "delegation_folder"          : "delegations"
 , "frequency"                  : 10
 , "max_delay"                  : 300
