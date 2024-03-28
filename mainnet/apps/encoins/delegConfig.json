@@ -1,0 +1,12 @@
+{ "host"                       : "localhost"
+, "port"                       : 3002
+, "hyper_text_protocol"        : "HTTP"
+, "network_id"                 : {"tag" : "Mainnet"}
+, "delegation_currency_symbol" : {"unCurrencySymbol" : "9abf0afd2f236a19f2842d502d0450cbcd9c79f123a9708f96fd9b96"}
+, "delegation_token_name"      : {"unTokenName" : "454e4353"}
+, "delegation_folder"          : "delegations"
+, "frequency"                  : 10
+, "max_delay"                  : 300
+, "min_token_number"           : 100000000000
+, "reward_token_threshold"     : 100000000000
+}

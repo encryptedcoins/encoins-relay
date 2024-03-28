@@ -1,0 +1,52 @@
+{
+    "ApiEndpoint": "https://mtisink4m7.execute-api.eu-central-1.amazonaws.com",
+    "ApiId": "mtisink4m7",
+    "ApiKeySelectionExpression": "$request.header.x-api-key",
+    "CorsConfiguration": {
+        "AllowCredentials": false,
+        "AllowHeaders": [
+            "accept",
+            "accept-language",
+            "content-language",
+            "content-type"
+        ],
+        "AllowMethods": [
+            "GET",
+            "OPTIONS",
+            "POST",
+            "PUT"
+        ],
+        "AllowOrigins": [
+            "http://localhost:3333",
+            "http://localhost:3333/",
+            "https://app.encoins.io",
+            "https://encoins.io",
+            "https://orange-wave-6802.on.fleek.co/"
+        ],
+        "ExposeHeaders": [
+            "authorization",
+            "content-type",
+            "content-type: application/json",
+            "date, x-api-id",
+            "x-amz-date",
+            "x-api-key",
+            "x-requested-with"
+        ],
+        "MaxAge": 300
+    },
+    "CreatedDate": "2023-12-26T06:29:17+00:00",
+    "DisableExecuteApiEndpoint": false,
+    "ImportInfo": [
+        "paths./{api+}: key [parameters] will be ignored by API Gateway"
+    ],
+    "Name": "--http://81.56.175.1",
+    "ProtocolType": "HTTP",
+    "RouteSelectionExpression": "$request.method $request.path",
+    "Tags": {},
+    "Version": "2023-05-29 11:04:11UTC",
+    "Warnings": [
+        "Unable to create integration for resource at path 'GET /{api+}': Invalid HTTP endpoint specified for URI. Ignoring.",
+        "Unable to create integration for resource at path 'PUT /{api+}': Invalid HTTP endpoint specified for URI. Ignoring.",
+        "Unable to create integration for resource at path 'POST /{api+}': Invalid HTTP endpoint specified for URI. Ignoring."
+    ]
+}

@@ -1,0 +1,20 @@
+{
+  "cicSlotConfig": {
+    "scSlotLength": 1000,
+    "scSlotZeroTime": 1591566290000
+  },
+  "cicPort": 9083,
+  "cicSecurityParam": 2160,
+  "cicSocketPath": "../apps/cardano-node/node.sock",
+  "cicDbPath": "../data/plutus-chain-index/chain-index.db",
+  "cicNetworkId": {
+    "contents": {
+    },
+    "tag": "Mainnet"
+  },
+  "cicStoreFrom": {
+    "unBlockNo": 0
+  },
+  "cicAppendTransactionQueueSize": 500
+}
+

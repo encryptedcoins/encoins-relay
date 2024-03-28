@@ -1,0 +1,82 @@
+{
+  "openapi" : "3.0.1",
+  "info" : {
+    "title" : "<HTTP_ADDRESS>",
+    "version" : "2023-05-29 11:04:11UTC"
+  },
+  "servers" : [ {
+    "url" : "https://m8cn730xz7.execute-api.eu-central-1.amazonaws.com/{basePath}",
+    "variables" : {
+      "basePath" : {
+        "default" : ""
+      }
+    }
+  } ],
+  "paths" : {
+    "/{api+}" : {
+      "get" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for GET /{api+}"
+          }
+        },
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "ANY",
+          "uri" : "<HTTP_ADDRESS>:3000/{api}",
+          "connectionType" : "INTERNET",
+          "timeoutInMillis" : 30000
+        }
+      },
+      "put" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for PUT /{api+}"
+          }
+        },
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "ANY",
+          "uri" : "<HTTP_ADDRESS>:3000/{api}",
+          "connectionType" : "INTERNET",
+          "timeoutInMillis" : 30000
+        }
+      },
+      "post" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for POST /{api+}"
+          }
+        },
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "ANY",
+          "uri" : "<HTTP_ADDRESS>:3000/{api}",
+          "connectionType" : "INTERNET",
+          "timeoutInMillis" : 30000
+        }
+      },
+      "parameters" : [ {
+        "name" : "api+",
+        "in" : "path",
+        "description" : "Generated path parameter for api+",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    }
+  },
+  "x-amazon-apigateway-cors" : {
+    "allowMethods" : [ "GET", "OPTIONS", "POST", "PUT" ],
+    "allowHeaders" : [ "accept", "accept-language", "content-language", "content-type" ],
+    "exposeHeaders" : [ "authorization", "content-type", "content-type: application/json", "date, x-api-id", "x-amz-date", "x-api-key", "x-requested-with" ],
+    "maxAge" : 300,
+    "allowCredentials" : false,
+    "allowOrigins" : [ "<HTTP_ADDRESS>:3333", "<HTTP_ADDRESS>:3333/", "https://app.encoins.io", "https://encoins.io", "https://orange-wave-6802.on.fleek.co/" ]
+  },
+  "x-amazon-apigateway-importexport-version" : "1.0"
+}
