@@ -12,9 +12,8 @@
 module Encoins.Relay.Apps.Cloud.Server where
 
 import           Encoins.Common.Constant                   (column, space)
-import           Encoins.Common.Log                        (logDebug, logDebugS,
-                                                            logError, logErrorS,
-                                                            logInfo)
+import           Encoins.Common.Log                        (logDebugS, logError,
+                                                            logErrorS, logInfo)
 import           Encoins.Common.Transform                  (toText)
 import           Encoins.Common.Version                    (appVersion,
                                                             showAppVersion)
@@ -33,7 +32,6 @@ import qualified Data.ByteString.Char8                     as B
 import           Data.Map                                  (Map)
 import qualified Data.Map                                  as Map
 import           Data.Text                                 (Text)
-import qualified Data.Text                                 as T
 import qualified Data.Text.Encoding                        as TE
 import           Data.Time.Clock.POSIX                     (getPOSIXTime)
 import           Data.Vector                               (Vector)
@@ -68,7 +66,7 @@ type ServerSaveApi =
               :> ReqBody '[JSON] [SaveRequest]
               :> Post '[JSON] (Map AssetName StatusResponse)
       :<|> "restore"
-              :> Get '[JSON] (Vector RestoreResponse)
+              :> Get '[JSON] (Vector (Text,Text))
 
 serverSaveApiProxy :: Proxy ServerSaveApi
 serverSaveApiProxy = Proxy
@@ -186,7 +184,7 @@ withRecovery nameOfAction action = action `catchAny` handleException
 -- discardTime = addUTCTime (12 * 60 * 60)
 
 
-restore :: CloudMonad (Vector RestoreResponse)
+restore :: CloudMonad (Vector (Text, Text))
 restore = do
   isFormat <- asks envFormatMessage
   pool <- asks envPool
