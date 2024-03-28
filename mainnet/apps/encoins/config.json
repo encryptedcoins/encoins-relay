@@ -1,0 +1,19 @@
+{ "host"                     : "localhost"
+, "port"                     : 3000
+, "hyper_text_protocol"      : "HTTP"
+, "min_utxos_number"         : 0
+, "max_utxos_number"         : 1
+, "node_file_path"           : "../cardano-node/node.sock"
+, "protocol_parameters_file" : "../cardano-node/protocol-parameters.json"
+, "slot_config_file"         : "../plutus-chain-index/plutus-chain-index-config.json"
+, "wallet_file"              : "../../wallets/wallet.json"
+, "auxiliary_env_file"       : "relayConfig.json"
+, "network_id"               : {"tag" : "Mainnet", "contents" : null}
+, "bf_token_file_path"       : "blockfrost.token"
+, "maestro_token_file_path"  : "maestro.token"
+, "wallet_provider"          : {"tag" : "Lightweight", "addresses" : ["addr..."]}
+, "chain_index_provider"     : "Maestro"
+, "tx_provider"              : "Maestro"
+, "collateral"               : null
+, "active_endpoints"         : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status", "version"]
+}
