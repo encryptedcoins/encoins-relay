@@ -28,7 +28,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-common
-  tag: v0.1.0.0
+  tag: 04ced7526f5bf62bf0fa58675456a0e2d74d1954
   subdir:
     encoins-common-constant
     encoins-common-log
@@ -256,3 +256,35 @@ source-repository-package
       libs/small-steps
       libs/small-steps-test
       libs/non-integral
+
+-- HASQL family
+
+source-repository-package
+  type: git
+  location: https://github.com/nikita-volkov/hasql-cursor-query
+  tag: be19a874762366aea8d93b0cbc1a9de0c57c43bb
+
+source-repository-package
+  type: git
+  location: https://github.com/nikita-volkov/hasql-transaction
+  tag: 0336e0c432a0c31ead6097d8d8aa189dbd3a7a1b
+
+source-repository-package
+  type: git
+  location: https://github.com/nikita-volkov/hasql
+  tag: d62949876f487810bd580b7d53c28a8f9a7a4228
+
+source-repository-package
+  type: git
+  location: https://github.com/nikita-volkov/hasql-cursor-transaction
+  tag: 497adbdeb1143d7509a76ea7bc739b8bac72b19f
+
+source-repository-package
+  type: git
+  location: https://github.com/nikita-volkov/contravariant-extras
+  tag: 6603f4b00b8b79a9ae1a9f24d3e2c171ca9ad128
+
+source-repository-package
+  type: git
+  location: https://github.com/nikita-volkov/template-haskell-compat-v0208
+  tag: 4195390d5978bc0bc34c0c02e3e64df2cb1f3e9b
