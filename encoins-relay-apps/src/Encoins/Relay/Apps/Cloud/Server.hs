@@ -6,34 +6,49 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 
 
 module Encoins.Relay.Apps.Cloud.Server where
 
 import           Encoins.Common.Constant                   (column, space)
-import           Encoins.Common.Log                        (logDebugS, logError,
-                                                            logErrorS, logInfo)
+import           Encoins.Common.Log                        (logDebug, logDebugS,
+                                                            logError, logErrorS,
+                                                            logInfo, logInfoS)
 import           Encoins.Common.Transform                  (toText)
 import           Encoins.Common.Version                    (appVersion,
                                                             showAppVersion)
 import           Encoins.Relay.Apps.Cloud.Config
-import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (getTokensS,
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (getDiscardedTokensS,
+                                                            getTokensS,
                                                             insertOnAbsentS)
 import           Encoins.Relay.Apps.Cloud.Types
+import           PlutusAppsExtra.IO.Maestro                (getAssetMintsAndBurns)
+import           PlutusAppsExtra.Utils.Maestro             (AssetMintsAndBurnsData (..),
+                                                            AssetMintsAndBurnsResponse (..))
 
 import           Control.Concurrent                        (threadDelay)
+import           Control.Concurrent.Async                  (withAsync)
 import           Control.Concurrent.STM
 import           Control.Exception.Safe                    (SomeException,
-                                                            catchAny)
+                                                            catchAny, tryAny)
+import           Control.Monad                             (forever)
 import           Control.Monad.IO.Class                    (MonadIO (liftIO))
 import           Control.Monad.Reader                      (asks)
 import qualified Data.ByteString.Char8                     as B
+import qualified Data.List.NonEmpty                        as NE
 import           Data.Map                                  (Map)
 import qualified Data.Map                                  as Map
+import           Data.String                               (IsString (fromString))
 import           Data.Text                                 (Text)
+import qualified Data.Text                                 as T
 import qualified Data.Text.Encoding                        as TE
-import           Data.Time.Clock.POSIX                     (getPOSIXTime)
+import           Data.Time                                 (UTCTime, addUTCTime,
+                                                            secondsToNominalDiffTime)
+import           Data.Time.Clock.POSIX                     (POSIXTime,
+                                                            getPOSIXTime,
+                                                            utcTimeToPOSIXSeconds)
 import           Data.Vector                               (Vector)
 import qualified Data.Vector                               as V
 import           Development.GitRev                        (gitCommitDate,
@@ -56,8 +71,8 @@ cloudServer = do
     $ TE.encodeUtf8
     $ showAppVersion "Save server" $ appVersion version $(gitHash) $(gitCommitDate)
   withCloudEnv $ \env -> do
-    -- withAsync (rottenTokenHandler env) $ \_ -> do
-    withRecovery "server" $ run (envPort env) $ app env
+    withAsync (selectDiscardedTokens env) $ \_ -> do
+      withRecovery "server" $ run (envPort env) $ app env
 
 type ServerSaveApi =
            "ping"
@@ -134,42 +149,6 @@ modifyCacheResponse tVar assetName resp
   $ atomically
   $ modifyTVar' tVar (Map.insert assetName resp)
 
--- checkCoinStatus :: AssetName -> CloudMonad CoinStatus
--- checkCoinStatus assetName = do
---   isFormat <- asks envFormatMessage
---   currentSymbol <- asks envCurrencySymbol
---   logInfo $ "Check coin status for assetName" <> column <> space <> getAssetName assetName
---   eAssets <- tryAny $ getAssetMintsAndBurns currentSymbol
---     $ fromString $ T.unpack $ getAssetName assetName
---   logDebug "Maestro response:"
---   logDebugS isFormat eAssets
---   case eAssets of
---     Left err -> do
---       logErrorS isFormat err
---       pure $ CoinError $ toText err
---     Right resAssets -> case length resAssets of
---       1 -> case NE.nonEmpty $ ambrData $ head resAssets of
---         Nothing -> do
---           logWarn "ambrData is empty"
---           pure $ CoinDiscarded "ambrData is empty"
---         Just (NE.last . NE.sortWith ambrSlot -> asset)
---           | ambrAmount asset == 1 -> pure CoinMinted
---           | ambrAmount asset == (-1) -> do
---               now <- liftIO getCurrentTime
---               let delta = discardTime (ambrTimestamp asset)
---               if delta > now
---                 then do
---                   logInfo $ "Discarding time" <> space <> toText delta
---                   pure CoinBurned
---                 else pure $ CoinDiscarded "Rollback is impossible"
---           | otherwise -> do
---               let mes = "Asset amount is invalid: " <> toText (ambrAmount asset)
---               logError mes
---               pure $ CoinDiscarded mes
---       _ -> do
---         logError "getAssetMintsAndBurns returned more than one asset"
---         pure $ CoinDiscarded "more than one asset"
-
 withRecovery :: Text -> IO () -> IO ()
 withRecovery nameOfAction action = action `catchAny` handleException
   where
@@ -179,10 +158,13 @@ withRecovery nameOfAction action = action `catchAny` handleException
       liftIO $ threadDelay $ 5 * 1000000
       withRecovery nameOfAction action
 
--- Burned token is discarded in 12 hours
--- discardTime :: UTCTime -> UTCTime
--- discardTime = addUTCTime (12 * 60 * 60)
+-- Add 12 hours
+addTimeLag :: UTCTime -> POSIXTime
+addTimeLag = utcTimeToPOSIXSeconds . addUTCTime timeLag
 
+-- After the lag token can't be rolled back
+timeLag :: POSIXTime
+timeLag = secondsToNominalDiffTime (12 * 60 * 60)
 
 restore :: CloudMonad (Vector (Text, Text))
 restore = do
@@ -202,19 +184,67 @@ restore = do
       pure tokens
 
 
--- tokenInUtxos :: (AssetName, EncryptedSecret) -> CloudMonad (Maybe RestoreResponse)
--- tokenInUtxos (name, secret)  = do
---   isFormat <- asks envFormatMessage
---   currentSymbol <- asks envCurrencySymbol
---   logInfo $ "Check coin status for assetName" <> column <> space <> name
---   logInfoS isFormat $ "Unpacked assetName" <> column <> space <> fromString (T.unpack name)
---   eAssets <- tryAny $ getAccountAddressesHoldingAssets currentSymbol $ TokenName $ fromString $ T.unpack name
---   logDebug "Maestro response:"
---   logDebugS isFormat eAssets
---   case eAssets of
---     Left err -> do
---       logErrorS isFormat err
---       pure Nothing
---     Right res -> case Map.null res of
---       False -> pure $ Just $ MkRestoreResponse (MkAssetName name) (MkEncryptedSecret secret)
---       True -> pure Nothing
+selectDiscardedTokens :: CloudEnv -> IO ()
+selectDiscardedTokens env = withRecovery "detectDiscardedTokens" $ runCloudMonad env $ forever $ do
+  isFormat <- asks envFormatMessage
+  pool <- asks envPool
+
+  logInfo ""
+  logInfo "Run detectDiscardedTokens"
+  evTokens <- liftIO $ Pool.use pool getDiscardedTokensS
+  case evTokens of
+    Left err -> do
+      logErrorS isFormat err
+    Right tokens -> do
+      time <- liftIO $ getPOSIXTime
+      discardedTokens <- V.mapMaybeM (detectDiscarded time) tokens
+      logInfoS isFormat discardedTokens
+
+  -- Sleep for 12 hour (in microseconds)
+  liftIO $ threadDelay $ 12 * 60 * 60 * 1000000
+  -- liftIO $ threadDelay $ 1 * 10 * 60 * 1000000
+
+
+detectDiscarded :: POSIXTime
+  -> (AssetName, POSIXTime)
+  -> CloudMonad (Maybe AssetName)
+detectDiscarded now asset@(assetName, saveTime) = do
+  let assetNameT = getAssetName assetName
+  isFormat <- asks envFormatMessage
+  currentSymbol <- asks envCurrencySymbol
+  logDebug $ "Check coin status for assetName" <> column <> space <> assetNameT
+  eAssets <- tryAny $ getAssetMintsAndBurns currentSymbol
+    $ fromString $ T.unpack assetNameT
+  logDebug "Maestro response:"
+  logDebugS isFormat eAssets
+  case eAssets of
+    Left err -> do
+      logErrorS isFormat err
+      logInfo $ assetNameT <> space <> "is discarded"
+      pure Nothing
+    Right assetResponses -> do
+      let mAsset = case assetResponses of
+            [] -> if saveTime + timeLag < now
+              then Just assetName
+              else Nothing
+            _ -> if all (isDiscarded now asset) assetResponses
+              then Just assetName
+              else Nothing
+      logDebug $ assetNameT <> space
+        <> maybe "is alive" (const "is discarded") mAsset
+      pure mAsset
+
+
+isDiscarded :: POSIXTime
+  -> (AssetName, POSIXTime)
+  -> AssetMintsAndBurnsResponse
+  -> Bool
+isDiscarded now (_, saveTime) assetResponse =
+  let mAssetStates = NE.nonEmpty $ ambrData assetResponse
+  in case mAssetStates of
+    Nothing -> saveTime + timeLag < now
+    Just states ->
+      let state = NE.last $ NE.sortWith ambrSlot states
+      in case ambrAmount state of
+          (-1) -> addTimeLag (ambrTimestamp state) < now
+          _    -> False

@@ -30,7 +30,7 @@ withCloudEnv action = do
   maestroToken <- decodeOrErrorFromFile $ icMaestroTokenFilePath config
   pPrint config
   let logEnv = mkLogEnv
-        "Save"
+        "Cloud"
         (icEnvironment config)
         (icVerbosity config)
         (icSeverity config)

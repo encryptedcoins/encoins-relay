@@ -157,28 +157,3 @@ instance ToJSON SaveToken where
 
 instance FromJSON SaveToken where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
--- data RottenToken = MkRottenToken
---   { rtAssetName  :: AssetName
---   , rtRemoveTime :: POSIXTime
---   , rtCip        :: Cip
---   }
---   deriving stock (Show, Eq, Generic)
-
--- instance FromJSON RottenToken where
---    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
--- instance ToJSON RottenToken where
---    toJSON = genericToJSON $ aesonPrefix snakeCase
-
--- data RestoreResponse = MkRestoreResponse
---   { rrAssetName       :: AssetName
---   , rrEncryptedSecret :: EncryptedSecret
---   }
---   deriving stock (Show, Eq, Generic)
-
--- instance ToJSON RestoreResponse where
---    toJSON = genericToJSON $ aesonPrefix snakeCase
-
--- data RestoreError = Client ClientError | InvalidStatus CoinStatus
---   deriving stock (Show, Eq)

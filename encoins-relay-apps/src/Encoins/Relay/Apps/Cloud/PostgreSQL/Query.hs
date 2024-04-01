@@ -7,6 +7,7 @@ module Encoins.Relay.Apps.Cloud.PostgreSQL.Query where
 import           Encoins.Relay.Apps.Cloud.Types
 
 import           Contravariant.Extras.Contrazip
+import           Data.Functor.Contravariant     (contramap)
 import           Data.Int
 import           Data.Text                      (Text)
 import           Data.Time.Clock.POSIX          (POSIXTime)
@@ -18,11 +19,10 @@ import           Hasql.Statement                (Statement (..))
 import           Hasql.Transaction              (Transaction)
 import qualified Hasql.Transaction              as T
 import qualified Hasql.Transaction.Sessions     as TS
-import Data.Functor.Contravariant (contramap)
 
-import qualified Control.Foldl as F
-import qualified Hasql.CursorQuery as CQ
-import qualified Hasql.CursorQuery.Sessions as CQS
+import qualified Control.Foldl                  as F
+import qualified Hasql.CursorQuery              as CQ
+import qualified Hasql.CursorQuery.Sessions     as CQS
 
 -- * Sessions
 
@@ -62,6 +62,10 @@ insertOnAbsentS assetName encryptedSecret createTime =
 countRowsS :: Session Int
 countRowsS = CQS.cursorQuery () countRows
 
+getDiscardedTokensS :: Session (Vector (AssetName, POSIXTime))
+getDiscardedTokensS = TS.transaction TS.ReadCommitted TS.Read $
+  getDiscardedTokensT
+
 -- * Transaction
 
 insertTokenT :: AssetName
@@ -72,8 +76,7 @@ insertTokenT assetName encryptedSecret createTime =
   T.statement (assetName, encryptedSecret, createTime) insertToken
 
 getTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
-getTokensByNameT assetName =
-  T.statement assetName getTokensByName
+getTokensByNameT assetName = T.statement assetName getTokensByName
 
 getIdOfNameSecretT :: AssetName
   -> EncryptedSecret
@@ -82,12 +85,14 @@ getIdOfNameSecretT assetName encryptedSecret =
   T.statement (assetName, encryptedSecret) getIdOfNameSecret
 
 getTokensT :: Transaction (Vector (Text, Text))
-getTokensT =
-  T.statement () getTokens
+getTokensT = T.statement () getTokens
 
 deleteTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
 deleteTokensByNameT assetName =
   T.statement assetName deleteTokensByName
+
+getDiscardedTokensT :: Transaction (Vector (AssetName, POSIXTime))
+getDiscardedTokensT = T.statement () getDiscardedTokens
 
 -- * Statements
 
@@ -138,8 +143,8 @@ getIdOfNameSecret = let
 getTokens :: Statement () (Vector (Text, Text))
 getTokens = let
   sql =
-    "select asset_name, encrypted_secret \
-    \from encoins"
+    "SELECT asset_name, encrypted_secret \
+    \FROM encoins"
   encoder = E.noParams
   decoder =
     D.rowVector $
@@ -173,3 +178,16 @@ countRows =
       where
         rowDecoder = D.column (D.nonNullable D.text)
         fold = F.length
+
+getDiscardedTokens :: Statement () (Vector (AssetName, POSIXTime))
+getDiscardedTokens = let
+  sql =
+    "SELECT DISTINCT asset_name, save_time  \
+    \FROM encoins"
+  encoder = E.noParams
+  decoder =
+    D.rowVector $
+      (,) <$>
+        fmap MkAssetName (D.column (D.nonNullable D.text)) <*>
+        fmap fromIntegral (D.column (D.nonNullable D.int8))
+  in Statement sql encoder decoder False
