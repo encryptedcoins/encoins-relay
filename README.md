@@ -98,3 +98,10 @@ $ cabal run encoins-relay-server
 ```console
 $ cabal run encoins-relay-test
 ```
+
+## Run hoogle locally
+
+```
+$ cabal-hoogle generate all
+$ cabal-hoogle run -- server --local --port 9000
+```

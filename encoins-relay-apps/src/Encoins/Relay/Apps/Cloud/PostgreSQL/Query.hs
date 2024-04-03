@@ -146,7 +146,7 @@ getTokens = let
       (,) <$>
         D.column (D.nonNullable D.text) <*>
         D.column (D.nonNullable D.text)
-  in Statement sql encoder decoder True
+  in Statement sql encoder decoder False
 
 deleteTokensByName :: Statement AssetName (Vector (Text, Text))
 deleteTokensByName = let

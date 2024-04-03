@@ -31,15 +31,13 @@ import           Control.Concurrent                   (threadDelay)
 import           Control.Concurrent.STM
 import           Control.Exception.Safe               (SomeException, catchAny,
                                                        throw, tryAny)
-import           Control.Monad                        (forM, forever)
+import           Control.Monad                        (forever)
 import           Control.Monad.Extra                  (forM_, mapMaybeM)
 import           Control.Monad.IO.Class               (MonadIO (liftIO))
 import           Control.Monad.Reader                 (ReaderT (..), asks)
 import           Data.Aeson                           (eitherDecodeFileStrict',
                                                        encodeFile)
 import qualified Data.ByteString.Char8                as B
-import           Data.Either                          (partitionEithers)
-import           Data.Either.Extra                    (mapLeft)
 import qualified Data.List.NonEmpty                   as NE
 import           Data.Map                             (Map)
 import qualified Data.Map                             as Map
@@ -82,10 +80,6 @@ type ServerIpfsApi =
       :<|> "pin"
               :> ReqBody '[JSON] (AesKeyHash, [PinRequest])
               :> Post '[JSON] (Map AssetName StatusResponse)
-
-    --  :<|> "restore"
-    --           :> Capture "client_id" Text
-    --           :> Get '[JSON] [RestoreResponse]
 
 serverIpfsApiProxy :: Proxy ServerIpfsApi
 serverIpfsApiProxy = Proxy
@@ -265,31 +259,31 @@ discardTime = addUTCTime (12 * 60 * 60)
 -- Following functions not used for now.
 -- It can be useful for restoring and cleaning cache
 
-restore :: AesKeyHash -> IpfsMonad [RestoreResponse]
-restore clientId = do
-  eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
-  case eFiles of
-    Left err -> do
-      pPrint err
-      pure []
-    Right (rows -> files) -> do
-      (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
-        let mAssetName = mrName $ metadata file
-        case mAssetName of
-          Nothing -> pure $ Left $ InvalidStatus $ CoinError "Absent AssetName in metadata"
-          Just assetName -> do
-            coinStatus <- checkCoinStatus assetName
-            case coinStatus of
-              CoinMinted -> do
-                eSecretIpfs <- fetchByCipRequest (ipfsPinHash file)
-                let eEncSecret = MkEncryptedSecret . getEncryptedToken <$> eSecretIpfs
-                pure $ mapLeft Client $ MkRestoreResponse assetName <$> eEncSecret
-              _ -> pure $ Left $ InvalidStatus coinStatus
-      case errors of
-        [] -> pure rRes
-        _ -> do
-          mapM_ pPrint errors
-          pure []
+-- restore :: AesKeyHash -> IpfsMonad [RestoreResponse]
+-- restore clientId = do
+--   eFiles <- fetchByStatusKeyvalueRequest "pinned" clientId
+--   case eFiles of
+--     Left err -> do
+--       pPrint err
+--       pure []
+--     Right (rows -> files) -> do
+--       (errors, rRes) <- fmap partitionEithers $ forM files $ \file -> do
+--         let mAssetName = mrName $ metadata file
+--         case mAssetName of
+--           Nothing -> pure $ Left $ InvalidStatus $ CoinError "Absent AssetName in metadata"
+--           Just assetName -> do
+--             coinStatus <- checkCoinStatus assetName
+--             case coinStatus of
+--               CoinMinted -> do
+--                 eSecretIpfs <- fetchByCipRequest (ipfsPinHash file)
+--                 let eEncSecret = MkEncryptedSecret . getEncryptedToken <$> eSecretIpfs
+--                 pure $ mapLeft Client $ MkRestoreResponse assetName <$> eEncSecret
+--               _ -> pure $ Left $ InvalidStatus coinStatus
+--       case errors of
+--         [] -> pure rRes
+--         _ -> do
+--           mapM_ pPrint errors
+--           pure []
 
 -- burned :: PinRequest -> IpfsMonad Text
 -- burned t = do
