@@ -10,5 +10,5 @@
 , "delegation_server_host"      : "localhost"
 , "delegation_server_port"      : 3002
 , "delegation_server_protocol"  : "HTTP"
-, "delegation_ip"               : "localhost"
+, "delegation_ip_file"          : "delegation.ip"
 }

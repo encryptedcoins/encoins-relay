@@ -40,7 +40,7 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     , cDelegationServerHost     :: Text
     , cDelegationServerPort     :: Int
     , cDelegationServerProtocol :: HyperTextProtocol
-    , cDelegationIp             :: Text
+    , cDelegationIpFile         :: FilePath
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where
