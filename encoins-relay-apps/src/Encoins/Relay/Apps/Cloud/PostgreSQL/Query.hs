@@ -7,11 +7,12 @@ module Encoins.Relay.Apps.Cloud.PostgreSQL.Query where
 import           Encoins.Relay.Apps.Cloud.Types
 
 import           Contravariant.Extras.Contrazip
-import           Data.Functor.Contravariant     (contramap)
+import           Data.Functor.Contravariant     (contramap, (>$<))
 import           Data.Int
 import           Data.Text                      (Text)
 import           Data.Time.Clock.POSIX          (POSIXTime)
 import           Data.Vector                    (Vector)
+import qualified Data.Vector                    as V
 import qualified Hasql.Decoders                 as D
 import qualified Hasql.Encoders                 as E
 import           Hasql.Session                  (Session)
@@ -66,6 +67,10 @@ getDiscardedTokensS :: Session (Vector (AssetName, POSIXTime))
 getDiscardedTokensS = TS.transaction TS.ReadCommitted TS.Read $
   getDiscardedTokensT
 
+insertDiscardedTokensS :: Vector (AssetName, POSIXTime) -> Session ()
+insertDiscardedTokensS = TS.transaction TS.Serializable TS.Write .
+  insertDiscardedTokensT
+
 -- * Transaction
 
 insertTokenT :: AssetName
@@ -93,6 +98,11 @@ deleteTokensByNameT assetName =
 
 getDiscardedTokensT :: Transaction (Vector (AssetName, POSIXTime))
 getDiscardedTokensT = T.statement () getDiscardedTokens
+
+insertDiscardedTokensT :: Vector (AssetName, POSIXTime)
+  -> Transaction ()
+insertDiscardedTokensT discardedTokens =
+  T.statement discardedTokens insertDiscardedTokens
 
 -- * Statements
 
@@ -191,3 +201,34 @@ getDiscardedTokens = let
         fmap MkAssetName (D.column (D.nonNullable D.text)) <*>
         fmap fromIntegral (D.column (D.nonNullable D.int8))
   in Statement sql encoder decoder False
+
+insertDiscardedTokens :: Statement (Vector (AssetName, POSIXTime)) ()
+insertDiscardedTokens = let
+  sql =
+    "insert into discarded (asset_name, discard_time) \
+    \select * from unnest ($1, $2) \
+    \ON CONFLICT (asset_name) DO NOTHING;"
+  encoder = V.unzip >$<
+    (contrazip2
+      (E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable $ contramap getAssetName E.text)
+      (E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable $ contramap truncate E.int8)
+    )
+  decoder = D.noResult
+  in Statement sql encoder decoder True
+
+
+{-
+delete :: [PayloadId] -> Session ()
+delete xs = do
+  let theQuery = [here|
+        DELETE FROM payloads
+        WHERE id = ANY($1)
+        |]
+
+      encoder = E.param
+              $ E.nonNullable
+              $ E.foldableArray
+              $ E.nonNullable payloadIdEncoder
+
+  statement xs $ Statement theQuery encoder D.noResult True
+-}

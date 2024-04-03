@@ -6,7 +6,6 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 
 
@@ -22,6 +21,7 @@ import           Encoins.Common.Version                    (appVersion,
 import           Encoins.Relay.Apps.Cloud.Config
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (getDiscardedTokensS,
                                                             getTokensS,
+                                                            insertDiscardedTokensS,
                                                             insertOnAbsentS)
 import           Encoins.Relay.Apps.Cloud.Types
 import           PlutusAppsExtra.IO.Maestro                (getAssetMintsAndBurns)
@@ -162,9 +162,11 @@ withRecovery nameOfAction action = action `catchAny` handleException
 addTimeLag :: UTCTime -> POSIXTime
 addTimeLag = utcTimeToPOSIXSeconds . addUTCTime timeLag
 
+-- Lag period is 12 hours
 -- After the lag token can't be rolled back
 timeLag :: POSIXTime
 timeLag = secondsToNominalDiffTime (12 * 60 * 60)
+-- timeLag = secondsToNominalDiffTime (1 * 1 * 60)
 
 restore :: CloudMonad (Vector (Text, Text))
 restore = do
@@ -198,16 +200,22 @@ selectDiscardedTokens env = withRecovery "detectDiscardedTokens" $ runCloudMonad
     Right tokens -> do
       time <- liftIO $ getPOSIXTime
       discardedTokens <- V.mapMaybeM (detectDiscarded time) tokens
-      logInfoS isFormat discardedTokens
+      -- logInfo ""
+      -- logInfo "Discarded tokens"
+      -- logInfoS isFormat discardedTokens
+      res <- liftIO $ Pool.use pool $ insertDiscardedTokensS discardedTokens
+      -- logInfo ""
+      -- logInfo "Insert discarded"
+      logInfoS isFormat res
 
   -- Sleep for 12 hour (in microseconds)
   liftIO $ threadDelay $ 12 * 60 * 60 * 1000000
-  -- liftIO $ threadDelay $ 1 * 10 * 60 * 1000000
+  -- liftIO $ threadDelay $ 1 * 1 * 60 * 1000000
 
 
 detectDiscarded :: POSIXTime
   -> (AssetName, POSIXTime)
-  -> CloudMonad (Maybe AssetName)
+  -> CloudMonad (Maybe (AssetName, POSIXTime))
 detectDiscarded now asset@(assetName, saveTime) = do
   let assetNameT = getAssetName assetName
   isFormat <- asks envFormatMessage
@@ -232,7 +240,7 @@ detectDiscarded now asset@(assetName, saveTime) = do
               else Nothing
       logDebug $ assetNameT <> space
         <> maybe "is alive" (const "is discarded") mAsset
-      pure mAsset
+      pure $ (,now) <$> mAsset
 
 
 isDiscarded :: POSIXTime

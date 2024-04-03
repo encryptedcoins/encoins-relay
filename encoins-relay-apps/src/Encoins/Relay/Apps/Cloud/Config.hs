@@ -37,16 +37,15 @@ withCloudEnv action = do
   withLogEnv logEnv $ \le -> do
     let connSettings = Conn.settings "127.0.0.1" 5432 "postgres" "" "encoins"
     withDefaultPool connSettings $ \pool -> do
-      res <- migration pool
-      case res of
-        Left err -> pPrint err
-        Right (Right (Just err)) -> pPrint err
-        _ -> do
-          rowNumber <- P.use pool countRowsS
-          pPrintString $ "Number of rows in encoins table: " <> show rowNumber
-          manager <- newManager tlsManagerSettings
-          let env = mkCloudEnv manager config le maestroToken pool
-          action env
+      migration pool migrationDir
+      rowNumber <- P.use pool countRowsS
+      pPrintString $ "Number of rows in encoins table: " <> show rowNumber
+      manager <- newManager tlsManagerSettings
+      let env = mkCloudEnv manager config le maestroToken pool
+      action env
+
+migrationDir :: FilePath
+migrationDir = "schema"
 
 withPool :: Int
   -> DiffTime
