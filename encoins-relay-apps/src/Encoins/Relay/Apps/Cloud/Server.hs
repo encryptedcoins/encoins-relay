@@ -22,7 +22,7 @@ import           Encoins.Relay.Apps.Cloud.Config
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (deleteDiscardedTokensS,
                                                             getAllSavedTokensS,
                                                             insertDiscardedTokensS,
-                                                            insertOnAbsentS,
+                                                            insertOnAbsentS,selectAllDiscardedTokensS,
                                                             selectUniqSavedTokensS,
                                                             selectStaleDiscardedTokensS)
 import           Encoins.Relay.Apps.Cloud.Types
@@ -56,6 +56,7 @@ import           Data.Time.Clock.POSIX                     (POSIXTime,
                                                             utcTimeToPOSIXSeconds)
 import           Data.Vector                               (Vector)
 import qualified Data.Vector                               as V
+import qualified Data.Set                               as Set
 import           Development.GitRev                        (gitCommitDate,
                                                             gitHash)
 import qualified Hasql.Pool                                as Pool
@@ -181,10 +182,9 @@ timeLag = secondsToNominalDiffTime hour12
 -- timeLag = secondsToNominalDiffTime minute1
 
 hour12 :: Num n => n
-hour12 = 12 * 60 * 60
+-- hour12 = 12 * 60 * 60
+hour12 = 60
 
-minute1 :: Num n => n
-minute1 = 60
 
 restore :: CloudMonad (Vector (Text, Text))
 restore = do
@@ -216,25 +216,45 @@ discard env = withRecovery "discard" $ runCloudMonad env $ forever $ do
     Left err -> do
       logErrorS isFormat err
     Right tokens -> do
-      time <- liftIO $ getPOSIXTime
-      -- TODO: exclude checking tokens that already are in discarded table
-      discardedTokens <- V.mapMaybeM (detectDiscarded time) tokens
-      logDebug ""
-      logDebug "Discarded tokens"
-      logDebugS isFormat discardedTokens
-      res <- liftIO $ Pool.use pool $ insertDiscardedTokensS discardedTokens
-      case res of
-        Left e -> do
-          logInfo "Inserting discarded tokens was failed"
-          logErrorS isFormat e
-        Right _ -> do
-          logDebug ""
-          logDebug "Discarded tokens was inserted"
+      evOldDiscardedTokens <- liftIO $ Pool.use pool selectAllDiscardedTokensS
+      case evOldDiscardedTokens of
+        Left err -> do
+          logErrorS isFormat err
+        Right oldDiscardedTokens -> do
+          time <- liftIO $ getPOSIXTime
+          logInfo "Old discarded tokens"
+          logInfoS isFormat oldDiscardedTokens
+          logInfo "Saved tokens"
+          logInfoS isFormat tokens
+          let notDiscardedTokens = excludeAlreadyDiscarded tokens oldDiscardedTokens
+          logInfo "Not discarded tokens"
+          logInfoS isFormat notDiscardedTokens
+          discardedTokens <- V.mapMaybeM (detectDiscarded time) notDiscardedTokens
+          logInfo ""
+          logInfo "New discarded tokens"
+          logInfoS isFormat discardedTokens
+          case V.null discardedTokens of
+            True -> logInfo "New discarded tokens was not found"
+            False -> do
+              res <- liftIO $ Pool.use pool $ insertDiscardedTokensS discardedTokens
+              case res of
+                Left e -> do
+                  logInfo "Inserting discarded tokens was failed"
+                  logErrorS isFormat e
+                Right _ -> do
+                  logDebug ""
+                  logDebug "Discarded tokens was inserted"
 
   -- Sleep for 12 hour (in microseconds)
   liftIO $ threadDelay $ hour12 * 1000000
-  -- liftIO $ threadDelay $ minute1 * 1000000
 
+excludeAlreadyDiscarded :: Vector (AssetName, POSIXTime)
+  -> Vector AssetName
+  -> Vector (AssetName, POSIXTime)
+excludeAlreadyDiscarded savedTokens discardedTokens =
+  V.filter (\(x,_) -> Set.notMember x discardedTokensSet) savedTokens
+    where
+      discardedTokensSet = Set.fromList (V.toList discardedTokens)
 
 detectDiscarded :: POSIXTime
   -> (AssetName, POSIXTime)
