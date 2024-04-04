@@ -22,9 +22,10 @@ import           Encoins.Relay.Apps.Cloud.Config
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (deleteDiscardedTokensS,
                                                             getAllSavedTokensS,
                                                             insertDiscardedTokensS,
-                                                            insertOnAbsentS,selectAllDiscardedTokensS,
-                                                            selectUniqSavedTokensS,
-                                                            selectStaleDiscardedTokensS)
+                                                            insertOnAbsentS,
+                                                            selectAllDiscardedTokensS,
+                                                            selectStaleDiscardedTokensS,
+                                                            selectUniqSavedTokensS)
 import           Encoins.Relay.Apps.Cloud.Types
 import           Paths_encoins_relay_apps                  (version)
 import           PlutusAppsExtra.IO.Maestro                (getAssetMintsAndBurns)
@@ -44,11 +45,12 @@ import           Data.Char                                 (toLower)
 import qualified Data.List.NonEmpty                        as NE
 import           Data.Map                                  (Map)
 import qualified Data.Map                                  as Map
+import qualified Data.Set                                  as Set
 import           Data.String                               (IsString (fromString))
 import           Data.Text                                 (Text)
 import qualified Data.Text                                 as T
 import qualified Data.Text.Encoding                        as TE
-import           Data.Time                                 (UTCTime, addUTCTime,
+import           Data.Time                                 (UTCTime, addUTCTime,NominalDiffTime,
                                                             secondsToNominalDiffTime)
 import           Data.Time.Clock.POSIX                     (POSIXTime,
                                                             getPOSIXTime,
@@ -56,7 +58,6 @@ import           Data.Time.Clock.POSIX                     (POSIXTime,
                                                             utcTimeToPOSIXSeconds)
 import           Data.Vector                               (Vector)
 import qualified Data.Vector                               as V
-import qualified Data.Set                               as Set
 import           Development.GitRev                        (gitCommitDate,
                                                             gitHash)
 import qualified Hasql.Pool                                as Pool
@@ -67,8 +68,7 @@ import           Network.Wai.Middleware.Cors               (CorsResourcePolicy (
                                                             simpleCorsResourcePolicy)
 import           Servant
 
--- import           PlutusAppsExtra.IO.Maestro                (getAccountAddressesHoldingAssets)
--- import           Data.String                               (IsString (fromString))
+import Debug.Trace
 
 cloudServer :: IO ()
 cloudServer = do
@@ -172,18 +172,17 @@ withRecovery nameOfAction action = action `catchAny` handleException
       withRecovery nameOfAction action
 
 -- Add 12 hours
-addTimeLag :: UTCTime -> POSIXTime
-addTimeLag = utcTimeToPOSIXSeconds . addUTCTime timeLag
+addTimeLag :: NominalDiffTime -> UTCTime -> POSIXTime
+addTimeLag diff utc = utcTimeToPOSIXSeconds $ addUTCTime diff utc
 
 -- Lag period is 12 hours
 -- After the lag token can't be rolled back
 timeLag :: POSIXTime
 timeLag = secondsToNominalDiffTime hour12
--- timeLag = secondsToNominalDiffTime minute1
 
 hour12 :: Num n => n
--- hour12 = 12 * 60 * 60
-hour12 = 60
+hour12 = 12 * 60 * 60
+-- hour12 = 60
 
 
 restore :: CloudMonad (Vector (Text, Text))
@@ -226,7 +225,7 @@ discard env = withRecovery "discard" $ runCloudMonad env $ forever $ do
           logInfoS isFormat oldDiscardedTokens
           logInfo "Saved tokens"
           logInfoS isFormat tokens
-          let notDiscardedTokens = excludeAlreadyDiscarded tokens oldDiscardedTokens
+          let notDiscardedTokens = getNotDiscarded tokens oldDiscardedTokens
           logInfo "Not discarded tokens"
           logInfoS isFormat notDiscardedTokens
           discardedTokens <- V.mapMaybeM (detectDiscarded time) notDiscardedTokens
@@ -248,18 +247,10 @@ discard env = withRecovery "discard" $ runCloudMonad env $ forever $ do
   -- Sleep for 12 hour (in microseconds)
   liftIO $ threadDelay $ hour12 * 1000000
 
-excludeAlreadyDiscarded :: Vector (AssetName, POSIXTime)
-  -> Vector AssetName
-  -> Vector (AssetName, POSIXTime)
-excludeAlreadyDiscarded savedTokens discardedTokens =
-  V.filter (\(x,_) -> Set.notMember x discardedTokensSet) savedTokens
-    where
-      discardedTokensSet = Set.fromList (V.toList discardedTokens)
-
 detectDiscarded :: POSIXTime
   -> (AssetName, POSIXTime)
   -> CloudMonad (Maybe (AssetName, POSIXTime))
-detectDiscarded now asset@(assetName, saveTime) = do
+detectDiscarded now asset@(assetName, _) = do
   let assetNameT = getAssetName assetName
   isFormat <- asks envFormatMessage
   currentSymbol <- asks envCurrencySymbol
@@ -274,30 +265,38 @@ detectDiscarded now asset@(assetName, saveTime) = do
       logInfo $ assetNameT <> space <> "is discarded"
       pure Nothing
     Right assetResponses -> do
-      let mAsset = case assetResponses of
-            [] -> if saveTime + timeLag < now
-              then Just assetName
-              else Nothing
-            _ -> if all (isDiscarded now asset) assetResponses
-              then Just assetName
-              else Nothing
+      let mAsset = isDiscardedInList now timeLag asset assetResponses
       logDebug $ assetNameT <> space
         <> maybe "is alive" (const "is discarded") mAsset
       pure $ (,now) <$> mAsset
 
+isDiscardedInList :: POSIXTime
+  -> POSIXTime
+  -> (AssetName, POSIXTime)
+  -> [AssetMintsAndBurnsResponse]
+  -> Maybe AssetName
+isDiscardedInList now lag asset@(assetName, saveTime) assetResponses =
+  case assetResponses of
+    [] -> if saveTime + lag < now
+      then Just assetName
+      else Nothing
+    _ -> if all (isDiscarded now lag asset) assetResponses
+      then Just assetName
+      else Nothing
 
 isDiscarded :: POSIXTime
+  -> POSIXTime
   -> (AssetName, POSIXTime)
   -> AssetMintsAndBurnsResponse
   -> Bool
-isDiscarded now (_, saveTime) assetResponse =
+isDiscarded now lag (_, saveTime) assetResponse =
   let mAssetStates = NE.nonEmpty $ ambrData assetResponse
   in case mAssetStates of
-    Nothing -> saveTime + timeLag < now
+    Nothing -> saveTime + lag < now
     Just states ->
       let state = NE.last $ NE.sortWith ambrSlot states
       in case ambrAmount state of
-          (-1) -> addTimeLag (ambrTimestamp state) < now
+          (-1) -> addTimeLag lag (ambrTimestamp state) < now
           _    -> False
 
 clean :: CloudEnv -> IO ()
@@ -343,3 +342,15 @@ clean env = withRecovery "clean" $ runCloudMonad env $ do
                   Right _ -> do
                     logInfo "Deleting tokens was succeeded"
             _ -> logInfo "Deleting was cancelled"
+
+
+-- Utilities
+
+getNotDiscarded :: Ord a
+  => Vector (a, b)
+  -> Vector a
+  -> Vector (a, b)
+getNotDiscarded savedTokens discardedTokens =
+  V.filter (\(x,_) -> Set.notMember x discardedTokensSet) savedTokens
+    where
+      discardedTokensSet = Set.fromList (V.toList discardedTokens)
