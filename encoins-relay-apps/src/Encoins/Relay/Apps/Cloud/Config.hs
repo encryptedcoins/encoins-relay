@@ -80,4 +80,5 @@ mkCloudEnv manager cloudConfig logEnv maestroToken pool =
     , envKNamespace        = mempty
     , envFormatMessage     = icFormatMessage cloudConfig
     , envPool              = pool
+    , envStaleTime         = icStaleTime cloudConfig
     }

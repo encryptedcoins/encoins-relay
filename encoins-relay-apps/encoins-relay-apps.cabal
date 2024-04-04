@@ -79,6 +79,7 @@ library
     , hasql-migration
     , hasql-pool
     , hasql-transaction
+    , here
     , http-client
     , http-client-tls
     , katip
@@ -140,6 +141,16 @@ executable encoins-relay-delegation-client
 executable encoins-cloud
   default-language: Haskell2010
   hs-source-dirs:   app_cloud
+  main-is:          Main.hs
+  ghc-options:
+    -threaded
+  build-depends:
+    , base                >=4.9 && <5
+    , encoins-relay-apps
+
+executable encoins-cloud-clean
+  default-language: Haskell2010
+  hs-source-dirs:   app_cloud_clean
   main-is:          Main.hs
   ghc-options:
     -threaded

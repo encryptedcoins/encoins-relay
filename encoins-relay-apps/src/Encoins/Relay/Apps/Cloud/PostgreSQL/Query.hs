@@ -20,11 +20,10 @@ import           Hasql.Statement                (Statement (..))
 import           Hasql.Transaction              (Transaction)
 import qualified Hasql.Transaction              as T
 import qualified Hasql.Transaction.Sessions     as TS
-
 import qualified Control.Foldl                  as F
 import qualified Hasql.CursorQuery              as CQ
 import qualified Hasql.CursorQuery.Sessions     as CQS
-
+import Data.String.Here.Uninterpolated (here)
 -- * Sessions
 
 insertTokenS :: AssetName
@@ -63,13 +62,22 @@ insertOnAbsentS assetName encryptedSecret createTime =
 countRowsS :: Session Int
 countRowsS = CQS.cursorQuery () countRows
 
-getDiscardedTokensS :: Session (Vector (AssetName, POSIXTime))
-getDiscardedTokensS = TS.transaction TS.ReadCommitted TS.Read $
-  getDiscardedTokensT
+selectUniqSavedTokensS :: Session (Vector (AssetName, POSIXTime))
+selectUniqSavedTokensS = TS.transaction TS.ReadCommitted TS.Read
+  selectUniqSavedTokensT
 
 insertDiscardedTokensS :: Vector (AssetName, POSIXTime) -> Session ()
 insertDiscardedTokensS = TS.transaction TS.Serializable TS.Write .
   insertDiscardedTokensT
+
+selectStaleDiscardedTokensS :: POSIXTime -> Session (Vector AssetName)
+selectStaleDiscardedTokensS = TS.transaction TS.ReadCommitted TS.Read .
+  selectStaleDiscardedTokensT
+
+deleteDiscardedTokensS :: Vector AssetName -> Session ()
+deleteDiscardedTokensS vDiscardedTokens = TS.transaction TS.Serializable TS.Write $ do
+  deleteDiscardedTokensT vDiscardedTokens
+  deleteDiscardedTokenLinksT vDiscardedTokens
 
 -- * Transaction
 
@@ -96,13 +104,24 @@ deleteTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
 deleteTokensByNameT assetName =
   T.statement assetName deleteTokensByName
 
-getDiscardedTokensT :: Transaction (Vector (AssetName, POSIXTime))
-getDiscardedTokensT = T.statement () getDiscardedTokens
+selectUniqSavedTokensT :: Transaction (Vector (AssetName, POSIXTime))
+selectUniqSavedTokensT = T.statement () selectUniqSavedTokens
 
 insertDiscardedTokensT :: Vector (AssetName, POSIXTime)
   -> Transaction ()
 insertDiscardedTokensT discardedTokens =
   T.statement discardedTokens insertDiscardedTokens
+
+selectStaleDiscardedTokensT :: POSIXTime -> Transaction (Vector AssetName)
+selectStaleDiscardedTokensT staleTime = T.statement staleTime selectStaleDiscardedTokens
+
+deleteDiscardedTokensT :: Vector AssetName -> Transaction ()
+deleteDiscardedTokensT discardedTokens =
+  T.statement discardedTokens deleteDiscardedTokens
+
+deleteDiscardedTokenLinksT :: Vector AssetName -> Transaction ()
+deleteDiscardedTokenLinksT discardedTokens =
+  T.statement discardedTokens deleteDiscardedTokenLinks
 
 -- * Statements
 
@@ -189,8 +208,8 @@ countRows =
         rowDecoder = D.column (D.nonNullable D.text)
         fold = F.length
 
-getDiscardedTokens :: Statement () (Vector (AssetName, POSIXTime))
-getDiscardedTokens = let
+selectUniqSavedTokens :: Statement () (Vector (AssetName, POSIXTime))
+selectUniqSavedTokens = let
   sql =
     "SELECT DISTINCT asset_name, save_time  \
     \FROM encoins"
@@ -216,19 +235,34 @@ insertDiscardedTokens = let
   decoder = D.noResult
   in Statement sql encoder decoder True
 
+selectStaleDiscardedTokens :: Statement POSIXTime (Vector AssetName)
+selectStaleDiscardedTokens = let
+  sql =
+    "SELECT DISTINCT asset_name \
+    \FROM discarded \
+    \WHERE discard_time < $1"
+  encoder = contramap truncate (E.param (E.nonNullable E.int8 ))
+  decoder = D.rowVector $ fmap MkAssetName (D.column (D.nonNullable D.text))
+  in Statement sql encoder decoder True
 
-{-
-delete :: [PayloadId] -> Session ()
-delete xs = do
-  let theQuery = [here|
-        DELETE FROM payloads
-        WHERE id = ANY($1)
+deleteDiscardedTokens :: Statement (Vector AssetName) ()
+deleteDiscardedTokens = let
+  sql = [here|
+        DELETE FROM encoins
+        WHERE asset_name IN (SELECT unnest($1))
         |]
+  encoder =
+      E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable $ contramap getAssetName E.text
+  decoder = D.noResult
+  in Statement sql encoder decoder True
 
-      encoder = E.param
-              $ E.nonNullable
-              $ E.foldableArray
-              $ E.nonNullable payloadIdEncoder
-
-  statement xs $ Statement theQuery encoder D.noResult True
--}
+deleteDiscardedTokenLinks :: Statement (Vector AssetName) ()
+deleteDiscardedTokenLinks = let
+  sql = [here|
+        DELETE FROM discarded
+        WHERE asset_name IN (SELECT unnest($1))
+        |]
+  encoder =
+      E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable $ contramap getAssetName E.text
+  decoder = D.noResult
+  in Statement sql encoder decoder True

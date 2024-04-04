@@ -22,6 +22,7 @@ import           Data.Aeson                    (FromJSON (..), FromJSONKey,
                                                 tagSingleConstructors)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Text                     (Text)
+import           Data.Time.Clock.POSIX         (POSIXTime)
 import           GHC.Generics                  (Generic)
 import qualified Hasql.Pool                    as P
 import           Katip
@@ -47,6 +48,7 @@ data CloudEnv = MkCloudEnv
   , envKNamespace        :: Namespace
   , envFormatMessage     :: Bool -- Pretty print message or not
   , envPool              :: P.Pool
+  , envStaleTime         :: POSIXTime
   }
 
 -- Format of severity in json file:
@@ -64,6 +66,7 @@ data CloudConfig = MkCloudConfig
   , icVerbosity            :: Verbosity
   , icSeverity             :: Severity
   , icFormatMessage        :: Bool
+  , icStaleTime            :: POSIXTime
   }
   deriving stock (Eq,Show, Generic)
 
