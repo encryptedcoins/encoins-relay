@@ -20,7 +20,7 @@ import           Encoins.Common.Version                    (appVersion,
                                                             showAppVersion)
 import           Encoins.Relay.Apps.Cloud.Config
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (deleteDiscardedTokensS,
-                                                            getTokensS,
+                                                            getAllSavedTokensS,
                                                             insertDiscardedTokensS,
                                                             insertOnAbsentS,
                                                             selectUniqSavedTokensS,
@@ -180,10 +180,10 @@ timeLag :: POSIXTime
 timeLag = secondsToNominalDiffTime hour12
 -- timeLag = secondsToNominalDiffTime minute1
 
-hour12 :: Int
+hour12 :: Num n => n
 hour12 = 12 * 60 * 60
 
-minute1 :: Int
+minute1 :: Num n => n
 minute1 = 60
 
 restore :: CloudMonad (Vector (Text, Text))
@@ -192,7 +192,7 @@ restore = do
   pool <- asks envPool
   logInfo ""
   logInfo "Restore query received"
-  evTokens <- liftIO $ Pool.use pool getTokensS
+  evTokens <- liftIO $ Pool.use pool getAllSavedTokensS
   case evTokens of
     Left err -> do
       logErrorS isFormat err

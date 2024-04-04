@@ -40,6 +40,7 @@ library
     Encoins.Relay.Apps.Cloud.Config
     Encoins.Relay.Apps.Cloud.PostgreSQL.Query
     Encoins.Relay.Apps.Cloud.PostgreSQL.Migration
+    Encoins.Relay.Apps.Cloud.PostgreSQL.Statement
     Encoins.Relay.Apps.Cloud.Ipfs.Api
     Encoins.Relay.Apps.Cloud.Ipfs.Config
     Encoins.Relay.Apps.Cloud.Ipfs.Request
