@@ -86,49 +86,49 @@ newDiscarded5 = V.fromList []
 isDiscardedSpec :: Spec
 isDiscardedSpec =
   describe "isDiscarded" $ do
-    it "ambrData is empty, saveTime + lag < now" $
+    it "True when ambrData is empty, saveTime + lag < now" $
       isDiscarded now lag asset1 (dataRes []) `shouldBe` True
-    it "ambrData is empty, saveTime + lag == now" $
+    it "False when ambrData is empty, saveTime + lag == now" $
       isDiscarded now lag asset2 (dataRes []) `shouldBe` False
-    it "ambrData is empty, saveTime + lag > now" $
+    it "False when ambrData is empty, saveTime + lag > now" $
       isDiscarded now lag asset3 (dataRes []) `shouldBe` False
-    it "Minted, stateTime + lag < now" $
+    it "False when minted state, stateTime + lag < now" $
       isDiscarded now lag asset1 (dataRes [assetData 1 80 33]) `shouldBe` False
-    it "Minted, stateTime + lag == now" $
+    it "False when minted state, stateTime + lag == now" $
       isDiscarded now lag asset1 (dataRes [assetData 1 90 33]) `shouldBe` False
-    it "Minted, stateTime + lag > now" $
+    it "False when minted state, stateTime + lag > now" $
       isDiscarded now lag asset1 (dataRes [assetData 1 100 33]) `shouldBe` False
-    it "Invalid amount, stateTime + lag < now" $
+    it "False when invalid amount, stateTime + lag < now" $
       isDiscarded now lag asset1 (dataRes [assetData 0 80 33]) `shouldBe` False
-    it "Invalid amount, stateTime + lag == now" $
+    it "False when invalid amount, stateTime + lag == now" $
       isDiscarded now lag asset1 (dataRes [assetData 0 90 33]) `shouldBe` False
-    it "Invalid amount, stateTime + lag > now" $
+    it "False when invalid amount, stateTime + lag > now" $
       isDiscarded now lag asset1 (dataRes [assetData 0 100 33]) `shouldBe` False
-    it "Burned, stateTime + lag < now" $
+    it "True when burned state, stateTime + lag < now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 80 33]) `shouldBe` True
-    it "Burned, stateTime + lag == now" $
+    it "False when burned state, stateTime + lag == now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 90 33]) `shouldBe` False
-    it "Burned, stateTime + lag > now" $
+    it "False when burned state, stateTime + lag > now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 100 33]) `shouldBe` False
-    it "Valid Minted and Burned, stateTime + lag < now" $
+    it "True when valid Minted and Burned states, stateTime + lag < now" $
       isDiscarded now lag asset1 (dataRes [assetData 1 70 33, assetData (-1) 80 44]) `shouldBe` True
-    it "Valid Minted and Burned, stateTime + lag == now" $
+    it "False when valid Minted and Burned states, stateTime + lag == now" $
       isDiscarded now lag asset1 (dataRes [assetData 1 70 33, assetData (-1) 90 44]) `shouldBe` False
-    it "Valid Minted and Burned, stateTime + lag > now" $
+    it "False when valid Minted and Burned states, stateTime + lag > now" $
       isDiscarded now lag asset1 (dataRes [assetData 1 70 33, assetData (-1) 100 44]) `shouldBe` False
 
-    it "Disordered valid Minted and Burned, stateTime + lag < now" $
+    it "True when disordered valid Minted and Burned states, stateTime + lag < now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 80 44, assetData 1 70 33]) `shouldBe` True
-    it "Disordered valid Minted and Burned, stateTime + lag == now" $
+    it "False when disordered valid Minted and Burned states, stateTime + lag == now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 90 44, assetData 1 70 33]) `shouldBe` False
-    it "Disordered valid Minted and Burned, stateTime + lag > now" $
+    it "False when disordered valid Minted and Burned states, stateTime + lag > now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 100 44, assetData 1 70 33]) `shouldBe` False
 
-    it "Disordered valid Minted and Burned, invalid slots, stateTime + lag < now" $
+    it "False when disordered valid Minted and Burned states has invalid slots, stateTime + lag < now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 80 33, assetData 1 70 44]) `shouldBe` False
-    it "Disordered valid Minted and Burned, invalid slots, stateTime + lag == now" $
+    it "False when disordered valid Minted and Burned states has invalid slots, stateTime + lag == now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 90 33, assetData 1 70 44]) `shouldBe` False
-    it "Disordered valid Minted and Burned, invalid slots, stateTime + lag > now" $
+    it "False when disordered valid Minted and Burned states has invalid slots, stateTime + lag > now" $
       isDiscarded now lag asset1 (dataRes [assetData (-1) 100 33, assetData 1 70 44]) `shouldBe` False
 
 dataRes :: [AssetMintsAndBurnsData] -> AssetMintsAndBurnsResponse
@@ -167,22 +167,22 @@ asset3 = (assetName, 100)
 isDiscardedInListSpec :: Spec
 isDiscardedInListSpec =
   describe "isDiscardedInList" $ do
-    it "Maestro response is empty, saveTime + lag < now" $
+    it "Response of maestro is empty, saveTime + lag < now" $
       isDiscardedInList now lag asset1 [] `shouldBe` Just assetName
-    it "Maestro response is empty, saveTime + lag == now" $
+    it "Response of maestro is empty, saveTime + lag == now" $
       isDiscardedInList now lag asset2 [] `shouldBe` Nothing
-    it "Maestro response is empty, saveTime + lag > now" $
+    it "Response of maestro is empty, saveTime + lag > now" $
       isDiscardedInList now lag asset3 [] `shouldBe` Nothing
-    it "Maestro response has one valid item" $
+    it "Response of maestro has one valid token" $
       isDiscardedInList now lag asset3 [dataRes [assetData (-1) 80 44, assetData 1 70 33]] `shouldBe` Just assetName
-    it "Maestro response has one invalid item" $
+    it "Response of maestro has one invalid token" $
       isDiscardedInList now lag asset3 [dataRes [assetData (-1) 80 33, assetData 1 70 44]] `shouldBe` Nothing
-    it "Maestro response has all valid items" $
+    it "Response of maestro has all valid tokens" $
       isDiscardedInList now lag asset3
         [ dataRes [assetData (-1) 80 44, assetData 1 70 33]
         , dataRes [assetData (-1) 80 33]
         ] `shouldBe` Just assetName
-    it "Maestro response has one valid and one invalid item" $
+    it "Response of maestro has one valid and one invalid state of tokens" $
       isDiscardedInList now lag asset3
         [ dataRes [assetData (-1) 80 33]
         , dataRes [assetData (-1) 80 33, assetData 1 70 44]
