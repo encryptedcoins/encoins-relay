@@ -24,7 +24,7 @@ import           Test.Hspec                      (Spec, describe, hspec, it,
 
 getNotDiscardedSpec :: Spec
 getNotDiscardedSpec =
-  describe "getNotDiscardedSpec" $ do
+  describe "Behavior of getNotDiscarded" $ do
     it "There is an intersection" $
       getNotDiscarded savedTokens1 alreadyDiscarded1 `shouldBe` newDiscarded1
     it "Discarded list is empty" $
@@ -85,7 +85,7 @@ newDiscarded5 = V.fromList []
 
 isDiscardedSpec :: Spec
 isDiscardedSpec =
-  describe "isDiscarded" $ do
+  describe "Behavior of isDiscarded" $ do
     it "True when ambrData is empty, saveTime + lag < now" $
       isDiscarded now lag asset1 (dataRes []) `shouldBe` True
     it "False when ambrData is empty, saveTime + lag == now" $
@@ -166,7 +166,7 @@ asset3 = (assetName, 100)
 
 isDiscardedInListSpec :: Spec
 isDiscardedInListSpec =
-  describe "isDiscardedInList" $ do
+  describe "Behavior of isDiscardedInList" $ do
     it "Response of maestro is empty, saveTime + lag < now" $
       isDiscardedInList now lag asset1 [] `shouldBe` Just assetName
     it "Response of maestro is empty, saveTime + lag == now" $

@@ -63,6 +63,7 @@ library
     , containers
     , contravariant-extras
     , data-default
+    , dhall
     , directory
     , encoins-common-constant
     , encoins-common-log

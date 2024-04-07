@@ -15,6 +15,7 @@ import           Encoins.Relay.Apps.Cloud.Types
 import           Cardano.Server.Config                         (decodeOrErrorFromFile)
 import           Control.Exception.Safe                        (bracket)
 import           Data.Time                                     (DiffTime)
+import           Dhall (input, auto)
 import qualified Hasql.Connection                              as Conn
 import qualified Hasql.Pool                                    as P
 import           Katip
@@ -26,7 +27,9 @@ import           Text.Pretty.Simple                            (pPrint,
 
 withCloudEnv :: (CloudEnv -> IO ()) -> IO ()
 withCloudEnv action = do
-  config <- decodeOrErrorFromFile "cloud_config.json"
+  -- config <- decodeOrErrorFromFile "cloud_config.json"
+  config <- input auto "./cloud_config.dhall"
+
   maestroToken <- decodeOrErrorFromFile $ icMaestroTokenFilePath config
   pPrint config
   let logEnv = mkLogEnv
@@ -80,5 +83,6 @@ mkCloudEnv manager cloudConfig logEnv maestroToken pool =
     , envKNamespace        = mempty
     , envFormatMessage     = icFormatMessage cloudConfig
     , envPool              = pool
-    , envStaleTime         = icStaleTime cloudConfig
+    , envDiscardPeriod     = icDiscardPeriod cloudConfig
+    , envCleanDelay        = icCleanDelay cloudConfig
     }

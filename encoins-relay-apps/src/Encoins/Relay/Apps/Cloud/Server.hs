@@ -50,8 +50,9 @@ import           Data.String                               (IsString (fromString
 import           Data.Text                                 (Text)
 import qualified Data.Text                                 as T
 import qualified Data.Text.Encoding                        as TE
-import           Data.Time                                 (UTCTime, addUTCTime,NominalDiffTime,
-                                                            secondsToNominalDiffTime)
+import           Data.Time                                 (NominalDiffTime,
+                                                            UTCTime, addUTCTime,
+                                                            nominalDiffTimeToSeconds)
 import           Data.Time.Clock.POSIX                     (POSIXTime,
                                                             getPOSIXTime,
                                                             posixSecondsToUTCTime,
@@ -68,7 +69,6 @@ import           Network.Wai.Middleware.Cors               (CorsResourcePolicy (
                                                             simpleCorsResourcePolicy)
 import           Servant
 
-import Debug.Trace
 
 cloudServer :: IO ()
 cloudServer = do
@@ -139,7 +139,6 @@ saveToken tVar pool req = do
   let secret = ppSecretKey req
   logInfo ""
   logInfo $ "Received unsaved token" <> column <> space <> getAssetName name
-  -- logInfo $ "Secret length" <> column <> space <> toText (T.length $ getEncryptedSecret secret)
   logDebugS isFormat req
   now <- liftIO getPOSIXTime
   eResult <- liftIO $ Pool.use pool $ insertOnAbsentS name secret now
@@ -171,20 +170,6 @@ withRecovery nameOfAction action = action `catchAny` handleException
       liftIO $ threadDelay $ 5 * 1000000
       withRecovery nameOfAction action
 
--- Add 12 hours
-addTimeLag :: NominalDiffTime -> UTCTime -> POSIXTime
-addTimeLag diff utc = utcTimeToPOSIXSeconds $ addUTCTime diff utc
-
--- Lag period is 12 hours
--- After the lag token can't be rolled back
-timeLag :: POSIXTime
-timeLag = secondsToNominalDiffTime hour12
-
-hour12 :: Num n => n
-hour12 = 12 * 60 * 60
--- hour12 = 60
-
-
 restore :: CloudMonad (Vector (Text, Text))
 restore = do
   isFormat <- asks envFormatMessage
@@ -204,48 +189,49 @@ restore = do
 
 
 discard :: CloudEnv -> IO ()
-discard env = withRecovery "discard" $ runCloudMonad env $ forever $ do
+discard env = withRecovery "discard" $ runCloudMonad env $ do
   isFormat <- asks envFormatMessage
   pool <- asks envPool
+  timeLag <- asks (truncate . nominalDiffTimeToSeconds . envDiscardPeriod)
+  forever $ do
+    logInfo ""
+    logInfo "Run discard"
+    evTokens <- liftIO $ Pool.use pool selectUniqSavedTokensS
+    case evTokens of
+      Left err -> do
+        logErrorS isFormat err
+      Right tokens -> do
+        evOldDiscardedTokens <- liftIO $ Pool.use pool selectAllDiscardedTokensS
+        case evOldDiscardedTokens of
+          Left err -> do
+            logErrorS isFormat err
+          Right oldDiscardedTokens -> do
+            time <- liftIO $ getPOSIXTime
+            logDebug "Old discarded tokens"
+            logDebugS isFormat oldDiscardedTokens
+            logDebug "Saved tokens"
+            logDebugS isFormat tokens
+            let notDiscardedTokens = getNotDiscarded tokens oldDiscardedTokens
+            logDebug "Not discarded tokens"
+            logDebugS isFormat notDiscardedTokens
+            discardedTokens <- V.mapMaybeM (detectDiscarded time) notDiscardedTokens
+            logDebug ""
+            logDebug "New discarded tokens"
+            logDebugS isFormat discardedTokens
+            case V.null discardedTokens of
+              True -> logInfo "New discarded tokens was not found"
+              False -> do
+                res <- liftIO $ Pool.use pool $ insertDiscardedTokensS discardedTokens
+                case res of
+                  Left e -> do
+                    logError "Inserting discarded tokens failed"
+                    logErrorS isFormat e
+                  Right _ -> do
+                    logInfo ""
+                    logInfo "Discarded tokens was inserted"
 
-  logInfo ""
-  logInfo "Run discard"
-  evTokens <- liftIO $ Pool.use pool selectUniqSavedTokensS
-  case evTokens of
-    Left err -> do
-      logErrorS isFormat err
-    Right tokens -> do
-      evOldDiscardedTokens <- liftIO $ Pool.use pool selectAllDiscardedTokensS
-      case evOldDiscardedTokens of
-        Left err -> do
-          logErrorS isFormat err
-        Right oldDiscardedTokens -> do
-          time <- liftIO $ getPOSIXTime
-          logInfo "Old discarded tokens"
-          logInfoS isFormat oldDiscardedTokens
-          logInfo "Saved tokens"
-          logInfoS isFormat tokens
-          let notDiscardedTokens = getNotDiscarded tokens oldDiscardedTokens
-          logInfo "Not discarded tokens"
-          logInfoS isFormat notDiscardedTokens
-          discardedTokens <- V.mapMaybeM (detectDiscarded time) notDiscardedTokens
-          logInfo ""
-          logInfo "New discarded tokens"
-          logInfoS isFormat discardedTokens
-          case V.null discardedTokens of
-            True -> logInfo "New discarded tokens was not found"
-            False -> do
-              res <- liftIO $ Pool.use pool $ insertDiscardedTokensS discardedTokens
-              case res of
-                Left e -> do
-                  logInfo "Inserting discarded tokens was failed"
-                  logErrorS isFormat e
-                Right _ -> do
-                  logDebug ""
-                  logDebug "Discarded tokens was inserted"
-
-  -- Sleep for 12 hour (in microseconds)
-  liftIO $ threadDelay $ hour12 * 1000000
+    -- Sleep for 12 hour (in microseconds)
+    liftIO $ threadDelay $ timeLag * 1000000
 
 detectDiscarded :: POSIXTime
   -> (AssetName, POSIXTime)
@@ -265,6 +251,7 @@ detectDiscarded now asset@(assetName, _) = do
       logInfo $ assetNameT <> space <> "is discarded"
       pure Nothing
     Right assetResponses -> do
+      timeLag <- asks envDiscardPeriod
       let mAsset = isDiscardedInList now timeLag asset assetResponses
       logDebug $ assetNameT <> space
         <> maybe "is alive" (const "is discarded") mAsset
@@ -303,11 +290,22 @@ clean :: CloudEnv -> IO ()
 clean env = withRecovery "clean" $ runCloudMonad env $ do
   isFormat <- asks envFormatMessage
   pool <- asks envPool
-  staleTime <- asks envStaleTime
+  cleanDelay <- asks envCleanDelay
+  now <- liftIO getPOSIXTime
+  let staleTime = now - cleanDelay
 
   logInfo ""
   logInfo "Run clean"
-  logInfo $ "Stale time is" <> space <> toText staleTime
+  logInfo $ "Current time is" <> space
+    <> toText now <> space
+    <> "("
+    <> toText (posixSecondsToUTCTime now)
+    <> ")"
+  logInfo $ "Stale time is" <> space
+    <> toText staleTime <> space
+    <> "("
+    <> toText (posixSecondsToUTCTime staleTime)
+    <> ")"
 
   -- Tokens that are older than Stale time are selected
   evTokens <- liftIO $ Pool.use pool $ selectStaleDiscardedTokensS staleTime
@@ -354,3 +352,6 @@ getNotDiscarded savedTokens discardedTokens =
   V.filter (\(x,_) -> Set.notMember x discardedTokensSet) savedTokens
     where
       discardedTokensSet = Set.fromList (V.toList discardedTokens)
+
+addTimeLag :: NominalDiffTime -> UTCTime -> POSIXTime
+addTimeLag diff utc = utcTimeToPOSIXSeconds $ addUTCTime diff utc
