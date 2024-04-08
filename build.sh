@@ -1,18 +1,22 @@
 #!/bin/bash
 
 cabal new-build all
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-server-1.2.5.1/build/encoins-relay-server-lightweight/encoins-relay-server-lightweight ~/.local/bin/encoins
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-server-1.2.5.1/build/encoins-relay-server-full/encoins-relay-server-full ~/.local/bin/encoins-full
+SERVER_VERSION=$(./scripts/get_project_version.sh "encoins-relay-server/encoins-relay-server.cabal")
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-server-"$SERVER_VERSION"/build/encoins-relay-server-lightweight/encoins-relay-server-lightweight ~/.local/bin/encoins
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-server-"$SERVER_VERSION"/build/encoins-relay-server-full/encoins-relay-server-full ~/.local/bin/encoins-full
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-verifier-0.1.0.0/build/encoins-relay-verifier/encoins-relay-verifier ~/.local/bin/encoins-verifier
+VERIFIER_VERSION=$(./scripts/get_project_version.sh "encoins-relay-verifier/encoins-relay-verifier.cabal")
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-verifier-"$VERIFIER_VERSION"/build/encoins-relay-verifier/encoins-relay-verifier ~/.local/bin/encoins-verifier
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-client-0.1.0.0/x/encoins-relay-client/build/encoins-relay-client/encoins-relay-client ~/.local/bin/encoins-client
+CLIENT_VERSION=$(./scripts/get_project_version.sh "encoins-relay-client/encoins-relay-client.cabal")
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-client-"$CLIENT_VERSION"/x/encoins-relay-client/build/encoins-relay-client/encoins-relay-client ~/.local/bin/encoins-client
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-poll/encoins-relay-poll ~/.local/bin/encoins-poll
+APPS_VERSION=$(./scripts/get_project_version.sh "encoins-relay-apps/encoins-relay-apps.cabal")
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-"$APPS_VERSION"/build/encoins-relay-poll/encoins-relay-poll ~/.local/bin/encoins-poll
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-delegation/encoins-relay-delegation ~/.local/bin/encoins-delegation
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-"$APPS_VERSION"/build/encoins-relay-delegation/encoins-relay-delegation ~/.local/bin/encoins-delegation
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-relay-delegation-client/encoins-relay-delegation-client ~/.local/bin/encoins-delegation-client
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-"$APPS_VERSION"/build/encoins-relay-delegation-client/encoins-relay-delegation-client ~/.local/bin/encoins-delegation-client
 
-cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-0.1.0.0/build/encoins-ipfs/encoins-ipfs ~/.local/bin/encoins-ipfs
+cp dist-newstyle/build/x86_64-linux/ghc-8.10.7/encoins-relay-apps-"$APPS_VERSION"/build/encoins-ipfs/encoins-ipfs ~/.local/bin/encoins-ipfs
