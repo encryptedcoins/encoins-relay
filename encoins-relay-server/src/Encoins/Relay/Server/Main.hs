@@ -5,7 +5,7 @@
 
 module Encoins.Relay.Server.Main where
 
-import           Cardano.Server.Config           (decodeOrErrorFromFile)
+import           Cardano.Server.Config           (decodeOrErrorFromFile, initialiseConfig)
 import           Cardano.Server.Internal         (loadEnv, runServerM)
 import           Cardano.Server.Main             (runServer)
 import           Development.GitRev              (gitCommitDate, gitHash)
@@ -20,6 +20,7 @@ import           Say                             (say)
 runEncoinsServer :: FilePath -> IO ()
 runEncoinsServer cardanoServerConfigFp = do
     say $ showAppVersion "Relay server" $ appVersion version $(gitHash) $(gitCommitDate)
+    initialiseConfig cardanoServerConfigFp
     config <- decodeOrErrorFromFile cardanoServerConfigFp
     let ?creds    = embedCreds
     runWithOpts >>= \case
