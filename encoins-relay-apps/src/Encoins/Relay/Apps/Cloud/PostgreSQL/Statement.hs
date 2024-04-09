@@ -66,8 +66,8 @@ getAllSavedTokens = let
         D.column (D.nonNullable D.text)
   in Statement sql encoder decoder False
 
-countRows :: CQ.CursorQuery () Int
-countRows =
+countEncoinsRows :: CQ.CursorQuery () Int
+countEncoinsRows =
   CQ.cursorQuery sql encoder decoder CQ.batchSize_10
   where
     sql = "SELECT asset_name FROM encoins"
@@ -178,8 +178,8 @@ deleteDiscardedTokens = let
 
 -- ** From discarded
 
-deleteDiscardedTokenLinks :: Statement (Vector AssetName) ()
-deleteDiscardedTokenLinks = let
+deleteDiscardedLinks :: Statement (Vector AssetName) ()
+deleteDiscardedLinks = let
   sql = [here|
         DELETE FROM discarded
         WHERE asset_name IN (SELECT unnest($1))

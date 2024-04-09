@@ -19,7 +19,7 @@ import           Encoins.Common.Transform                  (toText)
 import           Encoins.Common.Version                    (appVersion,
                                                             showAppVersion)
 import           Encoins.Relay.Apps.Cloud.Config
-import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (deleteDiscardedTokensS,
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query (deleteDiscardedTokensAndLinksS,
                                                             getAllSavedTokensS,
                                                             insertDiscardedTokensS,
                                                             insertOnAbsentS,
@@ -331,7 +331,7 @@ clean env = withRecovery "clean" $ runCloudMonad env $ do
                   <> "("
                   <> toText (posixSecondsToUTCTime staleTime)
                   <> ")"
-                eDeleteRes <- liftIO $ Pool.use pool $ deleteDiscardedTokensS vTokens
+                eDeleteRes <- liftIO $ Pool.use pool $ deleteDiscardedTokensAndLinksS vTokens
                 case eDeleteRes of
                   Left err -> do
                     logInfo "Deleting tokens was failed"

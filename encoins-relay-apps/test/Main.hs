@@ -1,12 +1,19 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module Main where
 
-import Cloud.Spec
+import           Cloud.DB.Discarded (testDiscarded)
+import           Cloud.DB.Encoins (testEncoins)
+import           Cloud.DB.Utility
+import           Cloud.Spec
 
-import Test.Hspec (hspec)
+import           Test.Hspec         (hspec)
 
 
 main :: IO ()
-main = hspec $ do
-  getNotDiscardedSpec
-  isDiscardedSpec
-  isDiscardedInListSpec
+main = do
+  hspec $ do
+    getNotDiscardedSpec
+    isDiscardedSpec
+    isDiscardedInListSpec
+  testEncoins `nextTest` testDiscarded

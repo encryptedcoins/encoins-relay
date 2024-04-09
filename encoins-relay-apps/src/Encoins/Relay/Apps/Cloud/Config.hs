@@ -9,7 +9,7 @@ module Encoins.Relay.Apps.Cloud.Config where
 import           Encoins.Common.Log                            (mkLogEnv,
                                                                 withLogEnv)
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Migration (migration)
-import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query     (countRowsS)
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query     (countEncoinsRowsS)
 import           Encoins.Relay.Apps.Cloud.Types
 
 import           Cardano.Server.Config                         (decodeOrErrorFromFile)
@@ -41,7 +41,7 @@ withCloudEnv action = do
     let connSettings = Conn.settings "127.0.0.1" 5432 "postgres" "" "encoins"
     withDefaultPool connSettings $ \pool -> do
       migration pool migrationDir
-      rowNumber <- P.use pool countRowsS
+      rowNumber <- P.use pool countEncoinsRowsS
       pPrintString $ "Number of rows in encoins table: " <> show rowNumber
       manager <- newManager tlsManagerSettings
       let env = mkCloudEnv manager config le maestroToken pool

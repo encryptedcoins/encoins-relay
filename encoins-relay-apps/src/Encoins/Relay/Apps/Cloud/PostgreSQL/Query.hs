@@ -46,8 +46,8 @@ insertOnAbsentS assetName encryptedSecret createTime =
       Nothing -> insertTokenT assetName encryptedSecret createTime
       Just i  -> pure i
 
-countRowsS :: Session Int
-countRowsS = CQS.cursorQuery () countRows
+countEncoinsRowsS :: Session Int
+countEncoinsRowsS = CQS.cursorQuery () countEncoinsRows
 
 selectUniqSavedTokensS :: Session (Vector (AssetName, POSIXTime))
 selectUniqSavedTokensS = TS.transaction TS.ReadCommitted TS.Read
@@ -88,12 +88,22 @@ deleteTokensByNameS :: AssetName -> Session (Vector (Text, Text))
 deleteTokensByNameS assetName = TS.transaction TS.ReadCommitted TS.Write $
   deleteTokensByNameT assetName
 
+deleteDiscardedTokensS :: Vector AssetName -> Session ()
+deleteDiscardedTokensS vDiscardedTokens = TS.transaction TS.ReadCommitted TS.Write $
+  deleteDiscardedTokensT vDiscardedTokens
+
 -- *** From discarded
 
-deleteDiscardedTokensS :: Vector AssetName -> Session ()
-deleteDiscardedTokensS vDiscardedTokens = TS.transaction TS.Serializable TS.Write $ do
+deleteDiscardedLinksS :: Vector AssetName -> Session ()
+deleteDiscardedLinksS vDiscardedTokens = TS.transaction TS.ReadCommitted TS.Write $
+  deleteDiscardedLinksT vDiscardedTokens
+
+-- *** From encoins and discarded
+
+deleteDiscardedTokensAndLinksS :: Vector AssetName -> Session ()
+deleteDiscardedTokensAndLinksS vDiscardedTokens = TS.transaction TS.Serializable TS.Write $ do
   deleteDiscardedTokensT vDiscardedTokens
-  deleteDiscardedTokenLinksT vDiscardedTokens
+  deleteDiscardedLinksT vDiscardedTokens
 
 -- * Transaction
 
@@ -156,6 +166,6 @@ deleteDiscardedTokensT :: Vector AssetName -> Transaction ()
 deleteDiscardedTokensT discardedTokens =
   T.statement discardedTokens deleteDiscardedTokens
 
-deleteDiscardedTokenLinksT :: Vector AssetName -> Transaction ()
-deleteDiscardedTokenLinksT discardedTokens =
-  T.statement discardedTokens deleteDiscardedTokenLinks
+deleteDiscardedLinksT :: Vector AssetName -> Transaction ()
+deleteDiscardedLinksT discardedTokens =
+  T.statement discardedTokens deleteDiscardedLinks

@@ -99,9 +99,51 @@ $ cabal run encoins-relay-server
 $ cabal run encoins-relay-test
 ```
 
-## Run hoogle locally
+## How to setup local hoogle with deps
+
+NOTE: it doesn't work due to `hasql`
+ERROR: `Warning: Failed to build documentation for hasql-1.6.4.3`
+
+1. Compile `cabal-hoogle` with
+
+```shell
+cabal install --constraint="Cabal == 3.10.1.0" --overwrite-policy=always exe:cabal-hoogle
+```
+2. Add `cabal.project.local` to root dir of `encoins-relay` with following content:
 
 ```
-$ cabal-hoogle generate all
-$ cabal-hoogle run -- server --local --port 9000
+ignore-project: False
+
+constraints:
+  Cabal == 3.10.1.0
+
+optimization: True
+```
+
+`Cabal == 3.10.1.0` wanted because of deps of `encoins-relay` can't use newer and
+also it uses Setup.hs
+
+`optimization: True` wanted because `cabal-hoogle` use it.
+
+See [issue 4](https://github.com/kokobd/cabal-hoogle/issues/4) for more.
+
+3. Clean cache
+
+```shell
+cabal clean
+```
+4. Build project
+
+```shell
+cabal build all
+```
+5. Build haddock documentation
+
+```shell
+cabal-hoogle generate
+```
+5. Run hoogle server
+
+```shell
+cabal-hoogle run -- server --local --port 9000
 ```

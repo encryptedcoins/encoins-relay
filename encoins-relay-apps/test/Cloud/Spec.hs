@@ -10,7 +10,7 @@ module Cloud.Spec
 import           Encoins.Relay.Apps.Cloud.Server (getNotDiscarded, isDiscarded,
                                                   isDiscardedInList)
 import           Encoins.Relay.Apps.Cloud.Types
-import           Ledger                          (Slot (..))
+-- import           Ledger                          (Slot (..))
 import           PlutusAppsExtra.Utils.Maestro   (AssetMintsAndBurnsData (..),
                                                   AssetMintsAndBurnsResponse (..))
 
@@ -137,10 +137,10 @@ dataRes ds = AssetMintsAndBurnsResponse
     , ambrCursor = Nothing
     }
 
-assetData :: Integer -> POSIXTime -> Slot -> AssetMintsAndBurnsData
+assetData :: Integer -> POSIXTime -> Integer -> AssetMintsAndBurnsData
 assetData amount time slot = AssetMintsAndBurnsData
     { ambrAmount = amount
-    , ambrSlot = slot
+    , ambrSlot = fromIntegral slot
     , ambrTimestamp = posixSecondsToUTCTime time
     , ambrTxHash = "tx_hash"
     }
