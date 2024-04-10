@@ -38,7 +38,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/cardano-server
-  tag: 7f4d77885c25be7c1fd191f91d567727469a741a
+  tag: 8e70703b6f1cc83cbe03891b44619b1aa68ad219
   subdir:
     cardano-server
     cardano-server-client
@@ -52,7 +52,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/plutus-apps-extra
-  tag: 084ee3c064d6005dca4cc53ce207916541ba0cf1
+  tag: 11d30f8424f86515bb0f2f160761b96fdc8e7c36
   subdir:
     plutus-apps-extra
 
