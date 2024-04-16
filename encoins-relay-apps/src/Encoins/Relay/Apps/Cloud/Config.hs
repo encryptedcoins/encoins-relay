@@ -9,12 +9,13 @@ module Encoins.Relay.Apps.Cloud.Config where
 import           Encoins.Common.Log                            (mkLogEnv,
                                                                 withLogEnv)
 import           Encoins.Relay.Apps.Cloud.PostgreSQL.Migration (migration)
-import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query     (countRowsS)
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Query     (countEncoinsRowsS)
 import           Encoins.Relay.Apps.Cloud.Types
 
 import           Cardano.Server.Config                         (decodeOrErrorFromFile)
 import           Control.Exception.Safe                        (bracket)
 import           Data.Time                                     (DiffTime)
+import           Dhall (input, auto)
 import qualified Hasql.Connection                              as Conn
 import qualified Hasql.Pool                                    as P
 import           Katip
@@ -26,27 +27,28 @@ import           Text.Pretty.Simple                            (pPrint,
 
 withCloudEnv :: (CloudEnv -> IO ()) -> IO ()
 withCloudEnv action = do
-  config <- decodeOrErrorFromFile "cloud_config.json"
+  -- config <- decodeOrErrorFromFile "cloud_config.json"
+  config <- input auto "./cloud_config.dhall"
+
   maestroToken <- decodeOrErrorFromFile $ icMaestroTokenFilePath config
   pPrint config
   let logEnv = mkLogEnv
-        "Save"
+        "Cloud"
         (icEnvironment config)
         (icVerbosity config)
         (icSeverity config)
   withLogEnv logEnv $ \le -> do
     let connSettings = Conn.settings "127.0.0.1" 5432 "postgres" "" "encoins"
     withDefaultPool connSettings $ \pool -> do
-      res <- migration pool
-      case res of
-        Left err -> pPrint err
-        Right (Right (Just err)) -> pPrint err
-        _ -> do
-          rowNumber <- P.use pool countRowsS
-          pPrintString $ "Number of rows in encoins table: " <> show rowNumber
-          manager <- newManager tlsManagerSettings
-          let env = mkCloudEnv manager config le maestroToken pool
-          action env
+      migration pool migrationDir
+      rowNumber <- P.use pool countEncoinsRowsS
+      pPrintString $ "Number of rows in encoins table: " <> show rowNumber
+      manager <- newManager tlsManagerSettings
+      let env = mkCloudEnv manager config le maestroToken pool
+      action env
+
+migrationDir :: FilePath
+migrationDir = "schema"
 
 withPool :: Int
   -> DiffTime
@@ -81,4 +83,6 @@ mkCloudEnv manager cloudConfig logEnv maestroToken pool =
     , envKNamespace        = mempty
     , envFormatMessage     = icFormatMessage cloudConfig
     , envPool              = pool
+    , envDiscardPeriod     = icDiscardPeriod cloudConfig
+    , envCleanDelay        = icCleanDelay cloudConfig
     }

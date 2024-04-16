@@ -4,34 +4,25 @@
 
 module Encoins.Relay.Apps.Cloud.PostgreSQL.Query where
 
+import           Encoins.Relay.Apps.Cloud.PostgreSQL.Statement
 import           Encoins.Relay.Apps.Cloud.Types
 
-import           Contravariant.Extras.Contrazip
 import           Data.Int
-import           Data.Text                      (Text)
-import           Data.Time.Clock.POSIX          (POSIXTime)
-import           Data.Vector                    (Vector)
-import qualified Hasql.Decoders                 as D
-import qualified Hasql.Encoders                 as E
-import           Hasql.Session                  (Session)
-import           Hasql.Statement                (Statement (..))
-import           Hasql.Transaction              (Transaction)
-import qualified Hasql.Transaction              as T
-import qualified Hasql.Transaction.Sessions     as TS
-import Data.Functor.Contravariant (contramap)
+import           Data.Text                                     (Text)
+import           Data.Time.Clock.POSIX                         (POSIXTime)
+import           Data.Vector                                   (Vector)
+import qualified Hasql.CursorQuery.Sessions                    as CQS
+import           Hasql.Session                                 (Session)
+import           Hasql.Transaction                             (Transaction)
+import qualified Hasql.Transaction                             as T
+import qualified Hasql.Transaction.Sessions                    as TS
 
-import qualified Control.Foldl as F
-import qualified Hasql.CursorQuery as CQ
-import qualified Hasql.CursorQuery.Sessions as CQS
 
 -- * Sessions
 
-insertTokenS :: AssetName
-  -> EncryptedSecret
-  -> POSIXTime
-  -> Session Int32
-insertTokenS assetName encryptedSecret createTime = TS.transaction TS.Serializable TS.Write $
-  insertTokenT assetName encryptedSecret createTime
+-- ** Select
+
+-- *** From encoins
 
 getTokensByNameS :: AssetName -> Session (Vector (Text, Text))
 getTokensByNameS assetName = TS.transaction TS.ReadCommitted TS.Read $
@@ -43,13 +34,9 @@ getIdOfNameSecretS :: AssetName
 getIdOfNameSecretS assetName encryptedSecret = TS.transaction TS.ReadCommitted TS.Read $
   getIdOfNameSecretT assetName encryptedSecret
 
-getTokensS :: Session (Vector (Text, Text))
-getTokensS = TS.transaction TS.ReadCommitted TS.Read $
-  getTokensT
-
-deleteTokensByNameS :: AssetName -> Session (Vector (Text, Text))
-deleteTokensByNameS assetName = TS.transaction TS.ReadCommitted TS.Write $
-  deleteTokensByNameT assetName
+getAllSavedTokensS :: Session (Vector (Text, Text))
+getAllSavedTokensS = TS.transaction TS.ReadCommitted TS.Read $
+  getAllSavedTokensT
 
 insertOnAbsentS :: AssetName -> EncryptedSecret -> POSIXTime -> Session Int32
 insertOnAbsentS assetName encryptedSecret createTime =
@@ -59,10 +46,97 @@ insertOnAbsentS assetName encryptedSecret createTime =
       Nothing -> insertTokenT assetName encryptedSecret createTime
       Just i  -> pure i
 
-countRowsS :: Session Int
-countRowsS = CQS.cursorQuery () countRows
+countEncoinsRowsS :: Session Int
+countEncoinsRowsS = CQS.cursorQuery () countEncoinsRows
+
+selectUniqSavedTokensS :: Session (Vector (AssetName, POSIXTime))
+selectUniqSavedTokensS = TS.transaction TS.ReadCommitted TS.Read
+  selectUniqSavedTokensT
+
+-- *** From discarded
+
+selectStaleDiscardedTokensS :: POSIXTime -> Session (Vector AssetName)
+selectStaleDiscardedTokensS = TS.transaction TS.ReadCommitted TS.Read .
+  selectStaleDiscardedTokensT
+
+selectAllDiscardedTokensS :: Session (Vector AssetName)
+selectAllDiscardedTokensS = TS.transaction TS.ReadCommitted TS.Read
+  selectAllDiscardedTokensT
+
+-- ** Insert
+
+-- *** Into encoins
+
+insertTokenS :: AssetName
+  -> EncryptedSecret
+  -> POSIXTime
+  -> Session Int32
+insertTokenS assetName encryptedSecret createTime = TS.transaction TS.Serializable TS.Write $
+  insertTokenT assetName encryptedSecret createTime
+
+-- *** Into discarded
+
+insertDiscardedTokensS :: Vector (AssetName, POSIXTime) -> Session ()
+insertDiscardedTokensS = TS.transaction TS.Serializable TS.Write .
+  insertDiscardedTokensT
+
+-- ** Delete
+
+-- *** From encoins
+
+deleteTokensByNameS :: AssetName -> Session (Vector (Text, Text))
+deleteTokensByNameS assetName = TS.transaction TS.ReadCommitted TS.Write $
+  deleteTokensByNameT assetName
+
+deleteDiscardedTokensS :: Vector AssetName -> Session ()
+deleteDiscardedTokensS vDiscardedTokens = TS.transaction TS.ReadCommitted TS.Write $
+  deleteDiscardedTokensT vDiscardedTokens
+
+-- *** From discarded
+
+deleteDiscardedLinksS :: Vector AssetName -> Session ()
+deleteDiscardedLinksS vDiscardedTokens = TS.transaction TS.ReadCommitted TS.Write $
+  deleteDiscardedLinksT vDiscardedTokens
+
+-- *** From encoins and discarded
+
+deleteDiscardedTokensAndLinksS :: Vector AssetName -> Session ()
+deleteDiscardedTokensAndLinksS vDiscardedTokens = TS.transaction TS.Serializable TS.Write $ do
+  deleteDiscardedTokensT vDiscardedTokens
+  deleteDiscardedLinksT vDiscardedTokens
 
 -- * Transaction
+
+-- ** Select
+
+-- *** From encoins
+
+getTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
+getTokensByNameT assetName = T.statement assetName getTokensByName
+
+getIdOfNameSecretT :: AssetName
+  -> EncryptedSecret
+  -> Transaction (Maybe Int32)
+getIdOfNameSecretT assetName encryptedSecret =
+  T.statement (assetName, encryptedSecret) getIdOfNameSecret
+
+getAllSavedTokensT :: Transaction (Vector (Text, Text))
+getAllSavedTokensT = T.statement () getAllSavedTokens
+
+selectUniqSavedTokensT :: Transaction (Vector (AssetName, POSIXTime))
+selectUniqSavedTokensT = T.statement () selectUniqSavedTokens
+
+-- *** From discarded
+
+selectStaleDiscardedTokensT :: POSIXTime -> Transaction (Vector AssetName)
+selectStaleDiscardedTokensT staleTime = T.statement staleTime selectStaleDiscardedTokens
+
+selectAllDiscardedTokensT :: Transaction (Vector AssetName)
+selectAllDiscardedTokensT = T.statement () selectAllDiscardedTokens
+
+-- ** Insert
+
+-- *** Into encoins
 
 insertTokenT :: AssetName
   -> EncryptedSecret
@@ -71,105 +145,27 @@ insertTokenT :: AssetName
 insertTokenT assetName encryptedSecret createTime =
   T.statement (assetName, encryptedSecret, createTime) insertToken
 
-getTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
-getTokensByNameT assetName =
-  T.statement assetName getTokensByName
+-- *** Into discarded
 
-getIdOfNameSecretT :: AssetName
-  -> EncryptedSecret
-  -> Transaction (Maybe Int32)
-getIdOfNameSecretT assetName encryptedSecret =
-  T.statement (assetName, encryptedSecret) getIdOfNameSecret
+insertDiscardedTokensT :: Vector (AssetName, POSIXTime)
+  -> Transaction ()
+insertDiscardedTokensT discardedTokens =
+  T.statement discardedTokens insertDiscardedTokens
 
-getTokensT :: Transaction (Vector (Text, Text))
-getTokensT =
-  T.statement () getTokens
+-- ** Delete
+
+-- *** From encoins
 
 deleteTokensByNameT :: AssetName -> Transaction (Vector (Text, Text))
 deleteTokensByNameT assetName =
   T.statement assetName deleteTokensByName
 
--- * Statements
+-- *** From discarded
 
-insertToken :: Statement (AssetName, EncryptedSecret, POSIXTime) Int32
-insertToken = let
-  sql =
-    "insert into encoins (asset_name, encrypted_secret, save_time) \
-    \values ($1, $2, $3) \
-    \returning id"
-  encoder =
-    contrazip3
-      (contramap getAssetName $ E.param (E.nonNullable E.text))
-      (contramap getEncryptedSecret $ E.param (E.nonNullable E.text))
-      (contramap truncate (E.param (E.nonNullable E.int8 )))
-  decoder =
-    D.singleRow ((D.column . D.nonNullable) D.int4)
-  in Statement sql encoder decoder True
+deleteDiscardedTokensT :: Vector AssetName -> Transaction ()
+deleteDiscardedTokensT discardedTokens =
+  T.statement discardedTokens deleteDiscardedTokens
 
-getTokensByName :: Statement AssetName (Vector (Text, Text))
-getTokensByName = let
-  sql =
-    "select asset_name, encrypted_secret \
-    \from encoins \
-    \where asset_name = $1"
-  encoder =
-    contramap getAssetName $ E.param (E.nonNullable E.text)
-  decoder =
-    D.rowVector $
-      (,) <$>
-        D.column (D.nonNullable D.text) <*>
-        D.column (D.nonNullable D.text)
-  in Statement sql encoder decoder True
-
-getIdOfNameSecret :: Statement (AssetName, EncryptedSecret) (Maybe Int32)
-getIdOfNameSecret = let
-  sql =
-    "select id \
-    \from encoins \
-    \where asset_name = $1 and encrypted_secret = $2"
-  encoder =
-    contrazip2
-      (contramap getAssetName $ E.param (E.nonNullable E.text))
-      (contramap getEncryptedSecret $ E.param (E.nonNullable E.text))
-  decoder =
-    D.rowMaybe $ D.column (D.nonNullable D.int4)
-  in Statement sql encoder decoder True
-
-getTokens :: Statement () (Vector (Text, Text))
-getTokens = let
-  sql =
-    "select asset_name, encrypted_secret \
-    \from encoins"
-  encoder = E.noParams
-  decoder =
-    D.rowVector $
-      (,) <$>
-        D.column (D.nonNullable D.text) <*>
-        D.column (D.nonNullable D.text)
-  in Statement sql encoder decoder False
-
-deleteTokensByName :: Statement AssetName (Vector (Text, Text))
-deleteTokensByName = let
-  sql =
-    "DELETE FROM encoins \
-    \WHERE asset_name = $1 \
-    \RETURNING asset_name, encrypted_secret"
-  encoder =
-    contramap getAssetName $ E.param (E.nonNullable E.text)
-  decoder =
-    D.rowVector $
-      (,) <$>
-        D.column (D.nonNullable D.text) <*>
-        D.column (D.nonNullable D.text)
-  in Statement sql encoder decoder True
-
-countRows :: CQ.CursorQuery () Int
-countRows =
-  CQ.cursorQuery sql encoder decoder CQ.batchSize_10
-  where
-    sql = "SELECT asset_name FROM encoins"
-    encoder = E.noParams
-    decoder = CQ.reducingDecoder rowDecoder fold
-      where
-        rowDecoder = D.column (D.nonNullable D.text)
-        fold = F.length
+deleteDiscardedLinksT :: Vector AssetName -> Transaction ()
+deleteDiscardedLinksT discardedTokens =
+  T.statement discardedTokens deleteDiscardedLinks

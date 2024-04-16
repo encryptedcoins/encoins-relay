@@ -5,11 +5,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeOperators              #-}
 
 module Encoins.Relay.Apps.Cloud.Types where
 
-import           Cardano.Api                   (NetworkId)
+import           Cardano.Api                   (NetworkId, NetworkMagic)
 import           Cardano.Server.Config         (HyperTextProtocol (..))
 import           Control.Exception.Safe        (MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class        (MonadIO)
@@ -22,6 +24,8 @@ import           Data.Aeson                    (FromJSON (..), FromJSONKey,
                                                 tagSingleConstructors)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Text                     (Text)
+import           Data.Time.Clock               (NominalDiffTime)
+import           Dhall                         (FromDhall (..))
 import           GHC.Generics                  (Generic)
 import qualified Hasql.Pool                    as P
 import           Katip
@@ -30,7 +34,9 @@ import           Numeric.Natural               (Natural)
 import           Plutus.V1.Ledger.Api          (CurrencySymbol)
 import           PlutusAppsExtra.Api.Maestro   (MaestroToken, MonadMaestro (..))
 import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
+import           PlutusTx.Builtins.Internal    (BuiltinByteString (BuiltinByteString))
 import           Servant.API                   (ToHttpApiData)
+
 
 -- General types
 
@@ -47,14 +53,15 @@ data CloudEnv = MkCloudEnv
   , envKNamespace        :: Namespace
   , envFormatMessage     :: Bool -- Pretty print message or not
   , envPool              :: P.Pool
+  , envDiscardPeriod     :: NominalDiffTime -- seconds 12*60*60
+  , envCleanDelay        :: NominalDiffTime -- seconds 7*24*60*60
   }
 
 -- Format of severity in json file:
 -- debug, info, notice, warning, error, critical, alert, emergency
 -- Format of verbosity in json file: V0, V1, V2, V3
 data CloudConfig = MkCloudConfig
-  {
-    icHyperTextProtocol    :: HyperTextProtocol
+  { icHyperTextProtocol    :: HyperTextProtocol
   , icHost                 :: Text
   , icPort                 :: Int
   , icNetworkId            :: NetworkId
@@ -64,8 +71,25 @@ data CloudConfig = MkCloudConfig
   , icVerbosity            :: Verbosity
   , icSeverity             :: Severity
   , icFormatMessage        :: Bool
+  , icDiscardPeriod        :: NominalDiffTime -- seconds
+  , icCleanDelay           :: NominalDiffTime -- seconds
   }
   deriving stock (Eq,Show, Generic)
+  deriving anyclass (FromDhall)
+
+deriving instance FromDhall HyperTextProtocol
+deriving instance FromDhall NetworkMagic
+deriving instance FromDhall NetworkId
+deriving instance FromDhall CurrencySymbol
+deriving instance FromDhall Environment
+deriving instance FromDhall Verbosity
+deriving instance FromDhall Severity
+
+instance FromDhall NominalDiffTime where
+    autoWith opts = fmap (fromInteger . toInteger @Natural) (autoWith opts)
+
+instance FromDhall BuiltinByteString where
+    autoWith opts = fmap BuiltinByteString (autoWith opts)
 
 instance FromJSON CloudConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
@@ -157,28 +181,3 @@ instance ToJSON SaveToken where
 
 instance FromJSON SaveToken where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
--- data RottenToken = MkRottenToken
---   { rtAssetName  :: AssetName
---   , rtRemoveTime :: POSIXTime
---   , rtCip        :: Cip
---   }
---   deriving stock (Show, Eq, Generic)
-
--- instance FromJSON RottenToken where
---    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
--- instance ToJSON RottenToken where
---    toJSON = genericToJSON $ aesonPrefix snakeCase
-
--- data RestoreResponse = MkRestoreResponse
---   { rrAssetName       :: AssetName
---   , rrEncryptedSecret :: EncryptedSecret
---   }
---   deriving stock (Show, Eq, Generic)
-
--- instance ToJSON RestoreResponse where
---    toJSON = genericToJSON $ aesonPrefix snakeCase
-
--- data RestoreError = Client ClientError | InvalidStatus CoinStatus
---   deriving stock (Show, Eq)

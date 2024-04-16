@@ -288,3 +288,10 @@ source-repository-package
   type: git
   location: https://github.com/nikita-volkov/template-haskell-compat-v0208
   tag: 4195390d5978bc0bc34c0c02e3e64df2cb1f3e9b
+
+source-repository-package
+  type: git
+  location: https://github.com/dhall-lang/dhall-haskell.git
+  tag: 97f9a5b037efce06c46534542447e23eb16bc2d1
+  subdir:
+    dhall

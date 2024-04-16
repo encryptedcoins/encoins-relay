@@ -31,22 +31,23 @@ library
   hs-source-dirs:  src
   other-modules:   Paths_encoins_relay_apps
   exposed-modules:
+    Encoins.Relay.Apps.Cloud.Config
+    Encoins.Relay.Apps.Cloud.Ipfs.Api
+    Encoins.Relay.Apps.Cloud.Ipfs.Config
+    Encoins.Relay.Apps.Cloud.Ipfs.Request
+    Encoins.Relay.Apps.Cloud.Ipfs.Server
+    Encoins.Relay.Apps.Cloud.Ipfs.Types
+    Encoins.Relay.Apps.Cloud.PostgreSQL.Migration
+    Encoins.Relay.Apps.Cloud.PostgreSQL.Query
+    Encoins.Relay.Apps.Cloud.PostgreSQL.Statement
+    Encoins.Relay.Apps.Cloud.Server
+    Encoins.Relay.Apps.Cloud.Types
     Encoins.Relay.Apps.Delegation.Client
     Encoins.Relay.Apps.Delegation.Internal
     Encoins.Relay.Apps.Delegation.Server
     Encoins.Relay.Apps.Internal
     Encoins.Relay.Apps.Poll.Config
     Encoins.Relay.Apps.Poll.Main
-    Encoins.Relay.Apps.Cloud.Config
-    Encoins.Relay.Apps.Cloud.PostgreSQL.Query
-    Encoins.Relay.Apps.Cloud.PostgreSQL.Migration
-    Encoins.Relay.Apps.Cloud.Ipfs.Api
-    Encoins.Relay.Apps.Cloud.Ipfs.Config
-    Encoins.Relay.Apps.Cloud.Ipfs.Request
-    Encoins.Relay.Apps.Cloud.Ipfs.Server
-    Encoins.Relay.Apps.Cloud.Ipfs.Types
-    Encoins.Relay.Apps.Cloud.Server
-    Encoins.Relay.Apps.Cloud.Types
 
   build-depends:
     , aeson
@@ -62,6 +63,7 @@ library
     , containers
     , contravariant-extras
     , data-default
+    , dhall
     , directory
     , encoins-common-constant
     , encoins-common-log
@@ -79,6 +81,7 @@ library
     , hasql-migration
     , hasql-pool
     , hasql-transaction
+    , here
     , http-client
     , http-client-tls
     , katip
@@ -141,8 +144,47 @@ executable encoins-cloud
   default-language: Haskell2010
   hs-source-dirs:   app_cloud
   main-is:          Main.hs
-  ghc-options:
-    -threaded
+  ghc-options:      -threaded
   build-depends:
     , base                >=4.9 && <5
     , encoins-relay-apps
+
+executable encoins-cloud-clean
+  default-language: Haskell2010
+  hs-source-dirs:   app_cloud_clean
+  main-is:          Main.hs
+  ghc-options:      -threaded
+  build-depends:
+    , base                >=4.9 && <5
+    , encoins-relay-apps
+
+test-suite encoins-cloud-test
+  type:             exitcode-stdio-1.0
+  default-language: Haskell2010
+  hs-source-dirs:   test
+  ghc-options:      -Wall -threaded -rtsopts -with-rtsopts=-N
+  main-is:          Main.hs
+  other-modules:
+    Cloud.Spec
+    Cloud.DB.Encoins
+    Cloud.DB.Discarded
+    Cloud.DB.Utility
+  build-depends:
+    , base         >=4.9 && <5
+    , bytestring
+    , encoins-relay-apps
+    , extra
+    , hasql
+    , hasql-pool
+    , hasql-transaction
+    , here
+    , hspec
+    , plutus-apps-extra
+    , postgres-options
+    , safe-exceptions
+    , tasty
+    , tasty-hunit
+    , text
+    , time
+    , tmp-postgres
+    , vector
