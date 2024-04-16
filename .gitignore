@@ -12,9 +12,7 @@ key.pem
 cabal.project.local
 cabal.log
 
-encoins-relay-server/*/*/addresses.json
-encoins-relay-server/*/*/blockfrost.token
-encoins-relay-server/*/*/maestro.token
-encoins-relay-server/*/*/delegation.ip
-encoins-relay-server/*/*/wallet.json
-encoins-relay-server/*/*/logs/*
+*/maestro.token
+*/blockfrost.token
+*/delegation.ip
+*/logs/*
