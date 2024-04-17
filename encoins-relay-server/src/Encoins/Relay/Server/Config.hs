@@ -50,13 +50,13 @@ data EncoinsRelayConfig = EncoinsRelayConfig
 instance FromJSON EncoinsRelayConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
-initialiseRelayConfig :: FilePath -> IO ()
-initialiseRelayConfig relayConfigFp = do
+initializeRelayConfig :: FilePath -> IO ()
+initializeRelayConfig relayConfigFp = do
     EncoinsRelayConfig{..} <- decodeOrErrorFromFile relayConfigFp
-    initialiseIpFile cDelegationIpFile
+    initializeIpFile cDelegationIpFile
 
-initialiseIpFile :: FilePath -> IO ()
-initialiseIpFile ipFileFp = unlessM (doesFileExist ipFileFp) $ do
+initializeIpFile :: FilePath -> IO ()
+initializeIpFile ipFileFp = unlessM (doesFileExist ipFileFp) $ do
     putStrLn "relay IP file doesn't exists"
     putStrLn "please enter your relay IP"
     relayIp <- getLine
