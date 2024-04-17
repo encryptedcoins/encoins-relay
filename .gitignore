@@ -15,4 +15,7 @@ cabal.log
 */maestro.token
 */blockfrost.token
 */delegation.ip
+*/addresses.json
+*/wallet.json
 */logs/*
+*/secrets/*
