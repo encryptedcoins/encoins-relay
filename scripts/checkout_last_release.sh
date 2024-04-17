@@ -9,7 +9,7 @@ latestTag=$(git describe --tags "$(git rev-list --tags --max-count=1)")
 # Checkout latest tag
 if [[ "${latestTag}" == "v1.2.5.1" ]]
 then
-    git checkout f934a80c8fcda657bdb259f0a5d72a15ebe90365
+    git checkout Encoins-tools-merge
 else
     git checkout "${latestTag}"
 fi
