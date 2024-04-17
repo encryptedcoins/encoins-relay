@@ -7,4 +7,9 @@ git fetch --tags
 latestTag=$(git describe --tags "$(git rev-list --tags --max-count=1)")
 
 # Checkout latest tag
-git checkout "$latestTag"
+if [[ "${latestTag}" == "v1.2.5.1" ]]
+then
+    git checkout a13656c9107ffcbacd161f48762c26a30fc9efc3
+else
+    git checkout "${latestTag}"
+fi

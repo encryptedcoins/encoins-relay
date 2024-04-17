@@ -6,4 +6,4 @@
 
 cd "mainnet/apps/encoins" || exit
 
-encoins
+encoins-verifier

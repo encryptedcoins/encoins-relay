@@ -1,13 +1,13 @@
 { "host"                     : "localhost"
 , "port"                     : 3000
 , "hyper_text_protocol"      : "HTTP"
-, "min_utxos_number"         : 0
-, "max_utxos_number"         : 1
+, "min_utxos_number"         : 1
+, "max_utxos_number"         : 10
 , "protocol_parameters_file" : "protocol-parameters.json"
 , "slot_config_file"         : "slot-config.json"
-, "wallet_file"              : "wallet.json"
-, "auxiliary_env_file"       : "relay-config.json"
-, "network_id"               : {"tag" : "Mainnet", "contents" : null}
+, "wallet_file"              : "../../wallets/wallet.json"
+, "auxiliary_env_file"       : "relayConfig.json"
+, "network_id"               : {"tag" : "Testnet", "contents" : 1}
 , "bf_token_file_path"       : "blockfrost.token"
 , "maestro_token_file_path"  : "maestro.token"
 , "data_providers"           : {"tag" : "Lightweight", "contents" : "addresses.json"}

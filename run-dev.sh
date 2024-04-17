@@ -4,6 +4,6 @@
 
 ./build.sh
 
-cd "testnet-preprod" || exit
+cd "testnet-preprod/apps/encoins" || exit
 
 encoins

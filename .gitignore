@@ -12,10 +12,7 @@ key.pem
 cabal.project.local
 cabal.log
 
-*/maestro.token
-*/blockfrost.token
-*/delegation.ip
-*/addresses.json
-*/wallet.json
-*/logs/*
-*/secrets/*
+*/apps/encoins/*.token
+*/apps/encoins/addresses.json
+*/apps/encoins/logs/*
+*/wallets/*
