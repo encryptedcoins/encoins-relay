@@ -2,7 +2,7 @@
 
 # run testnet-preprod encoins-relay-server
 
-./build.sh
+./build-server.sh
 
 cd "testnet-preprod/apps/encoins" || exit
 
