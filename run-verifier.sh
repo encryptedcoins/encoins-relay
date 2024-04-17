@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# run mainnet encoins-relay-server
+# run mainnet encoins-relay-verifier
 
 ./scripts/checkout_last_release.sh
 

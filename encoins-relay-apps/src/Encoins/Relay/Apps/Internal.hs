@@ -108,7 +108,7 @@ divideTimeIntoIntervals from to delta
         xs = [from, from + delta .. to]
 
 defaultSlotConfigFilePath :: FilePath
-defaultSlotConfigFilePath = "../plutus-chain-index/plutus-chain-index-config.json"
+defaultSlotConfigFilePath = "slot-config.json"
 
 progressBarStyle :: Text -> Style s
 progressBarStyle m = defStyle
