@@ -14,5 +14,6 @@ cabal.log
 
 */apps/encoins/*.token
 */apps/encoins/addresses.json
-*/apps/encoins/logs/*
+*/apps/*/logs/*
+*/apps/verifier/verifierPrvKey.json
 */wallets/*
