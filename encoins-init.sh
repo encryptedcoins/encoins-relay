@@ -1,13 +1,10 @@
 #!/bin/bash
 
-# Get new tags from remote
-git fetch --tags
-
 # Get latest tag name
-GITHUB_TAG=$(git describe --tags "$(git rev-list --tags --max-count=1)")
+latestTag=$(git ls-remote --tags https://github.com/encryptedcoins/encoins-relay | sort -t '/' -k 3 -V | awk -F/ '{ print $3 }' | awk '!/\^\{\}/' | tail -n 1)
 
 # Download binaries
-wget "https://github.com/encryptedcoins/encoins-relay/releases/download/${GITHUB_TAG}/encoins"
+wget "https://github.com/encryptedcoins/encoins-relay/releases/download/${latestTag}/encoins"
 chmod +x encoins
 cp encoins ~/.local/bin/encoins
 
@@ -15,23 +12,26 @@ cp encoins ~/.local/bin/encoins
 git clone https://github.com/encryptedcoins/encoins-relay
 cd encoins-relay || exit
 
-if [[ "${GITHUB_TAG}" == "v1.2.5.1" ]]
+if [[ "${latestTag}" == "v1.2.5.1" ]]
 then
-    git checkout 46608dd67ce79597c2ae4c110cb8411af2d8f7cf
+    git checkout Encoins-tools-merge
 else
-    git checkout "${GITHUB_TAG}"
+    git checkout "${latestTag}"
 fi
 
-ls
-
-mv  -v  encoins-relay-server/app_lightweight/mainnet/* ../
+mv  -v  mainnet ../
 cd .. || exit
-
-ls
 
 # Remove trash
 rm encoins
 rm -r -f encoins-relay
+rm -r -f mainnet/apps/verifier
+rm -r -f mainnet/apps/encoins/schema
+rm mainnet/apps/encoins/cloud_config.json
+rm mainnet/apps/encoins/delegConfig.json
+rm mainnet/apps/encoins/distribution.json
+rm mainnet/apps/encoins/poll*onfig.json
 
 # Run app
+cd mainnet/apps/encoins || exit
 encoins
