@@ -5,7 +5,7 @@
 module Encoins.Relay.Server.Config where
 
 import           Cardano.Api                   (writeFileJSON)
-import           Cardano.Server.Config         (Config (..), HyperTextProtocol, decodeOrErrorFromFile)
+import           Cardano.Server.Config         (Config (..), HyperTextProtocol, addMissingDirectories, decodeOrErrorFromFile)
 import           Control.Monad.Extra           (unlessM)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
@@ -60,4 +60,5 @@ initialiseIpFile ipFileFp = unlessM (doesFileExist ipFileFp) $ do
     putStrLn "relay IP file doesn't exists"
     putStrLn "please enter your relay IP"
     relayIp <- getLine
+    addMissingDirectories ipFileFp
     writeFileJSON ipFileFp relayIp >>= either print pure
