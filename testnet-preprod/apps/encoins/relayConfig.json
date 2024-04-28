@@ -5,10 +5,10 @@
 , "verifier_host"               : "3.71.79.183"
 , "verifier_port"               : 3001
 , "verifier_protocol"           : "HTTP"
-, "delegation_currency_symbol"  : {"unCurrencySymbol" : "f2cbed8817eee9bfa37e80a0a2f4e0dfcf661bb1298003a2e77cb237"}
-, "delegation_token_name"       : {"unTokenName" : "454e435344656c65676174696f6e54657374"}
+, "delegation_currency_symbol"  : {"unCurrencySymbol" : "3f5c890bd432d76b7d2fef7076a0205a02d78be99901c3c37f447dce"}
+, "delegation_token_name"       : {"unTokenName" : "454e4353"}
 , "delegation_server_host"      : "localhost"
 , "delegation_server_port"      : 3002
 , "delegation_server_protocol"  : "HTTP"
-, "delegation_ip_file"          : "encoins-relay-test/test/configuration/delegation.ip"
+, "delegation_ip_file"          : "delegation.ip"
 }

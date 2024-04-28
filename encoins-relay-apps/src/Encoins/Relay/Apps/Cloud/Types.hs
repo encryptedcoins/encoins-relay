@@ -8,6 +8,7 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Encoins.Relay.Apps.Cloud.Types where
 
@@ -77,13 +78,13 @@ data CloudConfig = MkCloudConfig
   deriving stock (Eq,Show, Generic)
   deriving anyclass (FromDhall)
 
-deriving instance FromDhall HyperTextProtocol
-deriving instance FromDhall NetworkMagic
-deriving instance FromDhall NetworkId
-deriving instance FromDhall CurrencySymbol
-deriving instance FromDhall Environment
-deriving instance FromDhall Verbosity
-deriving instance FromDhall Severity
+deriving anyclass instance FromDhall HyperTextProtocol
+deriving anyclass instance FromDhall NetworkMagic
+deriving anyclass instance FromDhall NetworkId
+deriving anyclass instance FromDhall CurrencySymbol
+deriving anyclass instance FromDhall Environment
+deriving anyclass instance FromDhall Verbosity
+deriving anyclass instance FromDhall Severity
 
 instance FromDhall NominalDiffTime where
     autoWith opts = fmap (fromInteger . toInteger @Natural) (autoWith opts)

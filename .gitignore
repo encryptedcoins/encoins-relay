@@ -11,3 +11,9 @@ key.pem
 
 cabal.project.local
 cabal.log
+
+*/apps/encoins/*.token
+*/apps/encoins/addresses.json
+*/apps/*/logs/*
+*/apps/verifier/verifierPrvKey.json
+*/wallets/*

@@ -1,0 +1,17 @@
+{
+  "hyper_text_protocol": "HTTP",
+  "host": "localhost",
+  "port": 7000,
+  "network_id": {
+    "tag": "Mainnet",
+    "contents": 0
+  },
+  "maestro_token_file_path" : "maestro.token",
+  "currency_symbol": {
+    "unCurrencySymbol": "fa765a4f65920d1aaa4a072457d27a00d81374245afbe33d94fc1671"
+  },
+  "environment" : "mainnet",
+  "verbosity" : "V0",
+  "severity" : "info",
+  "format_message" : true
+}

@@ -10,5 +10,5 @@
 , "delegation_server_host"      : "localhost"
 , "delegation_server_port"      : 3002
 , "delegation_server_protocol"  : "HTTP"
-, "delegation_ip_file"          : "encoins-relay-test/test/configuration/delegation.ip"
+, "delegation_ip_file"          : "https://0qsdf4aiz2.execute-api.eu-central-1.amazonaws.com"
 }

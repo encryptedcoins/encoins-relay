@@ -20,7 +20,7 @@ import           CSL                            (TransactionInputs)
 import qualified CSL
 import           CSL.Class                      (FromCSL (..))
 import           Cardano.Server.Client.Internal (statusC)
-import           Cardano.Server.Config          (Config (..), Creds)
+import           Cardano.Server.Config          (Config (..), Creds, decodeOrErrorFromFile)
 import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
 import           Cardano.Server.Input           (InputContext (..))
 import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM, getAuxillaryEnv,
@@ -65,7 +65,8 @@ mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
 mkServerHandle c = do
     EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
     let ?creds = embedCreds
-    verifierClientEnv      <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
+    verifierClientEnv <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
+    delegationIp <- decodeOrErrorFromFile cDelegationIpFile
     pure $ ServerHandle
         Kupo
         (EncoinsRelayEnv
@@ -79,7 +80,7 @@ mkServerHandle c = do
             cDelegationServerHost
             cDelegationServerPort
             cDelegationServerProtocol
-            cDelegationIp
+            delegationIp
         )
         getTrackedAddresses
         txBuilders

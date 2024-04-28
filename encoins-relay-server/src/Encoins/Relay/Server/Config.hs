@@ -1,9 +1,12 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Encoins.Relay.Server.Config where
 
-import           Cardano.Server.Config         (Config (..), decodeOrErrorFromFile, HyperTextProtocol)
+import           Cardano.Api                   (writeFileJSON)
+import           Cardano.Server.Config         (Config (..), HyperTextProtocol, addMissingDirectories, decodeOrErrorFromFile)
+import           Control.Monad.Extra           (unlessM)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Aeson                    (FromJSON (..), genericParseJSON)
 import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
@@ -13,6 +16,7 @@ import           GHC.Generics                  (Generic)
 import           Plutus.V2.Ledger.Api          (Address, CurrencySymbol, TokenName, TxOutRef (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusTx.Builtins             (BuiltinByteString)
+import           System.Directory              (doesFileExist)
 
 loadEncoinsRelayConfig :: MonadIO m => Config -> m EncoinsRelayConfig
 loadEncoinsRelayConfig c = liftIO $ decodeOrErrorFromFile $ cAuxiliaryEnvFile c
@@ -40,8 +44,21 @@ data EncoinsRelayConfig = EncoinsRelayConfig
     , cDelegationServerHost     :: Text
     , cDelegationServerPort     :: Int
     , cDelegationServerProtocol :: HyperTextProtocol
-    , cDelegationIp             :: Text
+    , cDelegationIpFile         :: FilePath
     } deriving (Show, Generic)
 
 instance FromJSON EncoinsRelayConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+initializeRelayConfig :: FilePath -> IO ()
+initializeRelayConfig relayConfigFp = do
+    EncoinsRelayConfig{..} <- decodeOrErrorFromFile relayConfigFp
+    initializeIpFile cDelegationIpFile
+
+initializeIpFile :: FilePath -> IO ()
+initializeIpFile ipFileFp = unlessM (doesFileExist ipFileFp) $ do
+    putStrLn "relay IP file doesn't exists"
+    putStrLn "please enter your relay IP"
+    relayIp <- getLine
+    addMissingDirectories ipFileFp
+    writeFileJSON ipFileFp relayIp >>= either print pure
