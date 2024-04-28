@@ -7,15 +7,15 @@
 {-# LANGUAGE TypeOperators      #-}
 
 
-module Encoins.Relay.Apps.Ipfs.Client where
+module Encoins.Relay.Apps.Cloud.Ipfs.Request where
 
-import           Encoins.Relay.Apps.Ipfs.ClientApi
-import           Encoins.Relay.Apps.Ipfs.Config (withIpfsEnv)
-import           Encoins.Relay.Apps.Ipfs.Types
+import           Encoins.Relay.Apps.Cloud.Ipfs.Api
+import           Encoins.Relay.Apps.Cloud.Ipfs.Config    (withIpfsEnv)
+import           Encoins.Relay.Apps.Cloud.Ipfs.Types
 
-import           Control.Monad.IO.Class            (MonadIO (liftIO))
-import           Control.Monad.Reader              (MonadReader (ask))
-import           Data.Text                         (Text)
+import           Control.Monad.IO.Class                 (MonadIO (liftIO))
+import           Control.Monad.Reader                   (MonadReader (ask))
+import           Data.Text                              (Text)
 import           Servant.Client
 
 import           Text.Pretty.Simple
@@ -74,7 +74,11 @@ fetchByStatusKeyvalueRequest :: Text
 fetchByStatusKeyvalueRequest status clientId = do
   env <- ask
   liftIO $ runClientM
-    (fetchByStatusKeyvalue (Just $ envPinataAuthToken env) (Just status) (Just clientId))
+    (fetchByStatusKeyvalue
+      (Just $ envPinataAuthToken env)
+      (Just status)
+      (Just $ mkKeyvalueClientId clientId)
+    )
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
 fetchByStatusNameKeyvalueRequest :: Text
@@ -84,7 +88,11 @@ fetchByStatusNameKeyvalueRequest :: Text
 fetchByStatusNameKeyvalueRequest status name clientId = do
   env <- ask
   liftIO $ runClientM
-    (fetchByStatusNameKeyvalue (Just $ envPinataAuthToken env) (Just status) (Just name) (Just clientId))
+    (fetchByStatusNameKeyvalue
+      (Just $ envPinataAuthToken env)
+      (Just status)
+      (Just name)
+      (Just $ mkKeyvalueClientId clientId))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
 testAuthenticationRequest :: IpfsMonad (Either ClientError CheckTokenResponse)
@@ -94,12 +102,15 @@ testAuthenticationRequest = do
     (testAuthentication (Just $ envPinataAuthToken env))
     (mkClientEnv (envManager env) (envPinataPinHost env))
 
--- Just for example for debug
+-- Just an  example for debug
 
 ipfsClient :: IO ()
 ipfsClient = withIpfsEnv $ \env -> do
   runIpfsMonad env $ do
-    res <- pinJsonRequest token
+    -- res <- pinJsonRequest token
+    res <- fetchByStatusNameKeyvalueRequest "pinned"
+         (MkAssetName "9118e4426ad22c2afecc61d8a18677183d26a7e7aa52cb59b5534e99868a095e")
+         (MkAesKeyHash "be2a241998e1908c64b96ee0a230a21537548a5a66c64de96d273bcac8e5f846")
     pPrint res
 
 -- TODO: remove after debug

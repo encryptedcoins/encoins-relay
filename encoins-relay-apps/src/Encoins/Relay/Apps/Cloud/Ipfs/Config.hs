@@ -2,23 +2,23 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Encoins.Relay.Apps.Ipfs.Config where
+module Encoins.Relay.Apps.Cloud.Ipfs.Config where
 
-import           Encoins.Common.Log (mkLogEnv, withLogEnv)
-import           Encoins.Common.Constant (space)
-import           Encoins.Relay.Apps.Ipfs.Types
+import           Encoins.Common.Constant            (space)
+import           Encoins.Common.Log                 (mkLogEnv, withLogEnv)
+import           Encoins.Relay.Apps.Cloud.Ipfs.Types
+import           PlutusAppsExtra.Api.Maestro        (MaestroToken)
 
-import           Cardano.Server.Config         (decodeOrErrorFromFile)
-import qualified Data.ByteString               as BS
-import           Data.Text                     (Text)
-import qualified Data.Text                     as T
-import qualified Data.Text.Encoding            as TE
+import           Cardano.Server.Config              (decodeOrErrorFromFile)
+import qualified Data.ByteString                    as BS
+import           Data.Text                          (Text)
+import qualified Data.Text                          as T
+import qualified Data.Text.Encoding                 as TE
 import           Katip
-import           Network.HTTP.Client           hiding (Proxy)
+import           Network.HTTP.Client                hiding (Proxy)
 import           Network.HTTP.Client.TLS
-import           PlutusAppsExtra.Api.Maestro   (MaestroToken)
-import           Servant.Client                (BaseUrl (..), Scheme (..))
-import           Text.Pretty.Simple            (pPrint)
+import           Servant.Client                     (BaseUrl (..), Scheme (..))
+import           Text.Pretty.Simple                 (pPrint)
 
 withIpfsEnv :: (IpfsEnv -> IO ()) -> IO ()
 withIpfsEnv action = do
