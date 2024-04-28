@@ -6,4 +6,4 @@
 ./build-deleg.sh
 ./build-deleg-client.sh
 ./build-poll.sh
-./build-ipfs.sh
+./build-cloud.sh
