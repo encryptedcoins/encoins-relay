@@ -16,9 +16,9 @@ import           Control.Monad.IO.Class                 (MonadIO (..))
 import           Data.IORef                             (newIORef)
 import           Data.Maybe                             (fromMaybe)
 import qualified Data.Time                              as Time
-import           Encoins.Relay.Apps.Delegation.Internal (DelegationEnv (..), Progress (..))
-import qualified Encoins.Relay.Apps.Delegation.Internal as Deleg
-import           Encoins.Relay.Apps.Delegation.Server   (runDelegationServer, runDelegationServer')
+import           Encoins.Relay.Delegation.Internal (DelegationEnv (..), Progress (..))
+import qualified Encoins.Relay.Delegation.Internal as Deleg
+import           Encoins.Relay.Delegation.Server   (runDelegationServer, runDelegationServer')
 import qualified Encoins.Relay.DelegationSpec           as Delegation
 import           Encoins.Relay.Server.Config            (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Server            (mkServerHandle)

@@ -29,7 +29,7 @@ import           Data.String                           (IsString (..))
 import qualified Data.Time                             as Time
 import           ENCOINS.BaseTypes                     (MintingPolarity (Mint))
 import           ENCOINS.Core.OffChain                 (EncoinsMode (..))
-import           Encoins.Relay.Apps.Internal           (encoinsCS, encoinsTokenName)
+import           Encoins.Relay.Common           (encoinsCS, encoinsTokenName)
 import           Encoins.Relay.Client.Client           (TxClientCosntraints, secretsToReqBody, sendTxClientRequest,
                                                         termsToSecrets, txClientRedeemer)
 import           Encoins.Relay.Client.Opts             (EncoinsRequestTerm (RPBurn))

@@ -10,11 +10,11 @@ import qualified Control.Concurrent                     as C
 import           Control.Exception                      (bracket)
 import qualified Data.Map                               as Map
 import           Data.Maybe                             (listToMaybe)
-import           Encoins.Relay.Apps.Delegation.Client   (DelegationClientError (DelegationServerError), currentServersClient,
+import           Encoins.Relay.Delegation.Client   (DelegationClientError (DelegationServerError), currentServersClient,
                                                          serverDelegatesClient, serversClient)
-import           Encoins.Relay.Apps.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..),
+import           Encoins.Relay.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..),
                                                          runDelegationM)
-import           Encoins.Relay.Apps.Delegation.Server   (DelegationServerError (..), runDelegationServer)
+import           Encoins.Relay.Delegation.Server   (DelegationServerError (..), runDelegationServer)
 import           System.Directory                       (setCurrentDirectory)
 import           Test.Hspec                             (Expectation, Spec, context, describe, hspec, it, shouldBe)
 import           Test.QuickCheck                        (Property, Testable (property))

@@ -31,7 +31,7 @@ import qualified Data.List.NonEmpty                   as NonEmpty
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (mapMaybe, fromMaybe)
 import qualified Data.Text                            as T
-import           Encoins.Relay.Apps.Delegation.Client (serverDelegatesClient)
+import           Encoins.Relay.Delegation.Client      (serverDelegatesClient)
 import           Encoins.Relay.Server.Internal        (EncoinsRelayEnv (..))
 import           Encoins.Relay.Server.Server          (EncoinsApi)
 import           Ledger                               (Address (..), PaymentPubKeyHash (..), minAdaTxOutEstimated, TxOutRef (TxOutRef))
