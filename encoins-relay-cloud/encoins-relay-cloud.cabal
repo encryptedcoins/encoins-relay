@@ -50,23 +50,16 @@ library
     , base                      >=4.9 && <5
     , bytestring
     , cardano-api
-    , cardano-ledger-babbage
-    , cardano-node-emulator
     , cardano-server
-    , cardano-server-client
     , containers
     , contravariant-extras
-    , data-default
     , dhall
     , directory
     , encoins-common-constant
     , encoins-common-log
     , encoins-common-transform
     , encoins-common-version
-    , encoins-core
-    , exceptions
     , extra
-    , file-embed
     , filepath
     , foldl
     , gitrev
@@ -79,36 +72,22 @@ library
     , http-client
     , http-client-tls
     , katip
-    , lens
-    , lens-aeson
     , mtl
-    , network-uri
-    , optparse-applicative
     , plutus-apps-extra
-    , plutus-chain-index-core
-    , plutus-ledger
     , plutus-ledger-api
-    , plutus-script-utils
     , plutus-tx
-    , plutus-tx-constraints
     , pretty-simple
-    , process
     , safe-exceptions
     , servant
     , servant-client
     , servant-server
     , stm
-    , terminal-progress-bar
     , text
     , time
-    , transformers
-    , uuid
     , vector
     , wai
     , wai-cors
     , warp
-    , warp-tls
-    , witherable
 
 executable encoins-cloud
   default-language: Haskell2010

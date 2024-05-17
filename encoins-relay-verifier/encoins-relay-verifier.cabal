@@ -53,15 +53,11 @@ library
         file-embed                             -any,
         http-client                            -any,
         mtl                                    -any,
-        plutus-apps-extra                      -any,
         plutus-tx                              -any,
         plutus-tx-extra                        -any,
         text                                   -any,
-        servant                                -any,
         servant-server                         -any,
         servant-client                         -any,
-        warp                                   -any,
-        warp-tls                               -any,
     hs-source-dirs: src
 
 executable encoins-relay-verifier
