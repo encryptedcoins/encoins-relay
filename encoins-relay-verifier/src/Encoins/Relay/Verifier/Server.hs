@@ -13,81 +13,109 @@
 
 module Encoins.Relay.Verifier.Server where
 
-import           Cardano.Server.Config       (CardanoServerConfig (..), HyperTextProtocol (..), decodeOrErrorFromFile)
-import           Cardano.Server.Error        (IsCardanoServerError (..))
-import           Cardano.Server.Main         (runCardanoServer)
-import           Cardano.Server.Utils.Logger (HasLogger (..), Logger, logMsg, logger)
-import           Control.Exception           (Exception, throw)
-import           Control.Monad               (unless)
-import           Control.Monad.Catch         (MonadCatch, MonadThrow (..), handle)
-import           Control.Monad.Except        (MonadError)
-import           Control.Monad.IO.Class      (MonadIO)
-import           Control.Monad.Reader        (MonadReader, ReaderT (..), asks)
-import           Data.Aeson                  (FromJSON (..), genericParseJSON)
-import           Data.Aeson.Casing           (aesonPrefix, snakeCase)
-import           Data.ByteString             (ByteString)
-import           Data.FileEmbed              (embedFileIfExists)
-import           Data.Maybe                  (fromMaybe)
-import           Data.Text                   (Text)
-import           ENCOINS.BaseTypes           (toGroupElement)
-import           ENCOINS.Bulletproofs        (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
-import           ENCOINS.Core.OffChain       (mkEncoinsRedeemerOnChain)
-import           ENCOINS.Core.OnChain        (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           GHC.Generics                (Generic)
-import           PlutusTx.Extra.ByteString   (toBytes)
-import           PlutusTx.Prelude            (BuiltinByteString, sha2_256)
-import           Servant                     (Get, JSON, NoContent (..), ReqBody, ServerError, StdMethod (GET), UVerb, Union,
-                                              WithStatus (..), respond, type (:>), (:<|>) ((:<|>)))
+import           Cardano.Server.Config        (HyperTextProtocol (..), decodeOrErrorFromFile)
+import           Cardano.Server.Error         (IsCardanoServerError (..))
+import           Encoins.Relay.Common.Server  (runCardanoServer)
+import           Control.Exception            (Exception, throw)
+import           Control.Monad                (unless)
+import           Control.Monad.Catch          (MonadCatch, MonadThrow (..), handle)
+import           Control.Monad.Except         (MonadError)
+import           Control.Monad.IO.Class       (MonadIO)
+import           Control.Monad.Reader         (MonadReader (..), ReaderT (..), asks)
+import           Data.Aeson                   (FromJSON (..), genericParseJSON)
+import           Data.Aeson.Casing            (aesonPrefix, snakeCase)
+import           Data.Maybe                   (fromMaybe)
+import           Data.Text                    (Text)
+import           Development.GitRev           (gitCommitDate, gitHash)
+import           ENCOINS.BaseTypes            (toGroupElement)
+import           ENCOINS.Bulletproofs         (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
+import           ENCOINS.Core.OffChain        (mkEncoinsRedeemerOnChain)
+import           ENCOINS.Core.OnChain         (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           Encoins.Common.Log           (logInfo, withLogEnv, mkLogEnv)
+import           Encoins.Common.Version       (appVersion, showAppVersion)
+import           GHC.Generics                 (Generic)
+import           Katip                        (Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace, Environment, Verbosity, Severity)
+import           Paths_encoins_relay_verifier (version)
+import           PlutusTx.Extra.ByteString    (toBytes)
+import           PlutusTx.Prelude             (BuiltinByteString, sha2_256)
+import           Say                          (say)
+import           Servant                      (Get, JSON, NoContent (..), ReqBody, ServerError, StdMethod (GET), UVerb, Union,
+                                               WithStatus (..), respond, type (:>), (:<|>) ((:<|>)))
 import qualified Servant
 
 runVerifierServer :: FilePath -> IO ()
 runVerifierServer verifierConfigFp = do
-        VerifierConfig{..} <- decodeOrErrorFromFile verifierConfigFp
-        bulletproofSetup   <- decodeOrErrorFromFile cBulletproofSetupFilePath
-        verifierPrvKey     <- decodeOrErrorFromFile cVerifierPrvKeyFilePath
-        let ?creds = creds
+    MkVerifierConfig{..} <- decodeOrErrorFromFile verifierConfigFp
+    bulletproofSetup <- decodeOrErrorFromFile cBulletproofSetupFilePath
+    verifierPrvKey <- decodeOrErrorFromFile cVerifierPrvKeyFilePath
+    let logEnv = mkLogEnv
+            "Verifier server"
+            cEnvironment
+            cVerbosity
+            cSeverity
+    withLogEnv logEnv $ \le -> do
+        let env = MkVerifierEnv le mempty mempty cFormatMessage
         runCardanoServer @VerifierApi
-            VerifierConfig{..}
+            cPort
             ((`runReaderT` env) . unVerifierM)
             (verifierApi bulletproofSetup verifierPrvKey)
             beforeMainLoop
-    where
-        env = VerifierEnv logger (Just "verifier.log")
-        beforeMainLoop = logMsg "Starting verifier server..."
+  where
+    beforeMainLoop = say $ showAppVersion "Verifier server" $ appVersion 
+        version 
+        $(gitHash) 
+        $(gitCommitDate)
 
-creds :: Maybe (ByteString, ByteString)
-creds = let keyCred  = $(embedFileIfExists "../key.pem")
-            certCred = $(embedFileIfExists "../certificate.pem")
-        in (,) <$> certCred <*> keyCred
+newtype VerifierM a = MkVerifierM {unVerifierM :: ReaderT VerifierEnv Servant.Handler a}
+    deriving newtype
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadIO
+        , MonadThrow
+        , MonadCatch
+        , MonadReader VerifierEnv
+        , MonadError Servant.ServerError
+        )
 
-newtype VerifierM a = VerifierM {unVerifierM :: ReaderT VerifierEnv Servant.Handler a}
-    deriving newtype (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadReader VerifierEnv, MonadError Servant.ServerError)
+instance Katip VerifierM where
+    getLogEnv = asks vEnvLogEnv
+    localLogEnv f (MkVerifierM m) =
+        MkVerifierM (local (\s -> s {vEnvLogEnv = f (vEnvLogEnv s)}) m)
 
-instance HasLogger VerifierM where
-    getLogger = asks vEnvLogger
-    getLoggerFilePath = asks vEnvLoggerFp
+instance KatipContext VerifierM where
+    getKatipContext = asks vEnvKContext
+    localKatipContext f (MkVerifierM m) =
+        MkVerifierM (local (\s -> s {vEnvKContext = f (vEnvKContext s)}) m)
+    getKatipNamespace = asks vEnvKNamespace
+    localKatipNamespace f (MkVerifierM m) =
+        MkVerifierM (local (\s -> s {vEnvKNamespace = f (vEnvKNamespace s)}) m)
 
-data VerifierEnv = VerifierEnv
-    { vEnvLogger   :: Logger VerifierM
-    , vEnvLoggerFp :: Maybe FilePath
+data VerifierEnv = MkVerifierEnv
+    { vEnvLogEnv        :: LogEnv
+    , vEnvKContext      :: LogContexts
+    , vEnvKNamespace    :: Namespace
+    , vEnvFormatMessage :: Bool
     }
 
-data VerifierConfig = VerifierConfig
+-- Format of severity in json file:
+-- debug, info, notice, warning, error, critical, alert, emergency
+-- Format of verbosity in json file: V0, V1, V2, V3
+data VerifierConfig = MkVerifierConfig
     { cHost                     :: Text
     , cPort                     :: Int
     , cHyperTextProtocol        :: HyperTextProtocol
     , cVerifierPkh              :: BuiltinByteString
     , cVerifierPrvKeyFilePath   :: FilePath
     , cBulletproofSetupFilePath :: FilePath
+    , cEnvironment              :: Environment
+    , cVerbosity                :: Verbosity
+    , cSeverity                 :: Severity
+    , cFormatMessage            :: Bool
     } deriving (Generic)
 
 instance FromJSON VerifierConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-instance CardanoServerConfig VerifierConfig where
-    configHost              = cHost
-    configPort              = cPort
-    configHyperTextProtocol = cHyperTextProtocol
 
 -------------------------------------------------- API --------------------------------------------------
 
@@ -101,7 +129,9 @@ verifierApi bulletproofSetup verifierPrvKey = pingHandler :<|> verifierHandler b
 type PingEnpoint = "ping" :> Get '[JSON] NoContent
 
 pingHandler :: VerifierM NoContent
-pingHandler = NoContent <$ logMsg "Received ping request."
+pingHandler = do
+    logInfo "Received ping request."
+    pure NoContent
 
 --------------------------------------------- Verify endpoint ---------------------------------------------
 

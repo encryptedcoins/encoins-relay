@@ -14,40 +14,28 @@
 
 module Encoins.Relay.Client.Client where
 
-import           Cardano.Server.Client.Handle   (ClientHandle (..),
-                                                 HasServantClientEnv,
-                                                 autoWithRandom, manualWithRead)
+import           CSL                            (TransactionInputs)
+import qualified CSL
+import           CSL.Class                      (ToCSL (..))
+import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWithRandom, manualWithRead)
 import           Cardano.Server.Client.Internal (ClientEndpoint (..))
 import           Cardano.Server.Config          (ServerEndpoint (NewTxE, ServerTxE))
 import           Cardano.Server.Internal        (InputOf, ServerM)
 import           Cardano.Server.Utils.Logger    (logMsg, (.<))
 import           Cardano.Server.Utils.Wait      (waitTime)
-import           CSL                            (TransactionInputs)
-import qualified CSL
-import           CSL.Class                      (ToCSL (..))
 import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
-import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..),
-                                                 bulletproof, fromSecret,
-                                                 parseBulletproofParams,
+import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..), bulletproof, fromSecret, parseBulletproofParams,
                                                  polarityToInteger)
+import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee, treasuryFee)
+import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
+import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
 import           Encoins.Common.Constant        (newLine, space)
 import           Encoins.Common.Transform       (toText)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee,
-                                                 treasuryFee)
-import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
-import           ENCOINS.Crypto.Field           (fromFieldElement,
-                                                 toFieldElement)
-import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..),
-                                                 readAddressIpAddress,
-                                                 readAddressValue,
-                                                 readRequestTerms)
-import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup,
-                                                 clientSecretToSecret,
-                                                 confirmTokens, genTerms,
+import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAddressIpAddress, readAddressValue, readRequestTerms)
+import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, clientSecretToSecret, confirmTokens, genTerms,
                                                  mkSecretFile, readSecretFile)
 import           Encoins.Relay.Server.Internal  (getLedgerAddress)
-import           Encoins.Relay.Server.Server    (EncoinsApi,
-                                                 InputOfEncoinsApi (..))
+import           Encoins.Relay.Server.Server    (EncoinsApi, InputOfEncoinsApi (..))
 import           Ledger                         (Address)
 import           Plutus.Script.Utils.Ada        (Ada (..))
 import           Plutus.V2.Ledger.Api           (TokenName (..))
@@ -64,8 +52,8 @@ import           Data.Data                      (Proxy (Proxy))
 import           Data.Default                   (def)
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
-import qualified Servant.Client                 as Servant
 import           Servant.Client                 (runClientM)
+import qualified Servant.Client                 as Servant
 import           System.Random                  (randomIO, randomRIO)
 
 mkClientHandle :: BulletproofSetup -> EncoinsMode -> ClientHandle EncoinsApi
@@ -90,7 +78,7 @@ manualTxClient = \case
     (readRequestTerms     -> Just reqTerms)   -> txClientRedeemer @e reqTerms
     (readAddressValue     -> Just addrVal)    -> pure () <$ txClientAddressValue @e addrVal
     (readAddressIpAddress -> Just addrIpAddr) -> pure () <$ txClientDelegation @e addrIpAddr
-    _ -> error "Unparsable input."
+    _                                         -> error "Unparsable input."
 
 ------------------------------------------------------------------------- TxClient with (Address, Value) -------------------------------------------------------------------------
 

@@ -31,6 +31,7 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Encoins.Relay.Common
+    Encoins.Relay.Common.Server
 
   build-depends:
     , aeson
@@ -39,12 +40,18 @@ library
     , data-default
     , directory
     , encoins-common-constant
+    , encoins-common-log
     , exceptions
     , extra
     , filepath
+    , katip
     , plutus-apps-extra
     , plutus-ledger
     , plutus-ledger-api
+    , servant-server
     , terminal-progress-bar
     , text
     , time
+    , wai
+    , wai-cors
+    , warp
