@@ -15,7 +15,7 @@ import           Data.Aeson.Lens             (key)
 import           Data.Aeson.Types            (parseEither)
 import           Data.Maybe                  (fromMaybe)
 import qualified Data.Text                   as T
-import           Encoins.Relay.Common (defaultSlotConfigFilePath, encoinsCS, encoinsTokenName)
+import           Encoins.Relay.Common        (defaultSlotConfigFilePath, encoinsCS, encoinsTokenName)
 import           GHC.Stack                   (HasCallStack)
 import           Ledger                      (Slot)
 import           Plutus.V2.Ledger.Api        (CurrencySymbol, TokenName)
