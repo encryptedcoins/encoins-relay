@@ -10,15 +10,13 @@
 module Encoins.Relay.Delegation.Internal where
 
 import           Cardano.Api                    (NetworkId)
-import           Cardano.Server.Config          (CardanoServerConfig (..), HyperTextProtocol (..))
-import           Cardano.Server.Utils.Logger    (HasLogger (..), Logger)
 import           Control.Applicative            ((<|>))
 import           Control.Exception              (throw)
 import           Control.Monad                  (forM, guard, when)
 import           Control.Monad.Catch            (MonadCatch, MonadThrow (..))
 import           Control.Monad.Except           (MonadError)
 import           Control.Monad.IO.Class         (MonadIO (..))
-import           Control.Monad.Reader           (MonadReader (ask), ReaderT (..), asks)
+import           Control.Monad.Reader           (MonadReader (..), ReaderT (..), asks)
 import           Control.Monad.Trans.Maybe      (MaybeT (..))
 import           Data.Aeson                     (FromJSON (..), FromJSONKey (..), FromJSONKeyFunction (..), ToJSON (..), ToJSONKey (..),
                                                  genericParseJSON)
@@ -38,7 +36,9 @@ import qualified Data.Text                      as T
 import qualified Data.Time                      as Time
 import           Encoins.Common.Constant        (column)
 import           Encoins.Common.Transform       (toText)
+import           Encoins.Relay.Common.Server    (HyperTextProtocol)
 import           GHC.Generics                   (Generic)
+import           Katip
 import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
                                                  TxId (..), TxOutRef (..))
 import           Network.URI                    (isIPv4address, isURI)
@@ -55,7 +55,7 @@ import           PlutusTx.Builtins              (decodeUtf8)
 import           Servant                        (Handler, ServerError, runHandler)
 import           Text.Read                      (readMaybe)
 
-newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
+newtype DelegationM a = MkDelegationM {unDelegationM :: ReaderT DelegationEnv Servant.Handler a}
     deriving newtype
         ( Functor
         , Applicative
@@ -70,9 +70,18 @@ newtype DelegationM a = DelegationM {unDelegationM :: ReaderT DelegationEnv Serv
 runDelegationM :: DelegationEnv -> DelegationM a -> IO a
 runDelegationM env = fmap (either throw id) . Servant.runHandler . (`runReaderT` env) . unDelegationM
 
-instance HasLogger DelegationM where
-    getLogger = asks dEnvLogger
-    getLoggerFilePath = asks dEnvLoggerFp
+instance Katip DelegationM where
+    getLogEnv = asks dEnvLogEnv
+    localLogEnv f (MkDelegationM m) =
+        MkDelegationM (local (\s -> s {dEnvLogEnv = f (dEnvLogEnv s)}) m)
+
+instance KatipContext DelegationM where
+    getKatipContext = asks dEnvKContext
+    localKatipContext f (MkDelegationM m) =
+        MkDelegationM (local (\s -> s {dEnvKContext = f (dEnvKContext s)}) m)
+    getKatipNamespace = asks dEnvKNamespace
+    localKatipNamespace f (MkDelegationM m) =
+        MkDelegationM (local (\s -> s {dEnvKNamespace = f (dEnvKNamespace s)}) m)
 
 instance HasNetworkId DelegationM where
     getNetworkId = asks dEnvNetworkId
@@ -83,9 +92,11 @@ instance MonadBlockfrost DelegationM where
 instance MonadMaestro DelegationM where
     getMaestroToken = asks dEnvMaestroToken
 
-data DelegationEnv = DelegationEnv
-    { dEnvLogger               :: Logger DelegationM
-    , dEnvLoggerFp             :: Maybe FilePath
+data DelegationEnv = MkDelegationEnv
+    { dEnvLogEnv               :: LogEnv
+    , dEnvKContext             :: LogContexts
+    , dEnvKNamespace           :: Namespace
+    , dEnvFormatMessage        :: Bool
     , dEnvNetworkId            :: NetworkId
     , dEnvHost                 :: Text
     , dEnvPort                 :: Int
@@ -119,13 +130,7 @@ setProgress p t = asks dEnvProgress >>= (liftIO . flip atomicWriteIORef (p, t))
 setTokenBalance :: Map PubKeyHash Integer -> Time.UTCTime -> DelegationM ()
 setTokenBalance b t = asks dEnvTokenBalance >>= (liftIO . flip atomicWriteIORef (b, t))
 
-instance CardanoServerConfig DelegationEnv where
-    configHost              = dEnvHost
-    configPort              = dEnvPort
-    configHyperTextProtocol = dEnvHyperTextProtocol
-
-
-data DelegConfig = DelegConfig
+data DelegationConfig = MkDelegationConfig
     { cHost                     :: Text
     , cPort                     :: Int
     , cHyperTextProtocol        :: HyperTextProtocol
@@ -143,15 +148,14 @@ data DelegConfig = DelegConfig
     -- ^ The number of tokens, exceeding which the server gets into the current servers endpoint
     , cRewardTokenThreshold     :: Integer
     -- ^ The number of tokens that limits the distribution of rewards
+    , cEnvironment              :: Environment
+    , cVerbosity                :: Verbosity
+    , cSeverity                 :: Severity
+    , cFormatMessage            :: Bool
     } deriving (Show, Generic)
 
-instance FromJSON DelegConfig where
+instance FromJSON DelegationConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-instance CardanoServerConfig DelegConfig where
-    configHost              = cHost
-    configPort              = cPort
-    configHyperTextProtocol = cHyperTextProtocol
 
 ------------------------------------------------------------------ Helpers ------------------------------------------------------------------
 
@@ -162,7 +166,7 @@ data Progress = Progress
 
 findDeleg :: TxId -> DelegationM (Maybe Delegation)
 findDeleg txId = runMaybeT $ do
-    DelegationEnv{..} <- ask
+    MkDelegationEnv{..} <- ask
     TxDetailsResponse{..} <- MaybeT $ Maestro.getTxDetails txId
     MaybeT $ fmap (listToMaybe . catMaybes) $ forM tdrOutputs $ \TxDetailsOutput{..} -> runMaybeT $ do
         stakeKey  <- hoistMaybe $ getStakeKey tdoAddress

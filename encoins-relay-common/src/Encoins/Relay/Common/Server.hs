@@ -1,23 +1,33 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
 
 module Encoins.Relay.Common.Server where
 
+import           Control.Exception           (Exception, throw)
+import           Control.Monad.IO.Class      (MonadIO (..))
+import           Data.Aeson
+import           Data.Default                (Default (..))
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
+import           Encoins.Common.Log          (logDebug, logDebugS, logError, logErrorS)
+import           GHC.Generics                (Generic)
+import           Katip                       (KatipContext)
+import           Network.HTTP.Client         (defaultManagerSettings, newManager)
+import           Network.HTTP.Client.TLS     (mkManagerSettings)
 import qualified Network.Wai                 as Wai
 import qualified Network.Wai.Handler.Warp    as Warp
-import           Servant                     (Proxy (..), ServerT, hoistServer, serve, )
-import qualified Servant
-import           Control.Exception           (Exception, throw)
-import Encoins.Common.Log
-    ( logDebug, logDebugS, logError, logErrorS )
-import           Katip                       (KatipContext)
 import           Network.Wai.Middleware.Cors (CorsResourcePolicy (..), cors, simpleCorsResourcePolicy)
+import           Servant                     (Proxy (..), ServerT, hoistServer, serve)
+import qualified Servant
+import qualified Servant.Client              as Servant
 import           System.IO                   (BufferMode (LineBuffering), hSetBuffering, stdout)
 
 runCardanoServer :: forall api m.
@@ -27,11 +37,7 @@ runCardanoServer :: forall api m.
 runCardanoServer port runApp serverApp beforeMainLoop = do
     hSetBuffering stdout LineBuffering
     Warp.runSettings settings app
-    -- case (configHyperTextProtocol config, ?creds) of
-    --     (HTTP, _)                 -> Warp.runSettings settings app
-    --     (HTTPS, Just (cert, key)) -> Warp.runTLS (Warp.tlsSettingsMemory cert key) settings app
-    --     (HTTPS, Nothing)          -> error noCredsMsg
-    where
+  where
         app = corsWithContentType $ serve (Proxy @api) $ hoistServer (Proxy @api) runApp serverApp
         runHandler = fmap (either throw id) . Servant.runHandler
         settings = Warp.setLogger logReceivedRequest
@@ -48,9 +54,10 @@ runCardanoServer port runApp serverApp beforeMainLoop = do
 
 corsWithContentType :: Wai.Middleware
 corsWithContentType = cors (const $ Just policy)
-    where policy = simpleCorsResourcePolicy
-            { corsRequestHeaders = ["Content-Type"]
-            }
+  where 
+    policy = simpleCorsResourcePolicy
+        { corsRequestHeaders = ["Content-Type"]
+        }
 
 -- This function helps to skip non-critical exceptions (most of them are related to warp/wai) and log only critical ones
 logCriticalExceptions :: forall e m. (Exception e, KatipContext m) => e -> m ()
@@ -60,3 +67,22 @@ logCriticalExceptions e
     | otherwise = do
         logError "Unhandled exception:"
         logErrorS True e
+
+data HyperTextProtocol = HTTP | HTTPS
+    deriving (Show, Eq, Ord, Generic, FromJSON, ToJSON)
+
+schemeFromProtocol :: HyperTextProtocol -> Servant.Scheme
+schemeFromProtocol = \case
+    HTTP  -> Servant.Http
+    HTTPS -> Servant.Https
+
+mkServantClientEnv :: (MonadIO m) => Int -> Text -> HyperTextProtocol -> m Servant.ClientEnv
+mkServantClientEnv port host protocol = do
+    manager <- liftIO $ newManager $ case protocol of
+        HTTP  -> defaultManagerSettings
+        HTTPS -> mkManagerSettings def def
+    pure $ Servant.ClientEnv
+        manager
+        (Servant.BaseUrl (schemeFromProtocol protocol) (T.unpack host) port "")
+        Nothing
+        Servant.defaultMakeClientRequest

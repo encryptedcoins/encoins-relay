@@ -47,6 +47,7 @@ library
     , containers
     , directory
     , encoins-common-constant
+    , encoins-common-log
     , encoins-common-transform
     , encoins-common-version
     , encoins-relay-common
@@ -54,6 +55,7 @@ library
     , extra
     , file-embed
     , gitrev
+    , katip
     , mtl
     , network-uri
     , plutus-apps-extra
@@ -61,6 +63,7 @@ library
     , plutus-ledger-api
     , plutus-tx
     , process
+    , say
     , servant
     , servant-client
     , servant-server

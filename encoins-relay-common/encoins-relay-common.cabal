@@ -44,11 +44,14 @@ library
     , exceptions
     , extra
     , filepath
+    , http-client
+    , http-client-tls
     , katip
     , plutus-apps-extra
     , plutus-ledger
     , plutus-ledger-api
     , servant-server
+    , servant-client
     , terminal-progress-bar
     , text
     , time

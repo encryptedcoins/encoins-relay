@@ -8,34 +8,32 @@
 
 module Encoins.Relay.Delegation.Client where
 
-import           Cardano.Server.Client.Handle           (HasServantClientEnv)
-import           Cardano.Server.Config                  (decodeOrErrorFromFile)
-import           Cardano.Server.Internal                (mkServantClientEnv)
-import           Control.Exception                      (Exception)
-import           Data.Bifunctor                         (Bifunctor (..))
-import qualified Data.ByteString.Lazy                   as BS
-import           Data.Either.Extra                      (eitherToMaybe)
-import           Data.Functor                           ((<&>))
-import           Data.Map                               (Map)
-import           Data.Maybe                             (fromMaybe)
-import           Data.Proxy                             (Proxy (..))
-import           Data.String                            (IsString (..))
-import           Data.Text                              (Text)
-import qualified Data.Text                              as T
-import           Data.Text.Encoding                     (decodeUtf8')
-import           Encoins.Relay.Delegation.Internal      (DelegConfig (..))
-import           Encoins.Relay.Delegation.Server        (DelegationServerError, GetCurrentServers, GetDelegationInfo,
-                                                         GetServerDelegators, GetServers, creds, readDelegationServerError)
-import           Ledger                                 (Address)
-import           PlutusAppsExtra.Utils.Address          (bech32ToAddress)
-import           Servant.Client                         (ClientError (FailureResponse), ClientM, ResponseF (Response), client,
-                                                         runClientM)
-import           System.Environment                     (getArgs)
+import           Cardano.Server.Client.Handle      (HasServantClientEnv)
+import           Control.Exception                 (Exception)
+import           Data.Bifunctor                    (Bifunctor (..))
+import qualified Data.ByteString.Lazy              as BS
+import           Data.Either.Extra                 (eitherToMaybe)
+import           Data.Functor                      ((<&>))
+import           Data.Map                          (Map)
+import           Data.Maybe                        (fromMaybe)
+import           Data.Proxy                        (Proxy (..))
+import           Data.String                       (IsString (..))
+import           Data.Text                         (Text)
+import qualified Data.Text                         as T
+import           Data.Text.Encoding                (decodeUtf8')
+import           Encoins.Relay.Common              (decodeOrErrorFromFile)
+import           Encoins.Relay.Common.Server       (mkServantClientEnv)
+import           Encoins.Relay.Delegation.Internal (DelegationConfig (..))
+import           Encoins.Relay.Delegation.Server   (DelegationServerError, GetCurrentServers, GetDelegationInfo, GetServerDelegators,
+                                                    GetServers, readDelegationServerError)
+import           Ledger                            (Address)
+import           PlutusAppsExtra.Utils.Address     (bech32ToAddress)
+import           Servant.Client                    (ClientError (FailureResponse), ClientM, ResponseF (Response), client, runClientM)
+import           System.Environment                (getArgs)
 
 main :: FilePath -> IO ()
-main delegConfigFp = do
-    DelegConfig{..} <- decodeOrErrorFromFile delegConfigFp
-    let ?creds = creds
+main delegationConfigFp = do
+    MkDelegationConfig{..} <- decodeOrErrorFromFile delegationConfigFp
     clientEnv <- mkServantClientEnv cPort cHost cHyperTextProtocol
     let ?servantClientEnv = clientEnv
     getArgs >>= \case
@@ -62,7 +60,7 @@ runDelegationClient c = (c `runClientM` ?servantClientEnv) <&> first fromClientE
     where
         fromClientError = \case
             (FailureResponse _ (Response _ _ _ (readServerError -> Just err))) -> DelegationServerError err
-            err -> DelegationClientError err
+            err                                                                -> DelegationClientError err
         readServerError bs = eitherToMaybe (decodeUtf8' $ BS.toStrict bs) >>= readDelegationServerError
 
 data DelegationClientError
