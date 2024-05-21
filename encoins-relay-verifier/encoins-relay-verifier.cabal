@@ -39,32 +39,35 @@ library
     hs-source-dirs: src
     other-modules: Paths_encoins_relay_verifier
     exposed-modules:
-        Encoins.Relay.Verifier.Server
-        Encoins.Relay.Verifier.Client
+      Encoins.Relay.Verifier.Server
+      Encoins.Relay.Verifier.Client
     other-modules:
     build-depends:
-        base                          >= 4.9 && < 5,
-        aeson                                  -any,
-        aeson-casing                           -any,
-        bytestring                             -any,
-        cardano-server                         -any,
-        cardano-server-client                  -any,
-        encoins-bulletproofs                   -any,
-        encoins-common-log                     -any,
-        encoins-common-version                 -any,
-        encoins-core                           -any,
-        exceptions                             -any,
-        file-embed                             -any,
-        gitrev                                 -any,
-        http-client                            -any,
-        katip                                  -any,
-        mtl                                    -any,
-        plutus-tx                              -any,
-        plutus-tx-extra                        -any,
-        text                                   -any,
-        say                                    -any,
-        servant-server                         -any,
-        servant-client                         -any,
+      , base                          >= 4.9 && < 5
+      , aeson
+      , aeson-casing
+      , bytestring
+      , cardano-server
+      , cardano-server-client
+      , encoins-bulletproofs
+      , encoins-common-constant
+      , encoins-common-log
+      , encoins-common-transform
+      , encoins-common-version
+      , encoins-core
+      , encoins-relay-common
+      , exceptions
+      , file-embed
+      , gitrev
+      , http-client
+      , katip
+      , mtl
+      , plutus-tx
+      , plutus-tx-extra
+      , text
+      , say
+      , servant-server
+      , servant-client
 
 executable encoins-relay-verifier
   default-language: Haskell2010

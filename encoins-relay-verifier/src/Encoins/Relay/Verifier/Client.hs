@@ -10,16 +10,17 @@ module Encoins.Relay.Verifier.Client where
 
 import           Cardano.Server.Client.Handle  (HasServantClientEnv)
 import           Cardano.Server.Error          (IsCardanoServerError (..))
-import           Cardano.Server.Utils.Logger   ((.<))
 import           Control.Exception             (Exception)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           Encoins.Common.Constant       (newLine)
+import           Encoins.Common.Transform      (toText)
 import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifyEndpoint)
 import           Network.HTTP.Client           (defaultManagerSettings, newManager)
 import           Servant                       (Proxy (Proxy), WithStatus (..))
-import           Servant.Client                (BaseUrl (..), ClientEnv (..), ClientError, Scheme (..), client,
-                                                defaultMakeClientRequest, foldMapUnion, runClientM)
+import           Servant.Client                (BaseUrl (..), ClientEnv (..), ClientError, Scheme (..), client, defaultMakeClientRequest,
+                                                foldMapUnion, runClientM)
 
 verifierClient :: HasServantClientEnv => EncoinsRedeemer -> IO (Either VerifierClientError EncoinsRedeemerOnChain)
 verifierClient red
@@ -48,7 +49,10 @@ instance IsCardanoServerError VerifierClientError where
     errStatus _ = toEnum 422
     errMsg = \case
         VerifierApiError    vErr -> errMsg vErr
-        VerifierClientError cErr -> "Encoins verifier is unavailable:" .< cErr
+        VerifierClientError cErr 
+            -> "Encoins verifier is unavailable:"
+            <> newLine
+            <> toText cErr
 
 class UnUnionVerifierResult a where
     unUnion :: a -> Either VerifierApiError EncoinsRedeemerOnChain
