@@ -34,7 +34,7 @@ import           Control.Exception                   (throw)
 import           Control.Monad                       (forM, forever, void, when, (>=>))
 import           Control.Monad.Catch                 (Exception, MonadCatch (catch), MonadThrow (..), SomeException, handle)
 import           Control.Monad.IO.Class              (MonadIO (..))
-import           Control.Monad.Reader                (MonadReader (ask), ReaderT (..))
+import           Control.Monad.Reader                (MonadReader (ask), ReaderT (..), asks)
 import           Data.Aeson                          (FromJSON, ToJSON)
 import qualified Data.ByteString.Char8               as B
 import           Data.Fixed                          (Pico)
@@ -260,7 +260,7 @@ askProgress checkProgress = do
     let diff = Time.nominalDiffTimeToSeconds (Time.diffUTCTime ct progressTime)
     when (checkProgress && diff > fromIntegral dEnvMaxDelay) $ do
         logInfo "Time of last progress update:"
-        logInfoS True progressTime
+        logInfoS dEnvFormatMessage progressTime
         throwM $ StaleProgressFile diff (diff - fromIntegral dEnvMaxDelay)
     pure progress
 
@@ -272,7 +272,7 @@ askTokenBalance = do
     let diff = Time.nominalDiffTimeToSeconds (Time.diffUTCTime ct balanceTime)
     when (diff > fromIntegral dEnvMaxDelay) $ do
         logInfo "Time of last token balance update:"
-        logInfoS True balanceTime
+        logInfoS dEnvFormatMessage balanceTime
     pure balance
 
 askIpsWithBalances :: Bool -> DelegationM (Map Text Integer)
@@ -330,8 +330,9 @@ updateDelegationMap relaysWithBalances = do
                         . (\a -> fromMaybe a $ T.stripPrefix "https://" a)
                         . unProxyAddress
     removeAmazonProxy addr = do
+        format <- asks dEnvFormatMessage
         logInfo "Removing proxy "
-        logInfoS True addr
+        logInfoS format addr
         liftIO $ execute $ "./api-delete.sh" <> space <> T.unpack (amazonIDfromAddress addr)
     execute cmd = Process.readCreateProcess ((Process.shell cmd) {Process.cwd = Just "../../scripts/delegationProxy"}) ""
 
@@ -351,7 +352,8 @@ updateProgress = do
         newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
             liftIO $ incProgress pb 1
             findDeleg txId
-        when (notNull newDelegs) $ logInfo $ "New delegations:" <> foldr (prettyDeleg dEnvNetworkId) "" newDelegs
+        when (notNull newDelegs) 
+            $ logInfo $ "New delegations:" <> foldr (prettyDeleg dEnvNetworkId) "" newDelegs
         let p = Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
         setProgress p ct
         pure p
