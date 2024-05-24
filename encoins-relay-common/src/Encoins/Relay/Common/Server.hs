@@ -38,23 +38,23 @@ runCardanoServer port runApp serverApp beforeMainLoop = do
     hSetBuffering stdout LineBuffering
     Warp.runSettings settings app
   where
-        app = corsWithContentType $ serve (Proxy @api) $ hoistServer (Proxy @api) runApp serverApp
-        runHandler = fmap (either throw id) . Servant.runHandler
-        settings = Warp.setLogger logReceivedRequest
-                 $ Warp.setOnException (const logException)
-                 $ Warp.setPort port
-                 $ Warp.setBeforeMainLoop (runHandler $ runApp beforeMainLoop)
-                   Warp.defaultSettings
-        logReceivedRequest req status _ = runHandler $ runApp $ do
-            logDebug "Received request:"
-            logDebugS True req
-            logDebug "Status:"
-            logDebugS True status
-        logException = runHandler . runApp . logCriticalExceptions
+    app = corsWithContentType $ serve (Proxy @api) $ hoistServer (Proxy @api) runApp serverApp
+    runHandler = fmap (either throw id) . Servant.runHandler
+    settings = Warp.setLogger logReceivedRequest
+             $ Warp.setOnException (const logException)
+             $ Warp.setPort port
+             $ Warp.setBeforeMainLoop (runHandler $ runApp beforeMainLoop)
+               Warp.defaultSettings
+    logReceivedRequest req status _ = runHandler $ runApp $ do
+        logDebug "Received request:"
+        logDebugS True req
+        logDebug "Status:"
+        logDebugS True status
+    logException = runHandler . runApp . logCriticalExceptions
 
 corsWithContentType :: Wai.Middleware
 corsWithContentType = cors (const $ Just policy)
-  where 
+  where
     policy = simpleCorsResourcePolicy
         { corsRequestHeaders = ["Content-Type"]
         }

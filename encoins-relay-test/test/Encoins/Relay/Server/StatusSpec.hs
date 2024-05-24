@@ -34,13 +34,13 @@ spec = describe "status endpoint" $ do
     it "ledger encoins utxos" $ withStatusSpec LedgerEncoins  getLedgerEncoins
 
 withStatusSpec :: HasServantClientEnv =>
-    EncoinsStatusReqBody -> ServerM EncoinsApi EncoinsStatusResult -> Expectation
+    EncoinsStatusReqBody -> EncoinsServerM EncoinsStatusResult -> Expectation
 withStatusSpec reqBody fun = join $ runEncoinsServerM $ do
     expectation <- try @_ @EncoinsStatusError fun
     runStatusClient reqBody <&> either id (`shouldBe` expectation)
 
 runStatusClient :: HasServantClientEnv =>
-    EncoinsStatusReqBody -> ServerM EncoinsApi (Either Expectation (Either EncoinsStatusError EncoinsStatusResult))
+    EncoinsStatusReqBody -> EncoinsServerM (Either Expectation (Either EncoinsStatusError EncoinsStatusResult))
 runStatusClient reqBody = liftIO (runClientM (statusC @EncoinsApi reqBody) ?servantClientEnv) >>= \case
     Left resp@(FailureResponse _ (responseStatusCode -> code)) ->
         if code == toEnum 422

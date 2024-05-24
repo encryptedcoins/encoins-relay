@@ -4,15 +4,16 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module Encoins.Relay.Server.Status where
+module Encoins.Relay.Server.Endpoint.Status where
 
 import qualified CSL
 import           CSL.Class                     (ToCSL (..))
-import           Cardano.Server.Error          (ConnectionError, Envelope, IsCardanoServerError (..), toEnvelope)
-import           Cardano.Server.Internal       (AuxillaryEnvOf, ServerM, getNetworkId)
 import           Control.Arrow                 (Arrow ((&&&)))
 import           Control.Exception             (throw)
 import           Control.Lens                  ((^.))
@@ -23,12 +24,29 @@ import           Data.Aeson                    (FromJSON (..), ToJSON (..))
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromMaybe)
 import           ENCOINS.Core.OnChain          (minAdaTxOutInLedger)
-import           Encoins.Relay.Server.Internal (EncoinsRelayEnv, getEncoinsSymbol, getLedgerUtxos)
+import           Encoins.Relay.Common.Error    (ConnectionError, Envelope, IsCardanoServerError (..), Throws, toEnvelope)
+import           Encoins.Relay.Server.Internal (EncoinsServerM, getEncoinsSymbol, getLedgerUtxos, EncoinsRelayEnv (..))
 import           GHC.Generics                  (Generic)
 import           Ledger                        (decoratedTxOutPlutusValue)
 import qualified Plutus.Script.Utils.Ada       as Ada
 import qualified Plutus.Script.Utils.Value     as P
+import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
+import           Servant                       (JSON, Post, ReqBody, (:>))
 import           System.Random                 (Random (..))
+import Encoins.Common.Log (logInfo)
+import Data.Text (Text)
+import qualified Servant.Client as Servant
+import Control.Monad.Reader (MonadReader(..), MonadIO (..))
+import Encoins.Relay.Common.Server (mkServantClientEnv)
+import Servant.Client (client)
+import Data.Data (Proxy(..))
+
+type StatusEndpoint
+    = "status"
+    :> Throws ConnectionError
+    :> Throws EncoinsStatusError
+    :> ReqBody '[JSON] EncoinsStatusReqBody
+    :> Post '[JSON] EncoinsStatusResult
 
 data EncoinsStatusReqBody
     -- | Get the maximum amount of ada that can be taken from a single utxo bound to a ledger address.
@@ -64,24 +82,34 @@ instance IsCardanoServerError EncoinsStatusError where
         EmptyLedger        -> "Ledger doesn't have any utxos."
         CslConversionError -> "Can't convert utxos to csl."
 
-type EncoinsStatusErrors = '[ConnectionError, EncoinsStatusError]
-
-encoinsStatusHandler :: AuxillaryEnvOf api ~ EncoinsRelayEnv =>
-    EncoinsStatusReqBody -> ServerM api (Envelope EncoinsStatusErrors EncoinsStatusResult)
-encoinsStatusHandler = \case
+statusEndpointHandler :: EncoinsStatusReqBody -> EncoinsServerM (Envelope '[ConnectionError, EncoinsStatusError] EncoinsStatusResult)
+statusEndpointHandler = \case
     MaxAdaWithdraw -> toEnvelope getMaxAdaWithdraw
     LedgerEncoins  -> toEnvelope getLedgerEncoins
 
-getMaxAdaWithdraw :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
+getMaxAdaWithdraw :: EncoinsServerM EncoinsStatusResult
 getMaxAdaWithdraw = do
+    logInfo "Received `max ada withdraw` status request"
     utxos <- getLedgerUtxos mempty
     when (null utxos) $ throwM EmptyLedger
     let ada = maximum . map (Ada.fromValue . decoratedTxOutPlutusValue) $ Map.elems utxos
     pure $ MaxAdaWithdrawResult $ subtract minAdaTxOutInLedger $ toInteger ada
 
-getLedgerEncoins :: AuxillaryEnvOf api ~ EncoinsRelayEnv => ServerM api EncoinsStatusResult
+getLedgerEncoins :: EncoinsServerM EncoinsStatusResult
 getLedgerEncoins = do
+    logInfo "Received `ledger encoins` status request"
     ecs       <- getEncoinsSymbol
     networkId <- getNetworkId
     let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . decoratedTxOutPlutusValue
     LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . Map.filter f <$> getLedgerUtxos mempty
+
+-- -- Check if status endpoint is alive
+checkStatusEndpoint :: EncoinsServerM (Either Text ())
+checkStatusEndpoint = do
+    MkEncoinsRelayEnv{..} <- ask
+    env <- mkServantClientEnv envPort envHost envHyperTextProtocol
+    res <- liftIO $ Servant.runClientM (statusClient MaxAdaWithdraw) env
+    either throwM (const $ pure $ Right ()) res
+
+statusClient :: EncoinsStatusReqBody -> Servant.ClientM EncoinsStatusResult
+statusClient = client (Proxy @StatusEndpoint)

@@ -1,31 +1,35 @@
-{-# LANGUAGE ImplicitParams    #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ImplicitParams      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Encoins.Relay.Server.Main where
 
-import           Cardano.Server.Config           (Config (..), decodeOrErrorFromFile, initializeConfig)
-import           Cardano.Server.Internal         (loadEnv, runServerM)
-import           Cardano.Server.Main             (runServer)
 import           Development.GitRev              (gitCommitDate, gitHash)
 import           Encoins.Common.Version          (appVersion, showAppVersion)
-import           Encoins.Relay.Server.Config     (initializeRelayConfig)
+import           Encoins.Relay.Common            (decodeOrErrorFromFile)
+import           Encoins.Relay.Common.Server     (runCardanoServer)
+import           Encoins.Relay.Server.Config     (EncoinsRelayConfig (..), initializeConfig)
 import           Encoins.Relay.Server.Delegation (distributeRewards)
+import           Encoins.Relay.Server.Internal   (loadEncoinsRelayEnv, runEncoinsServerM, runEncoinsServerMHandler)
 import           Encoins.Relay.Server.Opts       (ServerMode (..), runWithOpts)
-import           Encoins.Relay.Server.Server     (embedCreds, mkServerHandle, serverSetup)
+import           Encoins.Relay.Server.Server     (EncoinsApi, beforeMainLoop, encoinsServer, serverSetup)
 import           Paths_encoins_relay_server      (version)
 import           Say                             (say)
 
 runEncoinsServer :: FilePath -> IO ()
-runEncoinsServer cardanoServerConfigFp = do
+runEncoinsServer configFp = do
     say $ showAppVersion "Relay server" $ appVersion version $(gitHash) $(gitCommitDate)
-    initializeConfig cardanoServerConfigFp
-    relayConfigFp <- cAuxiliaryEnvFile <$> decodeOrErrorFromFile cardanoServerConfigFp
-    initializeRelayConfig relayConfigFp
-    config <- decodeOrErrorFromFile cardanoServerConfigFp
-    let ?creds    = embedCreds
+    initializeConfig configFp
+    config <- decodeOrErrorFromFile configFp
+    env <- loadEncoinsRelayEnv config
     runWithOpts >>= \case
-        Run      -> mkServerHandle config >>= runServer config
-        Setup    -> mkServerHandle config >>= loadEnv config >>= (`runServerM` serverSetup)
-        Reward r -> mkServerHandle config >>= loadEnv config >>= (`runServerM` distributeRewards r)
+        Setup    -> runEncoinsServerM env serverSetup
+        Reward r -> runEncoinsServerM env $ distributeRewards r
+        Run      -> runCardanoServer @EncoinsApi
+          (cPort config)
+          (runEncoinsServerMHandler env)
+          encoinsServer
+          beforeMainLoop

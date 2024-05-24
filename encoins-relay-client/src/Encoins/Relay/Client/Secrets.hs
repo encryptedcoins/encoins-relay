@@ -75,7 +75,7 @@ mkSecretFile Secret{..} pol = do
         cs   = ClientSecret secretGamma secretV pol name False ct ?mode
     liftIO $ LBS.writeFile (clientSecretToFilePath cs) $ encode cs
 
-confirmTokens :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi ()
+confirmTokens :: HasEncoinsModeAndBulletproofSetup => EncoinsServerM ()
 confirmTokens = do
     tokens <- getEncoinsTokensFromMode
     (confirmMint, confirmBurn) <- partition ((== Mint) . csPolarity) . filter ((== False) . csConfirmed)
@@ -94,7 +94,7 @@ confirmFile fp = liftIO $ readSecretFile fp >>= \case
     Just sf -> LBS.writeFile fp $ encode sf{csConfirmed = True}
     Nothing -> removeFile fp
 
-getEncoinsTokensFromMode :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi [TokenName]
+getEncoinsTokensFromMode :: HasEncoinsModeAndBulletproofSetup => EncoinsServerM [TokenName]
 getEncoinsTokensFromMode = do
     encoinsSymb <- getEncoinsSymbol
     let filterCS cs tokenName = if cs == encoinsSymb then Just tokenName else Nothing
@@ -104,7 +104,7 @@ getEncoinsTokensFromMode = do
 
 -- It is possible to send 5 tokens, but in this case, the size of the tx will
 -- most likely not fit into the utxo size restrictions.
-genTerms :: HasEncoinsModeAndBulletproofSetup => ServerM EncoinsApi [EncoinsRequestTerm]
+genTerms :: HasEncoinsModeAndBulletproofSetup => EncoinsServerM [EncoinsRequestTerm]
 genTerms = do
     secrets <- map csName . filter (\ClientSecret{..} -> csPolarity == Mint && csConfirmed) <$> readSecretFiles
     l <- randomRIO (1, 4)

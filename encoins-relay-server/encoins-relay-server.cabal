@@ -42,46 +42,60 @@ library
       Encoins.Relay.Server.Api
       Encoins.Relay.Server.Config
       Encoins.Relay.Server.Delegation
+      Encoins.Relay.Server.Endpoint.NewTx
+      Encoins.Relay.Server.Endpoint.ServerTx
+      Encoins.Relay.Server.Endpoint.Status
+      Encoins.Relay.Server.Endpoint.SubmitTx
+      Encoins.Relay.Server.Endpoint.Utxos
       Encoins.Relay.Server.Internal
       Encoins.Relay.Server.Main
       Encoins.Relay.Server.Opts
       Encoins.Relay.Server.Server
-      Encoins.Relay.Server.Status
     build-depends:
-      base                          >= 4.9 && < 5,
-      aeson                                  -any,
-      aeson-casing                           -any,
-      cardano-api                            -any,
-      cardano-server                         -any,
-      cardano-server-client                  -any,
-      containers                             -any,
-      csl-types                              -any,
-      data-default                           -any,
-      directory                              -any,
-      encoins-bulletproofs                   -any,
-      encoins-common-version                 -any,
-      encoins-core                           -any,
-      encoins-relay-delegation               -any,
-      encoins-relay-verifier                 -any,
-      exceptions                             -any,
-      extra                                  -any,
-      file-embed                             -any,
-      gitrev                                 -any,
-      lens                                   -any,
-      mtl                                    -any,
-      optparse-applicative                   -any,
-      plutus-apps-extra                      -any,
-      plutus-tx                              -any,
-      plutus-tx-constraints                  -any,
-      plutus-ledger                          -any,
-      plutus-ledger-api                      -any,
-      plutus-script-utils                    -any,
-      random                                 -any,
-      servant-server                         -any,
-      servant-client                         -any,
-      say                                    -any,
-      text                                   -any,
-      time                                   -any
+      , base                          >= 4.9 && < 5
+      , aeson-casing
+      , aeson
+      , bytestring
+      , cardano-addresses
+      , cardano-api
+      , cardano-node-emulator
+      , cardano-server
+      , cardano-server-client
+      , containers
+      , csl-types
+      , data-default
+      , directory
+      , encoins-bulletproofs
+      , encoins-common-constant
+      , encoins-common-log
+      , encoins-common-transform
+      , encoins-common-version
+      , encoins-core
+      , encoins-relay-common
+      , encoins-relay-delegation
+      , encoins-relay-verifier
+      , exceptions
+      , extra
+      , file-embed
+      , gitrev
+      , hex-text
+      , katip
+      , lens
+      , lens-aeson
+      , mtl
+      , optparse-applicative
+      , plutus-apps-extra
+      , plutus-tx
+      , plutus-tx-constraints
+      , plutus-ledger
+      , plutus-ledger-api
+      , plutus-script-utils
+      , random
+      , servant-server
+      , servant-client
+      , say
+      , text
+      , time
 
 executable encoins-relay-server
   default-language: Haskell2010

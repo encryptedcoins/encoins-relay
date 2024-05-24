@@ -15,7 +15,6 @@ module Encoins.Relay.Verifier.Server where
 
 import           Cardano.Server.Config        (HyperTextProtocol (..), decodeOrErrorFromFile)
 import           Cardano.Server.Error         (IsCardanoServerError (..))
-import           Encoins.Relay.Common.Server  (runCardanoServer)
 import           Control.Exception            (Exception, throw)
 import           Control.Monad                (unless)
 import           Control.Monad.Catch          (MonadCatch, MonadThrow (..), handle)
@@ -31,10 +30,12 @@ import           ENCOINS.BaseTypes            (toGroupElement)
 import           ENCOINS.Bulletproofs         (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
 import           ENCOINS.Core.OffChain        (mkEncoinsRedeemerOnChain)
 import           ENCOINS.Core.OnChain         (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           Encoins.Common.Log           (logInfo, withLogEnv, mkLogEnv)
+import           Encoins.Common.Log           (logInfo, mkLogEnv, withLogEnv)
 import           Encoins.Common.Version       (appVersion, showAppVersion)
+import           Encoins.Relay.Common.Server  (runCardanoServer)
 import           GHC.Generics                 (Generic)
-import           Katip                        (Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace, Environment, Verbosity, Severity)
+import           Katip                        (Environment, Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace, Severity,
+                                               Verbosity)
 import           Paths_encoins_relay_verifier (version)
 import           PlutusTx.Extra.ByteString    (toBytes)
 import           PlutusTx.Prelude             (BuiltinByteString, sha2_256)
@@ -61,9 +62,9 @@ runVerifierServer verifierConfigFp = do
             (verifierApi bulletproofSetup verifierPrvKey)
             beforeMainLoop
   where
-    beforeMainLoop = say $ showAppVersion "Verifier server" $ appVersion 
-        version 
-        $(gitHash) 
+    beforeMainLoop = say $ showAppVersion "Verifier server" $ appVersion
+        version
+        $(gitHash)
         $(gitCommitDate)
 
 newtype VerifierM a = MkVerifierM {unVerifierM :: ReaderT VerifierEnv Servant.Handler a}

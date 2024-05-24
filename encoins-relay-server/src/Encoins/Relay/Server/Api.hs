@@ -5,21 +5,17 @@
 
 module Encoins.Relay.Server.Api where
 
-import           Cardano.Server.Endpoints.Tx.Submit (SubmitTxReqBody)
-import           Cardano.Server.Error               (Throws)
-import           Cardano.Server.Error.Servant       (Throwing)
 import qualified CSL
-import           Encoins.Common.Version             (AppVersion)
-import           Encoins.Relay.Server.Server        (EncoinsApi,
-                                                     InputOfEncoinsApi)
-import           Encoins.Relay.Server.Status        (EncoinsStatusReqBody,
-                                                     EncoinsStatusResult)
+import           Encoins.Common.Version                 (AppVersion)
+import           Encoins.Relay.Server.Endpoint.Status   (EncoinsStatusReqBody, EncoinsStatusResult)
+import           Encoins.Relay.Server.Internal          (EncoinsServerInput)
+import           Encoins.Relay.Server.Server            (EncoinsApi)
 
-import           Data.Text                          (Text)
-import           Data.Type.Equality                 ((:~:) (..))
-import           Servant                            (Get, JSON, NoContent, Post,
-                                                     ReqBody, type (:<|>),
-                                                     type (:>))
+import           Data.Text                              (Text)
+import           Data.Type.Equality                     ((:~:) (..))
+import           Encoins.Relay.Common.Error.Servant     (Throwing, Throws)
+import           Encoins.Relay.Server.Endpoint.SubmitTx (SubmitTxReqBody)
+import           Servant                                (Get, JSON, NoContent, Post, ReqBody, type (:<|>), type (:>))
 
 type Api
     =    "ping"
@@ -30,15 +26,15 @@ type Api
       :> Get '[JSON] CSL.TransactionUnspentOutputs
 
     :<|> "newTx"
-      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs)
+      :> ReqBody '[JSON] (EncoinsServerInput, CSL.TransactionInputs)
       :> Post '[JSON] (Text, Text)
+
+    :<|> "serverTx"
+      :> ReqBody '[JSON] (EncoinsServerInput, CSL.TransactionInputs)
+      :> Post '[JSON] NoContent
 
     :<|> "submitTx"
       :> ReqBody '[JSON] SubmitTxReqBody
-      :> Post '[JSON] NoContent
-
-    :<|> "serverTx"
-      :> ReqBody '[JSON] (InputOfEncoinsApi, CSL.TransactionInputs)
       :> Post '[JSON] NoContent
 
     :<|> "status"

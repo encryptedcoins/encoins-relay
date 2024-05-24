@@ -7,7 +7,7 @@ import           Cardano.Server.Internal        (Env (envLogger), ServerM, loadE
 import           Cardano.Server.Utils.Logger    (mutedLogger)
 import           Encoins.Relay.Server.Server    (EncoinsApi, mkServerHandle, embedCreds)
 
-runEncoinsServerM :: ServerM EncoinsApi a -> IO a
+runEncoinsServerM :: EncoinsServerM a -> IO a
 runEncoinsServerM ma = do
     let cardanoServerConfigFp = "encoins-relay-test/test/configuration/config.json"
     let ?creds = embedCreds

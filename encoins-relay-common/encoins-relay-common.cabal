@@ -31,29 +31,59 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Encoins.Relay.Common
+    Encoins.Relay.Common.Error
+    Encoins.Relay.Common.Error.Class
+    Encoins.Relay.Common.Error.Servant
+    Encoins.Relay.Common.Error.ToEnvelope
+    Encoins.Relay.Common.Error.Utils
     Encoins.Relay.Common.Server
+    Encoins.Relay.Common.Server.Endpoint.Ping
+    Encoins.Relay.Common.Server.Endpoint.Version
+    Encoins.Relay.Common.Tx
+    Encoins.Relay.Common.Tx.Input
+    Encoins.Relay.Common.Wallet
 
   build-depends:
     , aeson
     , base                      >=4.9 && <5
+    , cardano-addresses
+    , cryptonite
+    , bytestring
     , cardano-api
+    , cardano-node-emulator
+    , containers
     , data-default
     , directory
     , encoins-common-constant
     , encoins-common-log
+    , encoins-common-transform
+    , encoins-common-version
     , exceptions
     , extra
     , filepath
+    , hex-text
     , http-client
     , http-client-tls
+    , http-types
     , katip
+    , memory
+    , mtl
+    , lens
+    , lens-aeson
     , plutus-apps-extra
     , plutus-ledger
     , plutus-ledger-api
+    , plutus-script-utils
+    , plutus-tx
+    , plutus-tx-constraints
+    , prettyprinter
+    , servant
     , servant-server
     , servant-client
+    , servant-client-core
     , terminal-progress-bar
     , text
+    , text-class
     , time
     , wai
     , wai-cors

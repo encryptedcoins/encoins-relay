@@ -69,11 +69,11 @@ mkClientHandle bulletproofSetup mode = let ?mode = mode; ?bulletproofSetup = bul
 
 type TxClientCosntraints (e :: ServerEndpoint) =
     ( ClientEndpoint e EncoinsApi
-    , EndpointArg e EncoinsApi ~ (InputOf EncoinsApi, TransactionInputs)
+    , EndpointArg e EncoinsApi ~ (EncoinsServerInput, TransactionInputs)
     , HasServantClientEnv
     )
 
-manualTxClient :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => Text -> ServerM EncoinsApi (ServerM EncoinsApi ())
+manualTxClient :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => Text -> EncoinsServerM (EncoinsServerM ())
 manualTxClient = \case
     (readRequestTerms     -> Just reqTerms)   -> txClientRedeemer @e reqTerms
     (readAddressValue     -> Just addrVal)    -> pure () <$ txClientAddressValue @e addrVal
@@ -82,7 +82,7 @@ manualTxClient = \case
 
 ------------------------------------------------------------------------- TxClient with (Address, Value) -------------------------------------------------------------------------
 
-txClientAddressValue :: forall e. TxClientCosntraints e => (Address, CSL.Value) -> ServerM EncoinsApi (Either Servant.ClientError (EndpointRes e EncoinsApi))
+txClientAddressValue :: forall e. TxClientCosntraints e => (Address, CSL.Value) -> EncoinsServerM (Either Servant.ClientError (EndpointRes e EncoinsApi))
 txClientAddressValue (addr, val) = do
     changeAddr <- getWalletAddr
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
@@ -93,7 +93,7 @@ txClientAddressValue (addr, val) = do
 
 ------------------------------------------------------------------------- TxClient with (Address, IpAddress) -------------------------------------------------------------------------
 
-txClientDelegation :: forall e. TxClientCosntraints e => (Address, Text) -> ServerM EncoinsApi (Either Servant.ClientError (EndpointRes e EncoinsApi))
+txClientDelegation :: forall e. TxClientCosntraints e => (Address, Text) -> EncoinsServerM (Either Servant.ClientError (EndpointRes e EncoinsApi))
 txClientDelegation (addr, ipAddr) = do
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt addr
     logMsg $ "Sending request with:" .< (addr, ipAddr)
@@ -103,7 +103,7 @@ txClientDelegation (addr, ipAddr) = do
 
 ----------------------------------------------------------------------------- TxClient with redeemer -----------------------------------------------------------------------------
 
-txClientRedeemer :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => [EncoinsRequestTerm] -> ServerM EncoinsApi (ServerM EncoinsApi ())
+txClientRedeemer :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => [EncoinsRequestTerm] -> EncoinsServerM (EncoinsServerM ())
 txClientRedeemer terms = do
     secrets <- termsToSecrets terms
     res <- sendTxClientRequest @e secrets
@@ -111,7 +111,7 @@ txClientRedeemer terms = do
     pure $ either (const confirmTokens) (const processFiles) res
 
 sendTxClientRequest :: forall e . (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup)
-    => [(Secret, MintingPolarity)] -> ServerM EncoinsApi (Either Servant.ClientError (EndpointRes e EncoinsApi))
+    => [(Secret, MintingPolarity)] -> EncoinsServerM (Either Servant.ClientError (EndpointRes e EncoinsApi))
 sendTxClientRequest secrets = do
     (red@(_,(v, inputs),_,_),txInputs) <- secretsToReqBody secrets
     logMsg $ "Sending request with:\n"
@@ -131,7 +131,7 @@ sendTxClientRequest secrets = do
             , toText $ TokenName bbs
             ]
 
-secretsToReqBody :: HasEncoinsModeAndBulletproofSetup => [(Secret, MintingPolarity)] -> ServerM EncoinsApi (EncoinsRedeemer, TransactionInputs)
+secretsToReqBody :: HasEncoinsModeAndBulletproofSetup => [(Secret, MintingPolarity)] -> EncoinsServerM (EncoinsRedeemer, TransactionInputs)
 secretsToReqBody (unzip -> (secrets, ps)) = do
     randomness <- randomIO
     walletAddr <- getWalletAddr
@@ -148,7 +148,7 @@ secretsToReqBody (unzip -> (secrets, ps)) = do
         signature  = ""
     pure ((par, (v, inputs), proof, signature), txInputs)
 
-termsToSecrets :: [EncoinsRequestTerm] -> ServerM EncoinsApi [(Secret, MintingPolarity)]
+termsToSecrets :: [EncoinsRequestTerm] -> EncoinsServerM [(Secret, MintingPolarity)]
 termsToSecrets terms = do
         gammas <- replicateM (length terms) randomIO
         liftIO $ zipWithM toSecret gammas terms

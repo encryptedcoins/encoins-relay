@@ -12,133 +12,63 @@
 {-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Encoins.Relay.Server.Server where
 
-import           CSL                            (TransactionInputs)
-import qualified CSL
-import           CSL.Class                      (FromCSL (..))
-import           Cardano.Server.Client.Internal (statusC)
-import           Cardano.Server.Config          (Config (..), Creds, decodeOrErrorFromFile)
-import           Cardano.Server.Error           (IsCardanoServerError (errMsg, errStatus))
-import           Cardano.Server.Input           (InputContext (..))
-import           Cardano.Server.Internal        (AuxillaryEnvOf, InputOf, InputWithContext, ServerHandle (..), ServerM, getAuxillaryEnv,
-                                                 mkServantClientEnv, mkServerClientEnv)
-import           Cardano.Server.Main            (ServerApi)
-import           Cardano.Server.Tx              (mkTx)
-import           Cardano.Server.Utils.Logger    ((.<))
-import           Control.Arrow                  ((&&&))
-import           Control.Exception              (Exception, throw)
-import           Control.Monad                  (void)
-import           Control.Monad.Catch            (MonadThrow (..))
-import           Control.Monad.IO.Class         (MonadIO (..))
-import           Data.Aeson                     (FromJSON, ToJSON)
-import           Data.Default                   (def)
-import           Data.FileEmbed                 (embedFileIfExists)
-import qualified Data.Map                       as Map
-import           Data.Maybe                     (fromMaybe)
-import           Data.Text                      (Text)
-import           Data.Time                      (defaultTimeLocale, parseTimeM)
-import           Data.Time.Clock.POSIX          (posixSecondsToUTCTime)
-import           Development.GitRev             (gitCommitDate, gitHash)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..), beaconTx, delegateTx, encoinsSendTx, encoinsTx, postEncoinsPolicyTx,
-                                                 postLedgerValidatorTx, stakeOwnerTx)
-import           ENCOINS.Core.OnChain           (EncoinsRedeemer, EncoinsRedeemerOnChain, ledgerValidatorAddress, minMaxTxOutValueInLedger)
-import           Encoins.Common.Version         (AppVersion (..))
-import           Encoins.Relay.Server.Config    (EncoinsRelayConfig (..), loadEncoinsRelayConfig, referenceScriptSalt,
-                                                 treasuryWalletAddress)
-import           Encoins.Relay.Server.Internal  (EncoinsRelayEnv (..), getEncoinsProtocolParams, getTrackedAddresses)
-import           Encoins.Relay.Server.Status    (EncoinsStatusErrors, EncoinsStatusReqBody (MaxAdaWithdraw), EncoinsStatusResult,
-                                                 encoinsStatusHandler)
-import           Encoins.Relay.Verifier.Client  (VerifierClientError (..), verifierClient)
-import           Encoins.Relay.Verifier.Server  (VerifierApiError (..))
-import           GHC.Generics                   (Generic)
-import           Ledger                         (Address, TxId (TxId), TxOutRef (..))
-import           Paths_encoins_relay_server     (version)
-import           PlutusAppsExtra.IO.ChainIndex  (ChainIndexProvider (..), getMapUtxoFromRefs)
-import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletUtxos)
-import           PlutusAppsExtra.Types.Tx       (TransactionBuilder, txBuilderRequirements)
-import qualified Servant.Client                 as Servant
+import           Control.Concurrent                           (forkIO)
+import           Control.Monad                                (void)
+import           Control.Monad.IO.Class                       (MonadIO (..))
+import           Control.Monad.Reader                         (MonadReader (..))
+import           Data.Default                                 (def)
+import qualified Data.Map                                     as Map
+import           Development.GitRev                           (gitCommitDate, gitHash)
+import           ENCOINS.Core.OffChain                        (beaconTx, encoinsSendTx, postEncoinsPolicyTx, postLedgerValidatorTx,
+                                                               stakeOwnerTx)
+import           ENCOINS.Core.OnChain                         (ledgerValidatorAddress, minMaxTxOutValueInLedger)
+import           Encoins.Relay.Common.Server.Endpoint.Ping    (PingEndpoint, pingEndpointHandler)
+import           Encoins.Relay.Common.Server.Endpoint.Version (VersionEndpoint, versionEndpointHandler)
+import           Encoins.Relay.Common.Tx                      (mkTx)
+import           Encoins.Relay.Common.Tx.Input                (InputContext (..))
+import           Encoins.Relay.Server.Config                  (referenceScriptSalt)
+import           Encoins.Relay.Server.Endpoint.NewTx          (NewTxEndpoint, newTxEndpointHandler)
+import           Encoins.Relay.Server.Endpoint.ServerTx       (ServerTxEndpoint, checkForCleanUtxos, processQueue, serverTxEndpointHandler)
+import           Encoins.Relay.Server.Endpoint.Status         (StatusEndpoint, statusEndpointHandler)
+import           Encoins.Relay.Server.Endpoint.SubmitTx       (SubmitTxEndpoint, submitTxEndpointHandler)
+import           Encoins.Relay.Server.Endpoint.Utxos          (UtxosEndpoint, utxosEndpointHandler)
+import           Encoins.Relay.Server.Internal                (EncoinsServerM, getEncoinsProtocolParams)
+import           Ledger                                       (TxId (TxId), TxOutRef (..))
+import           Paths_encoins_relay_server                   (version)
+import           PlutusAppsExtra.IO.Wallet                    (getWalletAddr, getWalletUtxos)
+import           Servant                                      (HasServer (ServerT), (:<|>) (..))
 
-mkServerHandle :: Config -> IO (ServerHandle EncoinsApi)
-mkServerHandle c = do
-    EncoinsRelayConfig{..} <- loadEncoinsRelayConfig c
-    let ?creds = embedCreds
-    verifierClientEnv <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
-    delegationIp <- decodeOrErrorFromFile cDelegationIpFile
-    pure $ ServerHandle
-        Kupo
-        (EncoinsRelayEnv
-            cRefStakeOwner
-            cRefBeacon
-            cValidatorStakeKey
-            cVerifierPkh
-            verifierClientEnv
-            cDelegationCurrencySymbol
-            cDelegationTokenName
-            cDelegationServerHost
-            cDelegationServerPort
-            cDelegationServerProtocol
-            delegationIp
-        )
-        getTrackedAddresses
-        txBuilders
-        (pure ())
-        processRequest
-        encoinsStatusHandler
-        checkStatusEndpoint
-        versionHandler
-    where
-        versionHandler = pure $ MkAppVersion version $(gitHash) $ fromMaybe (posixSecondsToUTCTime $ toEnum 0) $ parseTimeM
-            False
-            defaultTimeLocale
-            "%a %b %e %T %Y %Z"
-            $(gitCommitDate)
+type EncoinsApi
+    =    PingEndpoint
+    :<|> UtxosEndpoint
+    :<|> NewTxEndpoint
+    :<|> ServerTxEndpoint
+    :<|> SubmitTxEndpoint
+    :<|> StatusEndpoint
+    :<|> VersionEndpoint
 
--- Embed https cert and key files on compilation
-embedCreds :: Creds
-embedCreds =
-    let keyCred  = $(embedFileIfExists "../key.pem" )
-        certCred = $(embedFileIfExists "../certificate.pem")
-    in (,) <$> certCred <*> keyCred
+encoinsServer :: ServerT EncoinsApi EncoinsServerM
+encoinsServer
+    =    pingEndpointHandler
+    :<|> utxosEndpointHandler
+    :<|> newTxEndpointHandler
+    :<|> serverTxEndpointHandler
+    :<|> submitTxEndpointHandler
+    :<|> statusEndpointHandler
+    :<|> versionEndpointHandler version $(gitHash) $(gitCommitDate)
 
-type EncoinsApi = ServerApi
-    (InputOfEncoinsApi, TransactionInputs)
-    EncoinsTxApiError
-    EncoinsStatusReqBody
-    EncoinsStatusErrors
-    EncoinsStatusResult
-    AppVersion
+beforeMainLoop :: EncoinsServerM ()
+beforeMainLoop = do
+    env <- ask
+    liftIO $ forkIO $ processQueue env
+    checkForCleanUtxos
 
-type instance InputOf        EncoinsApi = InputOfEncoinsApi
-type instance AuxillaryEnvOf EncoinsApi = EncoinsRelayEnv
-
-data InputOfEncoinsApi
-    = InputRedeemer   EncoinsRedeemer EncoinsMode
-    | InputSending    Address CSL.Value Address
-    | InputDelegation Address Text
-    deriving (Show, Generic, FromJSON, ToJSON)
-
-data EncoinsTxApiError
-    = CorruptedExternalInputs
-    | CorruptedValue
-    | VerifierError VerifierApiError
-    | UnavailableVerifier Servant.ClientError
-    deriving (Show, Exception)
-
-instance IsCardanoServerError EncoinsTxApiError where
-    errStatus = \case
-        UnavailableVerifier{} -> toEnum 500
-        _                     -> toEnum 422
-    errMsg = \case
-        CorruptedExternalInputs      -> "The request contained corrupted external transaction inputs data."
-        CorruptedValue               -> "The request contained corrupted value data."
-        VerifierError IncorrectInput -> "The request contained incorrect public input."
-        VerifierError IncorrectProof -> "The request contained incorrect proof."
-        UnavailableVerifier err      -> "The verifier is unavailable.\nDetails:" .< err
-
-serverSetup :: ServerM EncoinsApi ()
+serverSetup :: EncoinsServerM ()
 serverSetup = void $ do
     encoinsProtocolParams@(_, refBeacon, _, _) <- getEncoinsProtocolParams
     addr <- getWalletAddr
@@ -155,52 +85,3 @@ serverSetup = void $ do
     mkTx [] (InputContextServer def) [postLedgerValidatorTx encoinsProtocolParams referenceScriptSalt] Nothing
     let setupSendTx = encoinsSendTx encoinsProtocolParams (ledgerValidatorAddress encoinsProtocolParams) minMaxTxOutValueInLedger
     mkTx [] (InputContextServer def) [setupSendTx] Nothing
-
-processRequest :: (InputOf EncoinsApi, TransactionInputs) -> ServerM EncoinsApi (InputWithContext EncoinsApi)
-processRequest req = sequence $ case req of
-    r@(InputRedeemer ((_, changeAddr, _), _, _, _) mode, _) -> mkContext mode changeAddr <$> r
-    s@(InputSending _  _ changeAddr, _)                     -> mkContext WalletMode changeAddr <$> s
-    d@(InputDelegation changeAddr _, _)                     -> mkContext WalletMode changeAddr <$> d
-    where
-        mkContext mode addr inputsCSL = do
-            builders <- txBuilders (fst req)
-            reqs     <- liftIO $ txBuilderRequirements builders
-            case mode of
-                WalletMode -> do
-                    utxos    <- getMapUtxoFromRefs reqs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
-                    pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
-                LedgerMode -> do
-                    utxos    <- getWalletUtxos reqs
-                    InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
-
-txBuilders :: InputOf EncoinsApi -> ServerM EncoinsApi [TransactionBuilder ()]
-txBuilders (InputRedeemer red mode) = do
-    encoinsProtocolParams <- getEncoinsProtocolParams
-    relayWalletAddress <- getWalletAddr
-    red' <- verifyRedeemer red
-    pure [encoinsTx (relayWalletAddress, treasuryWalletAddress) encoinsProtocolParams red' mode]
-
-txBuilders (InputSending addr valCSL _) = do
-    encoinsProtocolParams <- getEncoinsProtocolParams
-    pure [encoinsSendTx encoinsProtocolParams addr $ fromMaybe (throw CorruptedValue) $ fromCSL valCSL]
-
-txBuilders (InputDelegation addr ipAddr) = do
-    (cs, tokenName) <- (envDelegationCurrencySymbol &&& envDelegationTokenName) <$> getAuxillaryEnv
-    pure [delegateTx cs tokenName addr ipAddr]
-
-verifyRedeemer :: EncoinsRedeemer -> ServerM EncoinsApi EncoinsRedeemerOnChain
-verifyRedeemer red = do
-        verifierClientEnv <- envVerifierClientEnv <$> getAuxillaryEnv
-        let ?servantClientEnv = verifierClientEnv
-        liftIO (verifierClient red) >>= either rethrow pure
-    where
-        rethrow = \case
-            VerifierApiError    verifierErr -> throw $ VerifierError verifierErr
-            VerifierClientError clientErr   -> throw $ UnavailableVerifier clientErr
-
--- Check if status endpoint is alive
-checkStatusEndpoint :: ServerM EncoinsApi (Either Text ())
-checkStatusEndpoint = do
-    env <- mkServerClientEnv
-    res <- liftIO $ Servant.runClientM (statusC @EncoinsApi MaxAdaWithdraw) env
-    either throwM (const $ pure $ Right ()) res

@@ -105,7 +105,7 @@ propBurn = join $ runEncoinsServerM $ do
 maxConfirmationTime :: Pico -- Seconds
 maxConfirmationTime = 300
 
-confirmTokens :: HasEncoinsModeAndBulletproofSetup => Time.UTCTime -> [(TokenName, MintingPolarity)] -> ServerM EncoinsApi Bool
+confirmTokens :: HasEncoinsModeAndBulletproofSetup => Time.UTCTime -> [(TokenName, MintingPolarity)] -> EncoinsServerM Bool
 confirmTokens startTime tokens = do
     currentTime <- liftIO Time.getCurrentTime
     let (mustBeMinted, mustBeBurnt) = bimap (map fst) (map fst) $ partition ((== Mint) . snd) tokens
