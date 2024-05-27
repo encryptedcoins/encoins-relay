@@ -31,7 +31,7 @@ import           Encoins.Relay.Common.Server.Endpoint.Ping    (PingEndpoint, pin
 import           Encoins.Relay.Common.Server.Endpoint.Version (VersionEndpoint, versionEndpointHandler)
 import           Encoins.Relay.Common.Tx                      (mkTx)
 import           Encoins.Relay.Common.Tx.Input                (InputContext (..))
-import           Encoins.Relay.Server.Config                  (referenceScriptSalt)
+import           Encoins.Relay.Server.Config                  (referenceScriptSalt, EncoinsApiTF)
 import           Encoins.Relay.Server.Endpoint.NewTx          (NewTxEndpoint, newTxEndpointHandler)
 import           Encoins.Relay.Server.Endpoint.ServerTx       (ServerTxEndpoint, checkForCleanUtxos, processQueue, serverTxEndpointHandler)
 import           Encoins.Relay.Server.Endpoint.Status         (StatusEndpoint, statusEndpointHandler)
@@ -51,6 +51,8 @@ type EncoinsApi
     :<|> SubmitTxEndpoint
     :<|> StatusEndpoint
     :<|> VersionEndpoint
+
+type instance EncoinsApiTF = EncoinsApi
 
 encoinsServer :: ServerT EncoinsApi EncoinsServerM
 encoinsServer

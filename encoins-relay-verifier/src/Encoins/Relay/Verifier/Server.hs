@@ -13,35 +13,36 @@
 
 module Encoins.Relay.Verifier.Server where
 
-import           Cardano.Server.Config        (HyperTextProtocol (..), decodeOrErrorFromFile)
-import           Cardano.Server.Error         (IsCardanoServerError (..))
-import           Control.Exception            (Exception, throw)
-import           Control.Monad                (unless)
-import           Control.Monad.Catch          (MonadCatch, MonadThrow (..), handle)
-import           Control.Monad.Except         (MonadError)
-import           Control.Monad.IO.Class       (MonadIO)
-import           Control.Monad.Reader         (MonadReader (..), ReaderT (..), asks)
-import           Data.Aeson                   (FromJSON (..), genericParseJSON)
-import           Data.Aeson.Casing            (aesonPrefix, snakeCase)
-import           Data.Maybe                   (fromMaybe)
-import           Data.Text                    (Text)
-import           Development.GitRev           (gitCommitDate, gitHash)
-import           ENCOINS.BaseTypes            (toGroupElement)
-import           ENCOINS.Bulletproofs         (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
-import           ENCOINS.Core.OffChain        (mkEncoinsRedeemerOnChain)
-import           ENCOINS.Core.OnChain         (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           Encoins.Common.Log           (logInfo, mkLogEnv, withLogEnv)
-import           Encoins.Common.Version       (appVersion, showAppVersion)
-import           Encoins.Relay.Common.Server  (runCardanoServer)
-import           GHC.Generics                 (Generic)
-import           Katip                        (Environment, Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace, Severity,
-                                               Verbosity)
-import           Paths_encoins_relay_verifier (version)
-import           PlutusTx.Extra.ByteString    (toBytes)
-import           PlutusTx.Prelude             (BuiltinByteString, sha2_256)
-import           Say                          (say)
-import           Servant                      (Get, JSON, NoContent (..), ReqBody, ServerError, StdMethod (GET), UVerb, Union,
-                                               WithStatus (..), respond, type (:>), (:<|>) ((:<|>)))
+import           Cardano.Server.Config                     (HyperTextProtocol (..), decodeOrErrorFromFile)
+import           Cardano.Server.Error                      (IsCardanoServerError (..))
+import           Control.Exception                         (Exception, throw)
+import           Control.Monad                             (unless)
+import           Control.Monad.Catch                       (MonadCatch, MonadThrow (..), handle)
+import           Control.Monad.Except                      (MonadError)
+import           Control.Monad.IO.Class                    (MonadIO)
+import           Control.Monad.Reader                      (MonadReader (..), ReaderT (..), asks)
+import           Data.Aeson                                (FromJSON (..), genericParseJSON)
+import           Data.Aeson.Casing                         (aesonPrefix, snakeCase)
+import           Data.Maybe                                (fromMaybe)
+import           Data.Text                                 (Text)
+import           Development.GitRev                        (gitCommitDate, gitHash)
+import           ENCOINS.BaseTypes                         (toGroupElement)
+import           ENCOINS.Bulletproofs                      (BulletproofSetup, Input (Input), parseBulletproofParams, verify)
+import           ENCOINS.Core.OffChain                     (mkEncoinsRedeemerOnChain)
+import           ENCOINS.Core.OnChain                      (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           Encoins.Common.Log                        (mkLogEnv, withLogEnv)
+import           Encoins.Common.Version                    (appVersion, showAppVersion)
+import           Encoins.Relay.Common.Server               (runCardanoServer)
+import           Encoins.Relay.Common.Server.Endpoint.Ping (PingEndpoint, pingEndpointHandler)
+import           GHC.Generics                              (Generic)
+import           Katip                                     (Environment, Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace,
+                                                            Severity, Verbosity)
+import           Paths_encoins_relay_verifier              (version)
+import           PlutusTx.Extra.ByteString                 (toBytes)
+import           PlutusTx.Prelude                          (BuiltinByteString, sha2_256)
+import           Say                                       (say)
+import           Servant                                   (JSON, NoContent (..), ReqBody, ServerError, StdMethod (GET), UVerb, Union,
+                                                            WithStatus (..), respond, type (:>), (:<|>) ((:<|>)))
 import qualified Servant
 
 runVerifierServer :: FilePath -> IO ()
@@ -120,19 +121,10 @@ instance FromJSON VerifierConfig where
 
 -------------------------------------------------- API --------------------------------------------------
 
-type VerifierApi = PingEnpoint :<|> VerifyEndpoint
+type VerifierApi = PingEndpoint :<|> VerifyEndpoint
 
 verifierApi :: BulletproofSetup -> BuiltinByteString -> VerifierM NoContent :<|> (EncoinsRedeemer -> VerifierM (Union VerifierApiResult))
-verifierApi bulletproofSetup verifierPrvKey = pingHandler :<|> verifierHandler bulletproofSetup verifierPrvKey
-
----------------------------------------------- Ping endpoint ----------------------------------------------
-
-type PingEnpoint = "ping" :> Get '[JSON] NoContent
-
-pingHandler :: VerifierM NoContent
-pingHandler = do
-    logInfo "Received ping request."
-    pure NoContent
+verifierApi bulletproofSetup verifierPrvKey = pingEndpointHandler :<|> verifierHandler bulletproofSetup verifierPrvKey
 
 --------------------------------------------- Verify endpoint ---------------------------------------------
 

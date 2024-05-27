@@ -33,12 +33,12 @@ library
     Encoins.Relay.Common
     Encoins.Relay.Common.Error
     Encoins.Relay.Common.Error.Class
-    Encoins.Relay.Common.Error.Servant
-    Encoins.Relay.Common.Error.ToEnvelope
+    Encoins.Relay.Common.Error.Envelope
     Encoins.Relay.Common.Error.Utils
     Encoins.Relay.Common.Server
     Encoins.Relay.Common.Server.Endpoint.Ping
     Encoins.Relay.Common.Server.Endpoint.Version
+    Encoins.Relay.Common.Server.Handler
     Encoins.Relay.Common.Tx
     Encoins.Relay.Common.Tx.Input
     Encoins.Relay.Common.Wallet
@@ -88,3 +88,4 @@ library
     , wai
     , wai-cors
     , warp
+    , world-peace

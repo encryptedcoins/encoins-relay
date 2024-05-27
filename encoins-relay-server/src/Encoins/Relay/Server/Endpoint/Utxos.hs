@@ -24,10 +24,12 @@ import           PlutusAppsExtra.IO.ChainIndex (getUtxosAt)
 import           PlutusAppsExtra.Types.Tx      (allRequirements)
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           Servant                       (Get, JSON, ReqBody, (:>))
-import Encoins.Relay.Common.Error (Throws, ConnectionError, CslError (..), IsCardanoServerError (..), Envelope, toEnvelope)
-import Encoins.Relay.Server.Internal
+import Encoins.Relay.Common.Error (Throws, ConnectionError, CslError (..), IsCardanoServerError (..))
+import Encoins.Relay.Server.Internal ( EncoinsServerM )
 import Encoins.Common.Log (logInfo, logInfoS)
 import PlutusAppsExtra.Utils.Network (HasNetworkId(..))
+import Encoins.Relay.Common.Server.Handler (wrapHandler)
+
 type UtxosEndpoint
     =  "utxos"
     :> Throws UtxosError
@@ -45,8 +47,8 @@ instance IsCardanoServerError UtxosError where
     errMsg = \case
         UnparsableAddress -> "Incorrect wallet address."
 
-utxosEndpointHandler :: Text -> EncoinsServerM (Envelope '[UtxosError, ConnectionError, CslError] CSL.TransactionUnspentOutputs)
-utxosEndpointHandler addrTxt = toEnvelope $ do
+utxosEndpointHandler :: Text -> EncoinsServerM CSL.TransactionUnspentOutputs
+utxosEndpointHandler addrTxt = wrapHandler @UtxosEndpoint $ do
     logInfo "New utxos request received:\n"
     logInfoS True addrTxt
     -- checkEndpointAvailability UtxosE

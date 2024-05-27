@@ -6,17 +6,20 @@
 
 module Encoins.Relay.Common.Error.Class where
 
-import           Control.Exception                    (Exception, SomeException)
+import           Control.Exception                    (Exception (..), SomeException)
 import           Control.Lens                         ((^?))
-import           Data.Aeson                           (KeyValue ((.=)))
+import           Control.Monad                        (join)
+import           Data.Aeson                           (KeyValue ((.=)), (.:))
 import qualified Data.Aeson                           as J
 import           Data.Aeson.Lens                      (_String, key)
+import           Data.Aeson.Types                     (parseMaybe)
 import qualified Data.ByteString.Lazy                 as LBS
 import           Data.Text                            (Text)
 import qualified Data.Text                            as T
 import           Encoins.Common.Log
 import           Encoins.Common.Transform
 import           Katip
+import           Network.HTTP.Client                  (HttpException (..), HttpExceptionContent (..), Response (..))
 import           Network.HTTP.Types                   (Status)
 import qualified Network.HTTP.Types.Header
 import           PlutusAppsExtra.Api.Kupo             (pattern KupoConnectionError)
@@ -25,6 +28,7 @@ import           PlutusAppsExtra.IO.Wallet.Cardano    (pattern CardanoWalletApiC
 import           PlutusAppsExtra.Types.Error          (BalanceExternalTxError (..), ConnectionError (..), MkTxError (..),
                                                        SubmitTxToLocalNodeError (..))
 import qualified Servant
+import qualified Servant.Client                       as Servant
 
 class Exception e => IsCardanoServerError e where
 
@@ -40,6 +44,25 @@ class Exception e => IsCardanoServerError e where
 
     errHeaders :: e -> [Network.HTTP.Types.Header.Header]
     errHeaders _ = [(Network.HTTP.Types.Header.hContentType, "application/json")]
+
+    -- Restore error from status and text
+    restore :: Int -> Text -> Maybe e
+    restore _ _ = Nothing
+
+cardanoServerErrorFromClientError :: IsCardanoServerError e => Servant.ClientError -> Maybe e
+cardanoServerErrorFromClientError err = do
+    Servant.ConnectionError err' <- Just err
+    (HttpExceptionRequest _ (StatusCodeException resp body)) <- fromException err'
+    let code =  fromEnum $ responseStatus resp
+    msg <- J.decodeStrict body >>= parseErrorText
+    restore code msg
+
+
+cardanoServerErrorFromJSON :: IsCardanoServerError e => J.Value -> Maybe e
+cardanoServerErrorFromJSON v = join $ flip parseMaybe v $ J.withObject "Cardano server error" $ \obj -> do
+    code <- obj .: "errCode"
+    msg  <- obj .: "errMsg"
+    pure $ restore code msg
 
 cardanoServerErrorToJSON :: IsCardanoServerError e => e -> J.Value
 cardanoServerErrorToJSON e = J.object

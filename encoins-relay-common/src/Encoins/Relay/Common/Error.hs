@@ -1,11 +1,16 @@
 module Encoins.Relay.Common.Error
     -- Error combinators
     ( Throws
+
+    -- Envelope
     , Envelope
-    , toEnvelope
+    , EndpointEnvelope
+    , EndpointErrors
+    , EndpointResult
 
     -- Error class
     , IsCardanoServerError (..)
+    , toServantError
 
     -- Cardano server errors
     , ConnectionError (..)
@@ -23,8 +28,7 @@ module Encoins.Relay.Common.Error
     ) where
 
 import           Encoins.Relay.Common.Error.Class        (CslError (..), InternalServerError (..), parseErrorText, IsCardanoServerError (..),
-                                                   logCriticalExceptions)
-import           Encoins.Relay.Common.Error.Servant      (Envelope, Throws)
-import           Encoins.Relay.Common.Error.ToEnvelope   (toEnvelope)
+                                                   logCriticalExceptions, toServantError)
+import           Encoins.Relay.Common.Error.Envelope
 import           PlutusAppsExtra.Types.Error       (BalanceExternalTxError (..), ConnectionError (..), MkTxError (..),
                                                     SubmitTxToLocalNodeError (..), throwEither, throwMaybe)

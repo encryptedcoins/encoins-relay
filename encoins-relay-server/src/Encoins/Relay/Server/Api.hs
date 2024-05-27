@@ -6,15 +6,14 @@
 module Encoins.Relay.Server.Api where
 
 import qualified CSL
-import           Encoins.Common.Version                 (AppVersion)
-import           Encoins.Relay.Server.Endpoint.Status   (EncoinsStatusReqBody, EncoinsStatusResult)
-import           Encoins.Relay.Server.Internal          (EncoinsServerInput)
-import           Encoins.Relay.Server.Server            (EncoinsApi)
-
 import           Data.Text                              (Text)
 import           Data.Type.Equality                     ((:~:) (..))
-import           Encoins.Relay.Common.Error.Servant     (Throwing, Throws)
+import           Encoins.Common.Version                 (AppVersion)
+import           Encoins.Relay.Common.Error             (Throws)
+import           Encoins.Relay.Server.Endpoint.Status   (EncoinsStatusReqBody, EncoinsStatusResult)
 import           Encoins.Relay.Server.Endpoint.SubmitTx (SubmitTxReqBody)
+import           Encoins.Relay.Server.Internal          (EncoinsServerInput)
+import           Encoins.Relay.Server.Server            (EncoinsApi)
 import           Servant                                (Get, JSON, NoContent, Post, ReqBody, type (:<|>), type (:>))
 
 type Api
@@ -50,6 +49,6 @@ thisApiIsActual = Refl
 type family EraseErrors a where
     EraseErrors (a        :<|> b) = EraseErrors a :<|> EraseErrors b
     EraseErrors (Throws   _ :> b) = EraseErrors b
-    EraseErrors (Throwing _ :> b) = EraseErrors b
+    -- EraseErrors (Throwing _ :> b) = EraseErrors b
     EraseErrors (a          :> b) = a :> EraseErrors b
     EraseErrors  a                = a

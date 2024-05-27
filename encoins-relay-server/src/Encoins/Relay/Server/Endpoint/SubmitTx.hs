@@ -6,25 +6,27 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 
 module Encoins.Relay.Server.Endpoint.SubmitTx where
 
-import           Control.Monad.Catch           (Exception, MonadThrow (throwM))
-import           Data.Aeson                    (FromJSON, ToJSON)
-import           Data.Either.Extra             (maybeToEither)
-import           Data.Text                     (Text)
-import           Encoins.Common.Log            (logInfo, logInfoS)
-import           Encoins.Common.Transform      (toText)
-import           Encoins.Relay.Common.Error    (ConnectionError, Envelope, IsCardanoServerError (errMsg, errStatus),
-                                                SubmitTxToLocalNodeError, Throws, toEnvelope)
-import           Encoins.Relay.Server.Internal (EncoinsServerM)
-import           GHC.Generics                  (Generic)
-import           Ledger                        (CardanoTx)
-import           Ledger.Crypto                 (PubKey, Signature)
-import           PlutusAppsExtra.IO.Tx         (sumbitTxToNodeLocal)
-import           PlutusAppsExtra.Utils.Tx      (addCardanoTxSignature, textToCardanoTx, textToPubkey, textToSignature)
-import           Servant                       (JSON, NoContent (..), Post, ReqBody, (:>))
+import           Control.Monad.Catch                 (Exception, MonadThrow (throwM))
+import           Data.Aeson                          (FromJSON, ToJSON)
+import           Data.Either.Extra                   (maybeToEither)
+import           Data.Text                           (Text)
+import           Encoins.Common.Log                  (logInfo, logInfoS)
+import           Encoins.Common.Transform            (toText)
+import           Encoins.Relay.Common.Error          (ConnectionError, IsCardanoServerError (errMsg, errStatus), SubmitTxToLocalNodeError,
+                                                      Throws)
+import           Encoins.Relay.Common.Server.Handler (wrapHandler)
+import           Encoins.Relay.Server.Internal       (EncoinsServerM)
+import           GHC.Generics                        (Generic)
+import           Ledger                              (CardanoTx)
+import           Ledger.Crypto                       (PubKey, Signature)
+import           PlutusAppsExtra.IO.Tx               (sumbitTxToNodeLocal)
+import           PlutusAppsExtra.Utils.Tx            (addCardanoTxSignature, textToCardanoTx, textToPubkey, textToSignature)
+import           Servant                             (JSON, NoContent (..), Post, ReqBody, (:>))
 
 type SubmitTxEndpoint
     = "submitTx"
@@ -49,12 +51,10 @@ instance IsCardanoServerError SubmitTxApiError where
     errMsg (UnparsableTx tx)          = "Cannot parse CardanoTx from hex:\n" <> toText tx
     errMsg (UnparsableWitnesses wtns) = "Cannot parse witnesses from hex:\n" <> toText wtns
 
-submitTxEndpointHandler :: SubmitTxReqBody
-    -> EncoinsServerM (Envelope '[SubmitTxApiError, SubmitTxToLocalNodeError, ConnectionError] NoContent)
-submitTxEndpointHandler req = toEnvelope $ do
+submitTxEndpointHandler :: SubmitTxReqBody -> EncoinsServerM NoContent
+submitTxEndpointHandler req = wrapHandler @SubmitTxEndpoint $ do
     logInfo "New submitTx request received:"
     logInfoS True req
-    -- checkEndpointAvailability SubmitTxE
     (ctx, wtns) <- either throwM pure $ parseSubmitTxReqBody req
     let ctx' = foldr (uncurry addCardanoTxSignature) ctx wtns
     sumbitTxToNodeLocal ctx'

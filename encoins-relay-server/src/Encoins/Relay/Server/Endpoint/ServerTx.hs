@@ -7,45 +7,48 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 
 module Encoins.Relay.Server.Endpoint.ServerTx where
 
-import           CSL                              (TransactionInputs)
-import           CSL.Class                        (FromCSL (..))
-import           Cardano.Server.Utils.Wait        (waitTime)
-import           Control.Concurrent               (putMVar, takeMVar)
-import           Control.Exception                (throw)
-import           Control.Monad                    (void, when)
-import           Control.Monad.Catch              (Exception, SomeException, catch, handle, throwM)
-import           Control.Monad.IO.Class           (MonadIO (..))
-import           Control.Monad.Reader             (MonadReader (..), asks)
-import           Data.IORef                       (atomicModifyIORef, atomicWriteIORef, readIORef)
-import           Data.Maybe                       (fromMaybe)
-import           Data.Sequence                    (Seq (..), (|>))
-import qualified Data.Text                        as T
-import           Data.Time                        (getCurrentTime)
-import qualified Data.Time                        as Time
-import           ENCOINS.Core.OffChain            (EncoinsMode (..), delegateTx, encoinsSendTx, encoinsTx)
-import           ENCOINS.Core.OnChain             (EncoinsRedeemer, EncoinsRedeemerOnChain)
-import           Encoins.Common.Log               (logErrorS, logInfo, logInfoS)
-import           Encoins.Common.Transform         (toText)
-import           Encoins.Relay.Common.Error       (ConnectionError, Envelope, IsCardanoServerError (..), Throws, toEnvelope)
-import           Encoins.Relay.Common.Tx          (mkTxErrorH, mkWalletTxOutRefs, submitTx)
-import           Encoins.Relay.Common.Tx.Input    (InputContext (..))
-import           Encoins.Relay.Server.Config      (treasuryWalletAddress)
-import           Encoins.Relay.Server.Internal    (EncoinsRelayEnv (..), EncoinsServerInput (..), EncoinsServerM, Queue, QueueElem (..),
-                                                   QueueRef, getEncoinsProtocolParams, getTrackedAddresses, newQueueElem, runEncoinsServerM)
-import           Encoins.Relay.Verifier.Client    (VerifierClientError (..), verifierClient)
-import           Encoins.Relay.Verifier.Server    (VerifierApiError (..))
-import           Katip                            (katipAddNamespace)
-import           Ledger                           (TxId (..), TxOutRef (..))
-import           PlutusAppsExtra.IO.ChainIndex    (getMapUtxoFromRefs)
-import           PlutusAppsExtra.IO.Wallet        (HasWalletProvider (getWalletAddr), getWalletUtxos)
-import           PlutusAppsExtra.Types.Tx         (TransactionBuilder, txBuilderRequirements)
-import           PlutusAppsExtra.Utils.ChainIndex (filterCleanUtxos)
-import           Servant                          (JSON, NoContent (..), Post, ReqBody, (:>))
-import qualified Servant.Client                   as Servant
+import           CSL                                 (TransactionInputs)
+import           CSL.Class                           (FromCSL (..))
+import           Cardano.Server.Utils.Wait           (waitTime)
+import           Control.Concurrent                  (putMVar, takeMVar)
+import           Control.Exception                   (throw)
+import           Control.Monad                       (void, when)
+import           Control.Monad.Catch                 (Exception, SomeException, catch, handle, throwM)
+import           Control.Monad.IO.Class              (MonadIO (..))
+import           Control.Monad.Reader                (MonadReader (..), asks)
+import           Data.IORef                          (atomicModifyIORef, atomicWriteIORef, readIORef)
+import           Data.Maybe                          (fromMaybe)
+import           Data.Sequence                       (Seq (..), (|>))
+import qualified Data.Text                           as T
+import           Data.Time                           (getCurrentTime)
+import qualified Data.Time                           as Time
+import           ENCOINS.Core.OffChain               (EncoinsMode (..), delegateTx, encoinsSendTx, encoinsTx)
+import           ENCOINS.Core.OnChain                (EncoinsRedeemer, EncoinsRedeemerOnChain)
+import           Encoins.Common.Log                  (logErrorS, logInfo, logInfoS)
+import           Encoins.Common.Transform            (toText)
+import           Encoins.Relay.Common.Error          (ConnectionError, IsCardanoServerError (..), Throws)
+import           Encoins.Relay.Common.Server.Handler (wrapHandler)
+import           Encoins.Relay.Common.Tx             (mkTxErrorH, mkWalletTxOutRefs, submitTx)
+import           Encoins.Relay.Common.Tx.Input       (InputContext (..))
+import           Encoins.Relay.Server.Config         (treasuryWalletAddress)
+import           Encoins.Relay.Server.Internal       (EncoinsRelayEnv (..), EncoinsServerInput (..), EncoinsServerM, Queue, QueueElem (..),
+                                                      QueueRef, getEncoinsProtocolParams, getTrackedAddresses, newQueueElem,
+                                                      runEncoinsServerM)
+import           Encoins.Relay.Verifier.Client       (VerifierClientError (..), verifierClient)
+import           Encoins.Relay.Verifier.Server       (VerifierApiError (..))
+import           Katip                               (katipAddNamespace)
+import           Ledger                              (TxId (..), TxOutRef (..))
+import           PlutusAppsExtra.IO.ChainIndex       (getMapUtxoFromRefs)
+import           PlutusAppsExtra.IO.Wallet           (HasWalletProvider (getWalletAddr), getWalletUtxos)
+import           PlutusAppsExtra.Types.Tx            (TransactionBuilder, txBuilderRequirements)
+import           PlutusAppsExtra.Utils.ChainIndex    (filterCleanUtxos)
+import           Servant                             (JSON, NoContent (..), Post, ReqBody, (:>))
+import qualified Servant.Client                      as Servant
 
 type ServerTxEndpoint
     = "serverTx"
@@ -72,12 +75,10 @@ instance IsCardanoServerError EncoinsTxApiError where
         VerifierError IncorrectProof -> "The request contained incorrect proof."
         UnavailableVerifier err      -> "The verifier is unavailable.\nDetails:\n" <> toText err
 
-serverTxEndpointHandler :: (EncoinsServerInput, TransactionInputs)
-    -> EncoinsServerM (Envelope '[EncoinsTxApiError, ConnectionError] NoContent)
-serverTxEndpointHandler req = toEnvelope $ do
+serverTxEndpointHandler :: (EncoinsServerInput, TransactionInputs) -> EncoinsServerM NoContent
+serverTxEndpointHandler req = wrapHandler @ServerTxEndpoint $ do
     logInfo "New serverTx request received:"
     logInfoS True req
-    -- checkEndpointAvailability ServerTxE
     qElem <- processRequest req >>= uncurry newQueueElem
     ref   <- asks envQueueRef
     liftIO $ atomicModifyIORef ref ((,()) . (|> qElem))

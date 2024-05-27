@@ -13,6 +13,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE TypeApplications #-}
 
 
 module Encoins.Relay.Server.Endpoint.NewTx where
@@ -24,8 +25,8 @@ import           Data.Aeson                             (ToJSON)
 import           Data.Text                              (Text)
 import           Encoins.Common.Log                     (logInfo, logInfoS)
 import           Encoins.Common.Transform               (toText)
-import           Encoins.Relay.Common.Error             (BalanceExternalTxError, ConnectionError, Envelope,
-                                                         IsCardanoServerError (errMsg, errStatus), MkTxError, Throws, toEnvelope)
+import           Encoins.Relay.Common.Error             (BalanceExternalTxError, ConnectionError,
+                                                         IsCardanoServerError (errMsg, errStatus), MkTxError, Throws)
 import           Encoins.Relay.Common.Tx                (mkBalanceTx)
 import           Encoins.Relay.Server.Endpoint.ServerTx (EncoinsTxApiError, processRequest, txBuilders)
 import           Encoins.Relay.Server.Internal          (EncoinsServerInput, EncoinsServerM, getTrackedAddresses)
@@ -35,6 +36,7 @@ import           PlutusAppsExtra.Utils.Tx               (cardanoTxToText)
 import           PlutusTx.Prelude                       (fromBuiltin)
 import           Servant                                (JSON, Post, ReqBody, type (:>))
 import           Text.Hex                               (encodeHex)
+import Encoins.Relay.Common.Server.Handler (wrapHandler)
 
 type NewTxEndpoint = "newTx"
     :> Throws EncoinsTxApiError
@@ -54,13 +56,10 @@ instance IsCardanoServerError NewTxApiError where
     errMsg (UnserialisableCardanoTx tx) = "Cannot serialise balanced tx:\n" <> toText tx
 
 newTxEndpointHandler :: (EncoinsServerInput, TransactionInputs)
-    -> EncoinsServerM (Envelope
-        [EncoinsTxApiError, NewTxApiError, ConnectionError, MkTxError, BalanceExternalTxError]
-        (Text, Text))
-newTxEndpointHandler req = toEnvelope $ do
+    -> EncoinsServerM (Text, Text)
+newTxEndpointHandler req = wrapHandler @NewTxEndpoint $ do
     logInfo "New newTx request received:"
     logInfoS True req
-    -- checkEndpointAvailability NewTxE
     (input, context) <- processRequest req
     addrs <- getTrackedAddresses
     txBuilder <- txBuilders input

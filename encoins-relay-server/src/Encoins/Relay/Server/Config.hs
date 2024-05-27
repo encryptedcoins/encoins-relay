@@ -1,53 +1,58 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use fewer imports" #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Encoins.Relay.Server.Config where
 
-import           Cardano.Api                        (NetworkId, prettyPrintJSON, writeFileJSON)
-import           Cardano.Mnemonic                   (MkSomeMnemonic (..))
-import           Control.Applicative                (Applicative (..))
-import           Control.Exception                  (SomeException)
-import           Control.Lens                       ((&), (.~))
-import           Control.Monad                      (join, when, (<=<), (>=>))
-import           Control.Monad.Catch                (try)
-import           Control.Monad.Extra                (unlessM, whenM)
-import           Data.Aeson                         (FromJSON (..), ToJSON (..), genericParseJSON, (.=))
-import qualified Data.Aeson                         as J
-import           Data.Aeson.Casing                  (aesonPrefix, snakeCase)
-import           Data.Aeson.Lens                    (key)
-import qualified Data.ByteString                    as BS
-import           Data.Either.Extra                  (eitherToMaybe)
-import           Data.List.Extra                    (breakOnEnd, notNull)
-import           Data.List.NonEmpty                 (NonEmpty ((:|)), nonEmpty)
-import           Data.Maybe                         (fromJust, fromMaybe, isJust, isNothing)
-import           Data.Text                          (Text)
-import qualified Data.Text                          as T
-import qualified Data.Text.IO                       as T
-import           Encoins.Relay.Common               (decodeOrErrorFromFile)
-import           Encoins.Relay.Common.Server        (HyperTextProtocol)
-import           GHC.Generics                       (Generic)
-import           Katip                              (Environment, Severity, Verbosity)
-import           Plutus.V2.Ledger.Api               (Address, CurrencySymbol, TokenName, TxOutRef (..))
-import           PlutusAppsExtra.IO.ChainIndex      (ChainIndexProvider)
-import qualified PlutusAppsExtra.IO.ChainIndex      as CI
-import           PlutusAppsExtra.IO.Tx              (TxProvider)
-import qualified PlutusAppsExtra.IO.Tx              as Tx
-import           PlutusAppsExtra.IO.Wallet          (RestoredWallet (..), WalletProvider, restoreWalletFromFile)
-import qualified PlutusAppsExtra.IO.Wallet          as Wallet
-import           PlutusAppsExtra.IO.Wallet.Internal (addressFromMnemonic)
-import           PlutusAppsExtra.Utils.Address      (addressToBech32, bech32ToAddress)
-import           PlutusTx.Builtins                  (BuiltinByteString)
-import           System.Directory                   (createDirectoryIfMissing, doesFileExist)
-
--- loadEncoinsRelayConfig :: MonadIO m => EncoinsRelayConfig -> m EncoinsRelayConfig
--- loadEncoinsRelayConfig c = liftIO $ decodeOrErrorFromFile $ cAuxiliaryEnvFile c
+import           Cardano.Api                         (NetworkId, prettyPrintJSON, writeFileJSON)
+import           Cardano.Mnemonic                    (MkSomeMnemonic (..))
+import           Control.Applicative                 (Applicative (..))
+import           Control.Exception                   (SomeException)
+import           Control.Lens                        ((&), (.~))
+import           Control.Monad                       (join, when, (<=<), (>=>))
+import           Control.Monad.Catch                 (try)
+import           Control.Monad.Extra                 (unlessM, whenM)
+import           Data.Aeson                          (FromJSON (..), ToJSON (..), genericParseJSON, (.=))
+import qualified Data.Aeson                          as J
+import           Data.Aeson.Casing                   (aesonPrefix, snakeCase)
+import           Data.Aeson.Lens                     (key)
+import qualified Data.ByteString                     as BS
+import           Data.Either.Extra                   (eitherToMaybe)
+import           Data.List.Extra                     (breakOnEnd, notNull)
+import           Data.List.NonEmpty                  (NonEmpty ((:|)), nonEmpty)
+import           Data.Maybe                          (fromJust, fromMaybe, isJust, isNothing)
+import           Data.Text                           (Text)
+import qualified Data.Text                           as T
+import qualified Data.Text.IO                        as T
+import           Encoins.Relay.Common                (decodeOrErrorFromFile)
+import           Encoins.Relay.Common.Server         (HyperTextProtocol)
+import           Encoins.Relay.Common.Server.Handler (EndpointNames, GetEdpointNames)
+import           GHC.Generics                        (Generic)
+import           Katip                               (Environment, Severity, Verbosity)
+import           Plutus.V2.Ledger.Api                (Address, CurrencySymbol, TokenName, TxOutRef (..))
+import           PlutusAppsExtra.IO.ChainIndex       (ChainIndexProvider)
+import qualified PlutusAppsExtra.IO.ChainIndex       as CI
+import           PlutusAppsExtra.IO.Tx               (TxProvider)
+import qualified PlutusAppsExtra.IO.Tx               as Tx
+import           PlutusAppsExtra.IO.Wallet           (RestoredWallet (..), WalletProvider, restoreWalletFromFile)
+import qualified PlutusAppsExtra.IO.Wallet           as Wallet
+import           PlutusAppsExtra.IO.Wallet.Internal  (addressFromMnemonic)
+import           PlutusAppsExtra.Utils.Address       (addressToBech32, bech32ToAddress)
+import           PlutusTx.Builtins                   (BuiltinByteString)
+import           System.Directory                    (createDirectoryIfMissing, doesFileExist)
+import Data.Kind (Type)
 
 treasuryWalletAddress :: Address
 treasuryWalletAddress = fromJust $ bech32ToAddress
@@ -62,8 +67,7 @@ data EncoinsRelayConfig = MkEncoinsRelayConfig
     , cPort                     :: Int
     , cHyperTextProtocol        :: HyperTextProtocol
     , cDiagnosticsInterval      :: Maybe Int
-    -- TODO:
-    -- , cActiveEndpoints          :: [ServerEndpoint]
+    , cActiveEndpoints          :: EndpointNames EncoinsApiTF
 
     -- Encoins server
     , cRefStakeOwner            :: TxOutRef
@@ -110,7 +114,9 @@ data EncoinsRelayConfig = MkEncoinsRelayConfig
 
     } deriving (Show, Generic)
 
-instance FromJSON EncoinsRelayConfig where
+type family EncoinsApiTF :: Type
+
+instance (GetEdpointNames EncoinsApiTF) => FromJSON EncoinsRelayConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 data ConfigDataProviders
@@ -132,7 +138,7 @@ dataProvidersFromConfigDataProviders = \case
 ------------------------------------------------------------------- Inintialisation -------------------------------------------------------------------
 
 -- | Ask user to type all missing information
-initializeConfig :: FilePath -> IO ()
+initializeConfig :: (GetEdpointNames EncoinsApiTF) => FilePath -> IO ()
 initializeConfig configFp = do
     MkEncoinsRelayConfig{..} <- decodeOrErrorFromFile configFp
     sequence_ $ initializeToken "blockfrost" <$> cBfTokenFilePath
@@ -150,7 +156,7 @@ initializeIpFile ipFileFp = unlessM (doesFileExist ipFileFp) $ do
     addMissingDirectories ipFileFp
     writeFileJSON ipFileFp relayIp >>= either print pure
 
-initializeNode :: FilePath -> EncoinsRelayConfig -> IO ()
+initializeNode :: (GetEdpointNames EncoinsApiTF) => FilePath -> EncoinsRelayConfig -> IO ()
 initializeNode _        MkEncoinsRelayConfig{cDataProviders = Lightweight _} = pure ()
 initializeNode configFp MkEncoinsRelayConfig{cDataProviders = Cardano nodeFp} = unlessM (doesFileExist nodeFp) $ do
     putStrLn "you have node-based providers but cardano node socket doesn't exists in specified path"

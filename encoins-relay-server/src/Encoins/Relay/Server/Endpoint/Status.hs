@@ -4,42 +4,43 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Encoins.Relay.Server.Endpoint.Status where
 
 import qualified CSL
-import           CSL.Class                     (ToCSL (..))
-import           Control.Arrow                 (Arrow ((&&&)))
-import           Control.Exception             (throw)
-import           Control.Lens                  ((^.))
-import           Control.Lens.Tuple            (Field1 (_1))
-import           Control.Monad                 (when)
-import           Control.Monad.Catch           (Exception, MonadThrow (..))
-import           Data.Aeson                    (FromJSON (..), ToJSON (..))
-import qualified Data.Map                      as Map
-import           Data.Maybe                    (fromMaybe)
-import           ENCOINS.Core.OnChain          (minAdaTxOutInLedger)
-import           Encoins.Relay.Common.Error    (ConnectionError, Envelope, IsCardanoServerError (..), Throws, toEnvelope)
-import           Encoins.Relay.Server.Internal (EncoinsServerM, getEncoinsSymbol, getLedgerUtxos, EncoinsRelayEnv (..))
-import           GHC.Generics                  (Generic)
-import           Ledger                        (decoratedTxOutPlutusValue)
-import qualified Plutus.Script.Utils.Ada       as Ada
-import qualified Plutus.Script.Utils.Value     as P
-import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
-import           Servant                       (JSON, Post, ReqBody, (:>))
-import           System.Random                 (Random (..))
-import Encoins.Common.Log (logInfo)
-import Data.Text (Text)
-import qualified Servant.Client as Servant
-import Control.Monad.Reader (MonadReader(..), MonadIO (..))
-import Encoins.Relay.Common.Server (mkServantClientEnv)
-import Servant.Client (client)
-import Data.Data (Proxy(..))
+import           CSL.Class                           (ToCSL (..))
+import           Control.Arrow                       (Arrow ((&&&)))
+import           Control.Exception                   (throw)
+import           Control.Lens                        ((^.))
+import           Control.Lens.Tuple                  (Field1 (_1))
+import           Control.Monad                       (when)
+import           Control.Monad.Catch                 (Exception, MonadThrow (..))
+import           Control.Monad.Reader                (MonadIO (..), MonadReader (..))
+import           Data.Aeson                          (FromJSON (..), ToJSON (..))
+import           Data.Data                           (Proxy (..))
+import qualified Data.Map                            as Map
+import           Data.Maybe                          (fromMaybe)
+import           Data.Text                           (Text)
+import           ENCOINS.Core.OnChain                (minAdaTxOutInLedger)
+import           Encoins.Common.Log                  (logInfo)
+import           Encoins.Relay.Common.Error          (ConnectionError, Envelope, IsCardanoServerError (..), Throws)
+import           Encoins.Relay.Common.Server         (mkServantClientEnv)
+import           Encoins.Relay.Common.Server.Handler (wrapHandler)
+import           Encoins.Relay.Server.Internal       (EncoinsRelayEnv (..), EncoinsServerM, getEncoinsSymbol, getLedgerUtxos)
+import           GHC.Generics                        (Generic)
+import           Ledger                              (decoratedTxOutPlutusValue)
+import qualified Plutus.Script.Utils.Ada             as Ada
+import qualified Plutus.Script.Utils.Value           as P
+import           PlutusAppsExtra.Utils.Network       (HasNetworkId (..))
+import           Servant                             (JSON, Post, ReqBody, (:>))
+import           Servant.Client                      (client)
+import qualified Servant.Client                      as Servant
+import           System.Random                       (Random (..))
 
 type StatusEndpoint
     = "status"
@@ -82,10 +83,10 @@ instance IsCardanoServerError EncoinsStatusError where
         EmptyLedger        -> "Ledger doesn't have any utxos."
         CslConversionError -> "Can't convert utxos to csl."
 
-statusEndpointHandler :: EncoinsStatusReqBody -> EncoinsServerM (Envelope '[ConnectionError, EncoinsStatusError] EncoinsStatusResult)
-statusEndpointHandler = \case
-    MaxAdaWithdraw -> toEnvelope getMaxAdaWithdraw
-    LedgerEncoins  -> toEnvelope getLedgerEncoins
+statusEndpointHandler :: EncoinsStatusReqBody -> EncoinsServerM EncoinsStatusResult
+statusEndpointHandler req = wrapHandler @StatusEndpoint $ case req of
+    MaxAdaWithdraw -> getMaxAdaWithdraw
+    LedgerEncoins  -> getLedgerEncoins
 
 getMaxAdaWithdraw :: EncoinsServerM EncoinsStatusResult
 getMaxAdaWithdraw = do
@@ -111,5 +112,5 @@ checkStatusEndpoint = do
     res <- liftIO $ Servant.runClientM (statusClient MaxAdaWithdraw) env
     either throwM (const $ pure $ Right ()) res
 
-statusClient :: EncoinsStatusReqBody -> Servant.ClientM EncoinsStatusResult
+statusClient :: EncoinsStatusReqBody -> Servant.ClientM (Envelope '[ConnectionError, EncoinsStatusError] EncoinsStatusResult)
 statusClient = client (Proxy @StatusEndpoint)

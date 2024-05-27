@@ -6,6 +6,8 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Encoins.Relay.Server.Internal where
 
@@ -31,11 +33,12 @@ import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams
 import           Encoins.Common.Log                       (mkLogEnv)
 import           Encoins.Relay.Common                     (decodeOrErrorFromFile)
 import           Encoins.Relay.Common.Server              (HyperTextProtocol, mkServantClientEnv)
+import           Encoins.Relay.Common.Server.Handler      (EndpointNames, HasSwitchedEndpoints (..))
 import           Encoins.Relay.Common.Tx                  (HasMkTxEnv (..))
 import           Encoins.Relay.Common.Tx.Input            (InputContext)
 import           Encoins.Relay.Common.Wallet              (loadWallet)
 import           Encoins.Relay.Server.Config              (EncoinsRelayConfig (..), dataProvidersFromConfigDataProviders,
-                                                           referenceScriptSalt)
+                                                           referenceScriptSalt, EncoinsApiTF)
 import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
 import           Katip                                    (Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace)
@@ -78,6 +81,7 @@ data EncoinsRelayEnv = MkEncoinsRelayEnv
     { envPort                     :: Int
     , envHost                     :: Text
     , envHyperTextProtocol        :: HyperTextProtocol
+    , envActiveEndpoints          :: EndpointNames EncoinsApiTF
 
     -- Encoins server
     , envQueueRef                 :: QueueRef
@@ -160,20 +164,22 @@ loadEncoinsRelayEnv MkEncoinsRelayConfig{..} = do
         , envPort                     = cPort
         , envHost                     = cHost
         , envHyperTextProtocol        = cHyperTextProtocol
+        , envActiveEndpoints          = cActiveEndpoints
         , envMinUtxosNumber           = cMinUtxosNumber
         , envMaxUtxosNumber           = cMaxUtxosNumber
         -- envDiagnosticsInterval = fromMaybe 300 cDiagnosticsInterval
         , envLedgerParams             = Params slotConfig (pParamsFromProtocolParams pp) cNetworkId
-        -- envActiveEndpoints     = cActiveEndpoints
         , envCollateral               = cCollateral
         , ..
         }
+
+instance api ~ EncoinsApiTF => HasSwitchedEndpoints EncoinsServerM api where
+    getActiveEndpoints = asks envActiveEndpoints
 
 instance Katip EncoinsServerM where
     getLogEnv = asks envLogEnv
     localLogEnv f (MkEncoinsServerM m) =
         MkEncoinsServerM (local (\s -> s {envLogEnv = f (envLogEnv s)}) m)
-
 instance KatipContext EncoinsServerM where
     getKatipContext = asks envKContext
     localKatipContext f (MkEncoinsServerM m) =
