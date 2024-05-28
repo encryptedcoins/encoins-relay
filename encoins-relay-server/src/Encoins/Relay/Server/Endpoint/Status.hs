@@ -20,26 +20,20 @@ import           Control.Lens                        ((^.))
 import           Control.Lens.Tuple                  (Field1 (_1))
 import           Control.Monad                       (when)
 import           Control.Monad.Catch                 (Exception, MonadThrow (..))
-import           Control.Monad.Reader                (MonadIO (..), MonadReader (..))
 import           Data.Aeson                          (FromJSON (..), ToJSON (..))
-import           Data.Data                           (Proxy (..))
 import qualified Data.Map                            as Map
 import           Data.Maybe                          (fromMaybe)
-import           Data.Text                           (Text)
 import           ENCOINS.Core.OnChain                (minAdaTxOutInLedger)
 import           Encoins.Common.Log                  (logInfo)
-import           Encoins.Relay.Common.Error          (ConnectionError, Envelope, IsCardanoServerError (..), Throws)
-import           Encoins.Relay.Common.Server         (mkServantClientEnv)
+import           Encoins.Relay.Common.Error          (ConnectionError, IsCardanoServerError (..), Throws)
 import           Encoins.Relay.Common.Server.Handler (wrapHandler)
-import           Encoins.Relay.Server.Internal       (EncoinsRelayEnv (..), EncoinsServerM, getEncoinsSymbol, getLedgerUtxos)
+import           Encoins.Relay.Server.Internal       (EncoinsServerM, getEncoinsSymbol, getLedgerUtxos)
 import           GHC.Generics                        (Generic)
 import           Ledger                              (decoratedTxOutPlutusValue)
 import qualified Plutus.Script.Utils.Ada             as Ada
 import qualified Plutus.Script.Utils.Value           as P
 import           PlutusAppsExtra.Utils.Network       (HasNetworkId (..))
 import           Servant                             (JSON, Post, ReqBody, (:>))
-import           Servant.Client                      (client)
-import qualified Servant.Client                      as Servant
 import           System.Random                       (Random (..))
 
 type StatusEndpoint
@@ -103,14 +97,3 @@ getLedgerEncoins = do
     networkId <- getNetworkId
     let f = uncurry (&&) . (any ((== ecs) . (^. _1)) &&& (<= 6) . length) . P.flattenValue . decoratedTxOutPlutusValue
     LedgerUtxoResult . fromMaybe (throw CslConversionError) . toCSL . (,networkId) . Map.filter f <$> getLedgerUtxos mempty
-
--- -- Check if status endpoint is alive
-checkStatusEndpoint :: EncoinsServerM (Either Text ())
-checkStatusEndpoint = do
-    MkEncoinsRelayEnv{..} <- ask
-    env <- mkServantClientEnv envPort envHost envHyperTextProtocol
-    res <- liftIO $ Servant.runClientM (statusClient MaxAdaWithdraw) env
-    either throwM (const $ pure $ Right ()) res
-
-statusClient :: EncoinsStatusReqBody -> Servant.ClientM (Envelope '[ConnectionError, EncoinsStatusError] EncoinsStatusResult)
-statusClient = client (Proxy @StatusEndpoint)

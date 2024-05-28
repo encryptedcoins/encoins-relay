@@ -21,27 +21,32 @@ import           Control.Concurrent                           (forkIO)
 import           Control.Monad                                (void)
 import           Control.Monad.IO.Class                       (MonadIO (..))
 import           Control.Monad.Reader                         (MonadReader (..))
+import           Data.Data                                    (Proxy (..))
 import           Data.Default                                 (def)
 import qualified Data.Map                                     as Map
 import           Development.GitRev                           (gitCommitDate, gitHash)
 import           ENCOINS.Core.OffChain                        (beaconTx, encoinsSendTx, postEncoinsPolicyTx, postLedgerValidatorTx,
                                                                stakeOwnerTx)
 import           ENCOINS.Core.OnChain                         (ledgerValidatorAddress, minMaxTxOutValueInLedger)
+import           Encoins.Relay.Common.Diagnostic              (clientDiagnostics, doDiagnostics, providersDiagnostics)
+import           Encoins.Relay.Common.Server                  (mkServantClientEnv)
 import           Encoins.Relay.Common.Server.Endpoint.Ping    (PingEndpoint, pingEndpointHandler)
 import           Encoins.Relay.Common.Server.Endpoint.Version (VersionEndpoint, versionEndpointHandler)
 import           Encoins.Relay.Common.Tx                      (mkTx)
 import           Encoins.Relay.Common.Tx.Input                (InputContext (..))
-import           Encoins.Relay.Server.Config                  (referenceScriptSalt, EncoinsApiTF)
+import           Encoins.Relay.Server.Config                  (EncoinsApiTF, referenceScriptSalt)
 import           Encoins.Relay.Server.Endpoint.NewTx          (NewTxEndpoint, newTxEndpointHandler)
 import           Encoins.Relay.Server.Endpoint.ServerTx       (ServerTxEndpoint, checkForCleanUtxos, processQueue, serverTxEndpointHandler)
-import           Encoins.Relay.Server.Endpoint.Status         (StatusEndpoint, statusEndpointHandler)
+import           Encoins.Relay.Server.Endpoint.Status         (EncoinsStatusReqBody (MaxAdaWithdraw), StatusEndpoint, statusEndpointHandler)
 import           Encoins.Relay.Server.Endpoint.SubmitTx       (SubmitTxEndpoint, submitTxEndpointHandler)
 import           Encoins.Relay.Server.Endpoint.Utxos          (UtxosEndpoint, utxosEndpointHandler)
-import           Encoins.Relay.Server.Internal                (EncoinsServerM, getEncoinsProtocolParams)
+import           Encoins.Relay.Server.Internal                (EncoinsRelayEnv (..), EncoinsServerM, getEncoinsProtocolParams,
+                                                               runEncoinsServerM)
 import           Ledger                                       (TxId (TxId), TxOutRef (..))
 import           Paths_encoins_relay_server                   (version)
 import           PlutusAppsExtra.IO.Wallet                    (getWalletAddr, getWalletUtxos)
 import           Servant                                      (HasServer (ServerT), (:<|>) (..))
+import           Servant.Client                               (client)
 
 type EncoinsApi
     =    PingEndpoint
@@ -68,7 +73,13 @@ beforeMainLoop :: EncoinsServerM ()
 beforeMainLoop = do
     env <- ask
     liftIO $ forkIO $ processQueue env
+    liftIO $ forkIO $ diagnotics env
     checkForCleanUtxos
+  where
+    diagnotics env =  runEncoinsServerM env $ doDiagnostics (envDiagnosticsInterval env) $ do
+        clientEnv <- mkServantClientEnv (envPort env) (envHost env) (envHyperTextProtocol env)
+        providersDiagnostics
+        clientDiagnostics clientEnv $ client (Proxy @StatusEndpoint) MaxAdaWithdraw
 
 serverSetup :: EncoinsServerM ()
 serverSetup = void $ do

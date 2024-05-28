@@ -1,13 +1,13 @@
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Encoins.Relay.Server.Internal where
 
@@ -25,6 +25,7 @@ import qualified Data.Aeson                               as J
 import           Data.Aeson.Lens                          (key)
 import           Data.Functor                             ((<&>))
 import           Data.IORef                               (IORef, newIORef)
+import           Data.Maybe                               (fromMaybe)
 import           Data.Sequence                            (Seq)
 import qualified Data.Sequence                            as Seq
 import           Data.Text                                (Text)
@@ -37,8 +38,8 @@ import           Encoins.Relay.Common.Server.Handler      (EndpointNames, HasSwi
 import           Encoins.Relay.Common.Tx                  (HasMkTxEnv (..))
 import           Encoins.Relay.Common.Tx.Input            (InputContext)
 import           Encoins.Relay.Common.Wallet              (loadWallet)
-import           Encoins.Relay.Server.Config              (EncoinsRelayConfig (..), dataProvidersFromConfigDataProviders,
-                                                           referenceScriptSalt, EncoinsApiTF)
+import           Encoins.Relay.Server.Config              (EncoinsApiTF, EncoinsRelayConfig (..), dataProvidersFromConfigDataProviders,
+                                                           referenceScriptSalt)
 import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
 import           Katip                                    (Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace)
@@ -82,6 +83,7 @@ data EncoinsRelayEnv = MkEncoinsRelayEnv
     , envHost                     :: Text
     , envHyperTextProtocol        :: HyperTextProtocol
     , envActiveEndpoints          :: EndpointNames EncoinsApiTF
+    , envDiagnosticsInterval      :: Int
 
     -- Encoins server
     , envQueueRef                 :: QueueRef
@@ -167,7 +169,7 @@ loadEncoinsRelayEnv MkEncoinsRelayConfig{..} = do
         , envActiveEndpoints          = cActiveEndpoints
         , envMinUtxosNumber           = cMinUtxosNumber
         , envMaxUtxosNumber           = cMaxUtxosNumber
-        -- envDiagnosticsInterval = fromMaybe 300 cDiagnosticsInterval
+        , envDiagnosticsInterval      = fromMaybe 300 cDiagnosticsInterval
         , envLedgerParams             = Params slotConfig (pParamsFromProtocolParams pp) cNetworkId
         , envCollateral               = cCollateral
         , ..
@@ -180,6 +182,7 @@ instance Katip EncoinsServerM where
     getLogEnv = asks envLogEnv
     localLogEnv f (MkEncoinsServerM m) =
         MkEncoinsServerM (local (\s -> s {envLogEnv = f (envLogEnv s)}) m)
+
 instance KatipContext EncoinsServerM where
     getKatipContext = asks envKContext
     localKatipContext f (MkEncoinsServerM m) =
