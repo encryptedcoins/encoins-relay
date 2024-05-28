@@ -1,17 +1,15 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use fewer imports" #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Encoins.Relay.Server.Config where
@@ -30,6 +28,8 @@ import           Data.Aeson.Casing                   (aesonPrefix, snakeCase)
 import           Data.Aeson.Lens                     (key)
 import qualified Data.ByteString                     as BS
 import           Data.Either.Extra                   (eitherToMaybe)
+import           Data.Fixed                          (Micro)
+import           Data.Kind                           (Type)
 import           Data.List.Extra                     (breakOnEnd, notNull)
 import           Data.List.NonEmpty                  (NonEmpty ((:|)), nonEmpty)
 import           Data.Maybe                          (fromJust, fromMaybe, isJust, isNothing)
@@ -52,7 +52,6 @@ import           PlutusAppsExtra.IO.Wallet.Internal  (addressFromMnemonic)
 import           PlutusAppsExtra.Utils.Address       (addressToBech32, bech32ToAddress)
 import           PlutusTx.Builtins                   (BuiltinByteString)
 import           System.Directory                    (createDirectoryIfMissing, doesFileExist)
-import Data.Kind (Type)
 
 treasuryWalletAddress :: Address
 treasuryWalletAddress = fromJust $ bech32ToAddress
@@ -66,7 +65,7 @@ data EncoinsRelayConfig = MkEncoinsRelayConfig
     { cHost                     :: Text
     , cPort                     :: Int
     , cHyperTextProtocol        :: HyperTextProtocol
-    , cDiagnosticsInterval      :: Maybe Int
+    , cDiagnosticsInterval      :: Maybe Micro
     , cActiveEndpoints          :: EndpointNames EncoinsApiTF
 
     -- Encoins server

@@ -23,6 +23,7 @@ import           Control.Monad.Reader                     (MonadReader, ReaderT 
 import           Data.Aeson                               (FromJSON, ToJSON)
 import qualified Data.Aeson                               as J
 import           Data.Aeson.Lens                          (key)
+import           Data.Fixed                               (Micro)
 import           Data.Functor                             ((<&>))
 import           Data.IORef                               (IORef, newIORef)
 import           Data.Maybe                               (fromMaybe)
@@ -83,7 +84,7 @@ data EncoinsRelayEnv = MkEncoinsRelayEnv
     , envHost                     :: Text
     , envHyperTextProtocol        :: HyperTextProtocol
     , envActiveEndpoints          :: EndpointNames EncoinsApiTF
-    , envDiagnosticsInterval      :: Int
+    , envDiagnosticsInterval      :: Micro
 
     -- Encoins server
     , envQueueRef                 :: QueueRef

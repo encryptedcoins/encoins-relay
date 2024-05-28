@@ -76,7 +76,7 @@ beforeMainLoop = do
     liftIO $ forkIO $ diagnotics env
     checkForCleanUtxos
   where
-    diagnotics env =  runEncoinsServerM env $ doDiagnostics (envDiagnosticsInterval env) $ do
+    diagnotics env =  runEncoinsServerM env $ doDiagnostics (fromEnum $ envDiagnosticsInterval env) $ do
         clientEnv <- mkServantClientEnv (envPort env) (envHost env) (envHyperTextProtocol env)
         providersDiagnostics
         clientDiagnostics clientEnv $ client (Proxy @StatusEndpoint) MaxAdaWithdraw
