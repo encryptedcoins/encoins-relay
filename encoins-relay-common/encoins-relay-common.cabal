@@ -31,6 +31,9 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Encoins.Relay.Common
+    Encoins.Relay.Common.Client
+    Encoins.Relay.Common.Client.Gen
+    Encoins.Relay.Common.Client.Opts
     Encoins.Relay.Common.Error
     Encoins.Relay.Common.Error.Class
     Encoins.Relay.Common.Error.Envelope
@@ -49,6 +52,8 @@ library
     , async
     , base                      >=4.9 && <5
     , cardano-addresses
+    , cardano-crypto-class
+    , cardano-crypto-tests
     , cardano-wallet-core
     , cryptonite
     , bytestring
@@ -73,13 +78,16 @@ library
     , mtl
     , lens
     , lens-aeson
+    , optparse-applicative
     , plutus-apps-extra
     , plutus-ledger
     , plutus-ledger-api
+    , plutus-pab
     , plutus-script-utils
     , plutus-tx
     , plutus-tx-constraints
     , prettyprinter
+    , random
     , servant
     , servant-server
     , servant-client
@@ -92,3 +100,4 @@ library
     , wai-cors
     , warp
     , world-peace
+    , QuickCheck

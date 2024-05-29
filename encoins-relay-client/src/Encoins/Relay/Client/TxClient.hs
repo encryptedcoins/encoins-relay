@@ -12,30 +12,24 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Encoins.Relay.Client.Client where
+module Encoins.Relay.Client.TxClient where
 
 import           CSL                            (TransactionInputs)
 import qualified CSL
 import           CSL.Class                      (ToCSL (..))
-import           Cardano.Server.Client.Handle   (ClientHandle (..), HasServantClientEnv, autoWithRandom, manualWithRead)
-import           Cardano.Server.Client.Internal (ClientEndpoint (..))
-import           Cardano.Server.Config          (ServerEndpoint (NewTxE, ServerTxE))
-import           Cardano.Server.Internal        (InputOf, ServerM)
-import           Cardano.Server.Utils.Logger    (logMsg, (.<))
-import           Cardano.Server.Utils.Wait      (waitTime)
+import           Cardano.Server.Client.Handle   (HasServantClientEnv)
 import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
-import           ENCOINS.Bulletproofs           (BulletproofSetup, Secret (..), bulletproof, fromSecret, parseBulletproofParams,
+import           ENCOINS.Bulletproofs           (Secret (..), bulletproof, fromSecret, parseBulletproofParams,
                                                  polarityToInteger)
 import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee, treasuryFee)
 import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
 import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
 import           Encoins.Common.Constant        (newLine, space)
 import           Encoins.Common.Transform       (toText)
-import           Encoins.Relay.Client.Opts      (EncoinsRequestTerm (..), readAddressIpAddress, readAddressValue, readRequestTerms)
-import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, clientSecretToSecret, confirmTokens, genTerms,
-                                                 mkSecretFile, readSecretFile)
-import           Encoins.Relay.Server.Internal  (getLedgerAddress)
-import           Encoins.Relay.Server.Server    (EncoinsApi, InputOfEncoinsApi (..))
+import           Encoins.Common.Log
+import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, clientSecretToSecret, confirmTokens,
+                                                 mkSecretFile, readSecretFile, EncoinsRequestTerm (..))
+import           Encoins.Relay.Server.Internal  (getLedgerAddress, EncoinsServerInput (..), EncoinsServerM)
 import           Ledger                         (Address)
 import           Plutus.Script.Utils.Ada        (Ada (..))
 import           Plutus.V2.Ledger.Api           (TokenName (..))
@@ -45,81 +39,64 @@ import           PlutusTx.Builtins              (sha2_256)
 import           PlutusTx.Extra.ByteString      (ToBuiltinByteString (..))
 
 import           Control.Applicative            (liftA2)
-import           Control.Monad                  (join)
-import           Control.Monad.Extra            (forever, replicateM, zipWithM)
+import           Control.Monad.Extra            (replicateM, zipWithM)
 import           Control.Monad.IO.Class         (MonadIO (..))
 import           Data.Data                      (Proxy (Proxy))
-import           Data.Default                   (def)
 import           Data.Maybe                     (fromMaybe)
 import           Data.Text                      (Text)
-import           Servant.Client                 (runClientM)
+import           Servant.Client                 (runClientM, client, ClientM)
 import qualified Servant.Client                 as Servant
-import           System.Random                  (randomIO, randomRIO)
+import           System.Random                  (randomIO)
 
-mkClientHandle :: BulletproofSetup -> EncoinsMode -> ClientHandle EncoinsApi
-mkClientHandle bulletproofSetup mode = let ?mode = mode; ?bulletproofSetup = bulletproofSetup in def
-    { autoNewTx      = \i -> forever $ genTerms >>= txClientRedeemer @'NewTxE >> waitI i
-    , autoServerTx   = \i -> forever $ join (genTerms >>= txClientRedeemer @'ServerTxE) >> waitI i
-    , autoStatus     = autoWithRandom
-    , manualNewTx    = \txt -> Proxy <$ manualTxClient @'NewTxE txt
-    , manualServerTx = \txt -> Proxy <$ join (manualTxClient @'ServerTxE txt)
-    , manualStatus   = manualWithRead
-    }
-    where waitI i = randomRIO (1, i * 2) >>= waitTime
-
-type TxClientCosntraints (e :: ServerEndpoint) =
-    ( ClientEndpoint e EncoinsApi
-    , EndpointArg e EncoinsApi ~ (EncoinsServerInput, TransactionInputs)
-    , HasServantClientEnv
+type TxClientCosntraints e res =
+    ( HasServantClientEnv
+    , Show res
+    , Servant.Client ClientM e ~ ((EncoinsServerInput, TransactionInputs) -> ClientM res)
+    , Servant.HasClient ClientM e
     )
-
-manualTxClient :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => Text -> EncoinsServerM (EncoinsServerM ())
-manualTxClient = \case
-    (readRequestTerms     -> Just reqTerms)   -> txClientRedeemer @e reqTerms
-    (readAddressValue     -> Just addrVal)    -> pure () <$ txClientAddressValue @e addrVal
-    (readAddressIpAddress -> Just addrIpAddr) -> pure () <$ txClientDelegation @e addrIpAddr
-    _                                         -> error "Unparsable input."
 
 ------------------------------------------------------------------------- TxClient with (Address, Value) -------------------------------------------------------------------------
 
-txClientAddressValue :: forall e. TxClientCosntraints e => (Address, CSL.Value) -> EncoinsServerM (Either Servant.ClientError (EndpointRes e EncoinsApi))
+txClientAddressValue :: forall e res. TxClientCosntraints e res => (Address, CSL.Value) -> EncoinsServerM (Either Servant.ClientError res)
 txClientAddressValue (addr, val) = do
     changeAddr <- getWalletAddr
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt changeAddr
-    logMsg $ "Sending request with:" .< ((addr, val), txInputs)
-    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputSending addr val changeAddr, txInputs))
-    logMsg $ "Received response:\n" <> either toText toText res
+    logInfo "Sending request with:"
+    logInfoS True ((addr, val), txInputs)
+    res <- liftIO (flip runClientM ?servantClientEnv $ client (Proxy @e) (InputSending addr val changeAddr, txInputs))
+    logInfo $ "Received response:\n" <> either toText toText res
     pure res
 
 ------------------------------------------------------------------------- TxClient with (Address, IpAddress) -------------------------------------------------------------------------
 
-txClientDelegation :: forall e. TxClientCosntraints e => (Address, Text) -> EncoinsServerM (Either Servant.ClientError (EndpointRes e EncoinsApi))
+txClientDelegation :: forall e res. TxClientCosntraints e res => (Address, Text) -> EncoinsServerM (Either Servant.ClientError res)
 txClientDelegation (addr, ipAddr) = do
     txInputs <- fromMaybe [] . toCSL <$> getRefsAt addr
-    logMsg $ "Sending request with:" .< (addr, ipAddr)
-    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputDelegation addr ipAddr, txInputs))
-    logMsg $ "Received response:\n" <> either toText toText res
+    logInfo "Sending request with:"
+    logInfoS True (addr, ipAddr)
+    res <- liftIO (flip runClientM ?servantClientEnv $ client (Proxy @e) (InputDelegation addr ipAddr, txInputs))
+    logInfo $ "Received response:\n" <> either toText toText res
     pure res
 
 ----------------------------------------------------------------------------- TxClient with redeemer -----------------------------------------------------------------------------
 
-txClientRedeemer :: forall e. (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup) => [EncoinsRequestTerm] -> EncoinsServerM (EncoinsServerM ())
+txClientRedeemer :: forall e res. (TxClientCosntraints e res, HasEncoinsModeAndBulletproofSetup) => [EncoinsRequestTerm] -> EncoinsServerM (EncoinsServerM (), Either Servant.ClientError res)
 txClientRedeemer terms = do
     secrets <- termsToSecrets terms
-    res <- sendTxClientRequest @e secrets
+    res <- sendTxClientRequest @e @res secrets
     let processFiles = mapM_ (uncurry mkSecretFile) secrets >> confirmTokens
-    pure $ either (const confirmTokens) (const processFiles) res
+    pure (either (const confirmTokens) (const processFiles) res, res)
 
-sendTxClientRequest :: forall e . (TxClientCosntraints e, HasEncoinsModeAndBulletproofSetup)
-    => [(Secret, MintingPolarity)] -> EncoinsServerM (Either Servant.ClientError (EndpointRes e EncoinsApi))
+sendTxClientRequest :: forall e res. (TxClientCosntraints e res, HasEncoinsModeAndBulletproofSetup)
+    => [(Secret, MintingPolarity)] -> EncoinsServerM (Either Servant.ClientError res)
 sendTxClientRequest secrets = do
     (red@(_,(v, inputs),_,_),txInputs) <- secretsToReqBody secrets
-    logMsg $ "Sending request with:\n"
+    logInfo $ "Sending request with:\n"
             <> foldl prettyInput "" (zip (map fst secrets) inputs)
             <> "\n= "
             <> toText v
-    res <- liftIO (flip runClientM ?servantClientEnv $ endpointClient @e @EncoinsApi $ (InputRedeemer red ?mode, txInputs))
-    logMsg $ "Received response:\n" <> either toText toText res
+    res <- liftIO (flip runClientM ?servantClientEnv $ client (Proxy @e) $ (InputRedeemer red ?mode, txInputs))
+    logInfo $ "Received response:\n" <> either toText toText res
     pure res
     where
         prettyInput acc (Secret _ v,(bbs, p)) = mconcat

@@ -1,89 +1,144 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE ViewPatterns       #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE ImplicitParams      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Encoins.Relay.Client.Opts where
 
-import qualified CSL
-import           Cardano.Server.Client.Internal (Mode)
-import           Cardano.Server.Client.Opts     (CommonOptions (..), autoModeParser, manualModeParser, serverEndpointParser)
-import           Cardano.Server.Config          (ServerEndpoint)
-import           Control.Applicative            (liftA3, (<|>))
-import           Data.Aeson                     (ToJSON)
-import           Data.Bool                      (bool)
-import           Data.Text                      (Text)
-import qualified Data.Text                      as T
-import           ENCOINS.Bulletproofs.Types     (Secret (..))
-import           ENCOINS.Core.OffChain          (EncoinsMode (..))
-import           GHC.Generics                   (Generic)
-import           Ledger                         (Address)
-import           Options.Applicative            (Parser, argument, auto, execParser, fullDesc, helper, info, metavar, value,
-                                                 (<**>))
-import           Plutus.Script.Utils.Ada        (Ada (..))
-import           PlutusAppsExtra.Utils.Address  (bech32ToAddress)
-import           System.Random                  (Random (..))
-import           Text.Read                      (readMaybe)
+import           Control.Monad                                (guard)
+import           Control.Monad.IO.Class                       (MonadIO (..))
+import           Data.Functor                                 ((<&>))
+import           Data.List                                    (isPrefixOf)
+import           Data.Text                                    (Text)
+import           ENCOINS.Core.OffChain                        (EncoinsMode (..))
+import           Encoins.Relay.Client.Secrets                 (EncoinsRequestTerm (..))
+import           Encoins.Relay.Server.Endpoint.Status         (EncoinsStatusReqBody (..))
+import           Encoins.Relay.Server.Endpoint.SubmitTx       (SubmitTxReqBody (..))
+import           Encoins.Relay.Server.Internal                (EncoinsServerM)
+import           Options.Applicative                          (Alternative ((<|>)), ParseError (ErrorMsg), Parser, abortOption, argument,
+                                                               auto, command, help, hsubparser, info, metavar, progDesc, some, strArgument,
+                                                               value)
+import           Options.Applicative.Types                    (readerAsk)
+import           PlutusAppsExtra.Utils.Network                (HasNetworkId (getNetworkId))
+import           System.Random                                (randomIO, randomRIO)
+import           Test.QuickCheck                              (Arbitrary (..), generate)
+import Encoins.Relay.Common.Client.Gen (randomAddressBech32Text)
+import Encoins.Relay.Common.Client.Opts
 
-data Options = Options
-    { optsEndpoint    :: ServerEndpoint
-    , optsMode        :: Mode
-    , optsEncoinsMode :: EncoinsMode
-    } deriving (Show, Eq)
+-- Command
 
-runWithOpts :: IO Options
-runWithOpts = execParser $ info (optionsParser <**> helper) fullDesc
+data ClientCommand
+    = AutoPing Interval
+    | AutoVersion Interval
+    | AutoUtxos Interval
+    | AutoNewTxRedeemer Interval
+    | AutoServerTxRedeemer Interval
+    | AutoSumbitTx Interval
+    | AutoStatus Interval
+    | ManualPing
+    | ManualVersion
+    | ManualUtxos Text
+    | ManualNewTxRedeemer EncoinsMode [EncoinsRequestTerm]
+    | ManualServerTxRedeemer EncoinsMode [EncoinsRequestTerm]
+    | ManualSumbitTx SubmitTxReqBody
+    | ManualStatus EncoinsStatusReqBody
+    | RandomEndpoint Interval
 
-optionsParser :: Parser Options
-optionsParser = liftA3 Options
-    serverEndpointParser
-    (autoModeParser <|> manualModeParser)
-    encoinsModeParser
 
-encoinsModeParser :: Parser EncoinsMode
-encoinsModeParser = argument auto
-    (  value WalletMode
-    <> metavar "WalletMode | LedgerMode"
-    )
+-- Parsers
 
-extractCommonOptions :: Options -> CommonOptions
-extractCommonOptions Options{..} = CommonOptions optsEndpoint optsMode
+commandParser :: Parser ClientCommand
+commandParser = hsubparser $ mconcat
 
-data EncoinsRequestTerm
-    = RPMint Ada
-    | RPBurn (Either Secret FilePath)
-    deriving (Show, Eq, Generic, ToJSON)
+    [ pingCommand ManualPing AutoPing
 
-instance Random EncoinsRequestTerm where
-    random g =
-        let (b, g')   = random g
-            (a, g'')  = random g'
-            (s, g''') = random g''
-        in bool (RPMint $ Lovelace a, g'') (RPBurn $ Left s, g''') b
-    randomR _ = random
+    , versionCommand ManualVersion AutoVersion
 
-instance Random [EncoinsRequestTerm] where
-    random g  =
-        let (reqTerms, gNew) = foldr (\_ (lst, g') -> let (e, g'') = random g' in (e:lst, g'')) ([], g) [1 :: Integer .. 5]
-        in (reqTerms, gNew)
-    randomR _ = random
+    , randomCommand RandomEndpoint
 
-readRequestTerms :: Text -> Maybe [EncoinsRequestTerm]
-readRequestTerms = mapM (readTerm . T.unpack) . T.splitOn ","
-    where
-        readTerm = \case
-            'b':t   -> Just $ RPBurn $ Right $ "secrets/" <> t <> ".json"
-            'm':ada -> fmap (RPMint . fromInteger) . readMaybe $ ada
-            _       -> Nothing
+    , command "utxos" $ info utxosP
+        $ progDesc "Client for utxos endpoint."
 
-readAddressValue :: Text -> Maybe (Address, CSL.Value)
-readAddressValue (T.splitOn "," -> addr:rest) = (,) <$> bech32ToAddress addr <*> readMaybe (T.unpack $ T.intercalate "," rest)
-readAddressValue _ = Nothing
+    , command "newTx" $ info (txP AutoNewTxRedeemer ManualNewTxRedeemer)
+        $ progDesc "Client for encoins tx in newTx endpoint."
 
-readAddressIpAddress :: Text -> Maybe (Address, Text)
-readAddressIpAddress (T.splitOn "," -> addr:rest) = (,) <$> bech32ToAddress addr <*> pure (T.intercalate "," rest)
-readAddressIpAddress _ = Nothing
+    , command "serverTx" $ info (txP AutoServerTxRedeemer ManualServerTxRedeemer)
+        $ progDesc "Client for encoins tx in serverTx endpoint."
+
+    , command "submitTx" $ info submitTxP
+        $ progDesc "Client for submitTx endpoint."
+
+    , command "status" $ info statusP
+        $ progDesc "Client for status endpoint."
+    ]
+
+utxosP :: Parser ClientCommand
+utxosP = fmap (mapMode AutoUtxos ManualUtxos) $ manualModeP (strArgument addrFields) <|> autoModeP
+  where
+    addrFields = mconcat
+        [ metavar "address"
+        , help "Wallet address."
+        ]
+
+txP :: (Interval -> ClientCommand) -> (EncoinsMode -> [EncoinsRequestTerm] -> ClientCommand) -> Parser ClientCommand
+txP autoCommand manualCommand = fmap (mapMode autoCommand (uncurry manualCommand))
+    $ manualModeP ((,) <$> encoinsModeP <*> some requestTermP)
+    <|> autoModeP
+
+submitTxP :: Parser ClientCommand
+submitTxP = fmap (mapMode AutoSumbitTx ManualSumbitTx)
+    $ manualModeP (SubmitTxReqBody <$> strArgument mempty <*> argument auto mempty)
+    <|> (abortOption (ErrorMsg "AutoSubmitTx isn't implemented yet.") mempty <*> autoModeP)
+
+statusP :: Parser ClientCommand
+statusP = fmap (mapMode AutoStatus ManualStatus)
+    $ manualModeP (maxAdaWithdrawP <|> ledgerEncoinsP) <|> autoModeP
+  where
+    maxAdaWithdrawP = argument auto maxAdaWithdrawModes
+    maxAdaWithdrawModes = mconcat []
+    ledgerEncoinsP = argument auto ledgerEncoinsModes
+    ledgerEncoinsModes = mconcat []
+
+encoinsModeP :: Parser EncoinsMode
+encoinsModeP = argument auto $ mconcat
+    [ value WalletMode
+    , metavar "WalletMode | LedgerMode"
+    ]
+
+requestTermP :: Parser EncoinsRequestTerm
+requestTermP = mintTermP <|> burnTermP
+  where
+    mintTermP = RPMint . fromInteger <$> argument auto mintModes
+    mintModes = mconcat
+        [ metavar "₳"
+        , help "Ada value of this token."
+        ]
+    burnTermP = fmap (RPBurn . Right . ("secrets/" <>) . (<> ".json")) $ flip argument burnModes
+        $ readerAsk >>= \str -> str <$ guard ("0x" `isPrefixOf` str)
+    burnModes = mconcat
+        [ metavar "token name"
+        , help "Token name in 0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef format."
+        ]
+
+-- Generators
+
+genStatusReqBody :: MonadIO m => m EncoinsStatusReqBody
+genStatusReqBody = randomIO <&> \b -> if b then MaxAdaWithdraw else LedgerEncoins
+
+genUtxosReq :: EncoinsServerM Text
+genUtxosReq = do
+    networkId <- getNetworkId
+    liftIO $ randomRIO @Int (0, 20) >>= \case
+        0 -> generate arbitrary
+        _ -> randomAddressBech32Text networkId
+
+genEncoinsMode :: MonadIO m => m EncoinsMode
+genEncoinsMode = randomIO <&> \b -> if b then WalletMode else LedgerMode

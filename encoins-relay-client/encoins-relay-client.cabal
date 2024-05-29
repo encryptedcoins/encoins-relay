@@ -32,37 +32,41 @@ library
     import: lang
     exposed-modules:
       Encoins.Relay.Client.Main
-      Encoins.Relay.Client.Client
       Encoins.Relay.Client.Opts
       Encoins.Relay.Client.Secrets
+      Encoins.Relay.Client.TxClient
     other-modules:
     build-depends:
-      base                          >= 4.9 && < 5,
-      aeson                                  -any,
-      bytestring                             -any,
-      cardano-server                         -any,
-      cardano-server-client                  -any,
-      csl-types                              -any,
-      data-default                           -any,
-      directory                              -any,
-      encoins-bulletproofs                   -any,
-      encoins-common-constant                -any,
-      encoins-common-transform               -any,
-      encoins-core                           -any,
-      encoins-relay-server                   -any,
-      extra                                  -any,
-      mtl                                    -any,
-      optparse-applicative                   -any,
-      plutus-apps-extra                      -any,
-      plutus-tx                              -any,
-      plutus-tx-extra                        -any,
-      plutus-ledger                          -any,
-      plutus-ledger-api                      -any,
-      plutus-script-utils                    -any,
-      random                                 -any,
-      servant-client                         -any,
-      text                                   -any,
-      time                                   -any,
+      , base                          >= 4.9 && < 5
+      , aeson
+      , bytestring
+      , cardano-server
+      , cardano-server-client
+      , csl-types
+      , data-default
+      , directory
+      , encoins-bulletproofs
+      , encoins-common-constant
+      , encoins-common-log
+      , encoins-common-transform
+      , encoins-core
+      , encoins-relay-common
+      , encoins-relay-server
+      , exceptions
+      , extra
+      , mtl
+      , optparse-applicative
+      , plutus-apps-extra
+      , plutus-tx
+      , plutus-tx-extra
+      , plutus-ledger
+      , plutus-ledger-api
+      , plutus-script-utils
+      , random
+      , servant-client
+      , text
+      , time
+      , QuickCheck
 
     hs-source-dirs: src
 
