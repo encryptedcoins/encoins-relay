@@ -11,6 +11,7 @@
 
 module Encoins.Relay.Common.Server where
 
+import           Control.Concurrent          (forkIO)
 import           Control.Exception           (Exception, throw)
 import           Control.Monad.IO.Class      (MonadIO (..))
 import           Data.Aeson
@@ -36,6 +37,7 @@ runCardanoServer :: forall api m.
     ) => Int -> (forall a. m a -> Servant.Handler a) -> ServerT api m -> m () -> IO ()
 runCardanoServer port runApp serverApp beforeMainLoop = do
     hSetBuffering stdout LineBuffering
+    _ <- forkIO $ runHandler $ runApp beforeMainLoop
     Warp.runSettings settings app
   where
     app = corsWithContentType $ serve (Proxy @api) $ hoistServer (Proxy @api) runApp serverApp
@@ -43,7 +45,6 @@ runCardanoServer port runApp serverApp beforeMainLoop = do
     settings = Warp.setLogger logReceivedRequest
              $ Warp.setOnException (const logException)
              $ Warp.setPort port
-             $ Warp.setBeforeMainLoop (runHandler $ runApp beforeMainLoop)
                Warp.defaultSettings
     logReceivedRequest req status _ = runHandler $ runApp $ do
         logDebug "Received request:"
