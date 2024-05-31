@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE ImplicitParams      #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -13,25 +14,25 @@
 
 module Encoins.Relay.Client.Opts where
 
-import           Control.Monad                                (guard)
-import           Control.Monad.IO.Class                       (MonadIO (..))
-import           Data.Functor                                 ((<&>))
-import           Data.List                                    (isPrefixOf)
-import           Data.Text                                    (Text)
-import           ENCOINS.Core.OffChain                        (EncoinsMode (..))
-import           Encoins.Relay.Client.Secrets                 (EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Endpoint.Status         (EncoinsStatusReqBody (..))
-import           Encoins.Relay.Server.Endpoint.SubmitTx       (SubmitTxReqBody (..))
-import           Encoins.Relay.Server.Internal                (EncoinsServerM)
-import           Options.Applicative                          (Alternative ((<|>)), ParseError (ErrorMsg), Parser, abortOption, argument,
-                                                               auto, command, help, hsubparser, info, metavar, progDesc, some, strArgument,
-                                                               value)
-import           Options.Applicative.Types                    (readerAsk)
-import           PlutusAppsExtra.Utils.Network                (HasNetworkId (getNetworkId))
-import           System.Random                                (randomIO, randomRIO)
-import           Test.QuickCheck                              (Arbitrary (..), generate)
-import Encoins.Relay.Common.Client.Gen (randomAddressBech32Text)
-import Encoins.Relay.Common.Client.Opts
+import           Control.Monad.IO.Class                 (MonadIO (..))
+import           Data.Functor                           ((<&>))
+import           Data.List                              (isPrefixOf)
+import           Data.Text                              (Text)
+import           ENCOINS.Core.OffChain                  (EncoinsMode (..))
+import           Encoins.Relay.Client.Secrets           (EncoinsRequestTerm (..))
+import           Encoins.Relay.Common.Client.Gen        (randomAddressBech32Text)
+import           Encoins.Relay.Common.Client.Opts       (Interval, autoModeP, manualModeP, mapMode, pingCommand, randomCommand,
+                                                         versionCommand)
+import           Encoins.Relay.Server.Endpoint.Status   (EncoinsStatusReqBody (..))
+import           Encoins.Relay.Server.Endpoint.SubmitTx (SubmitTxReqBody (..))
+import           Encoins.Relay.Server.Internal          (EncoinsServerM)
+import           Options.Applicative                    (Alternative ((<|>)), ParseError (ErrorMsg), Parser, abortOption, argument, auto,
+                                                         command, help, hsubparser, info, maybeReader, metavar, progDesc, some, strArgument,
+                                                         value)
+import           PlutusAppsExtra.Utils.Network          (HasNetworkId (getNetworkId))
+import           System.Random                          (randomIO, randomRIO)
+import           Test.QuickCheck                        (Arbitrary (..), generate)
+import           Text.Read                              (readMaybe)
 
 -- Command
 
@@ -51,7 +52,7 @@ data ClientCommand
     | ManualSumbitTx SubmitTxReqBody
     | ManualStatus EncoinsStatusReqBody
     | RandomEndpoint Interval
-
+    deriving (Show)
 
 -- Parsers
 
@@ -90,7 +91,7 @@ utxosP = fmap (mapMode AutoUtxos ManualUtxos) $ manualModeP (strArgument addrFie
 
 txP :: (Interval -> ClientCommand) -> (EncoinsMode -> [EncoinsRequestTerm] -> ClientCommand) -> Parser ClientCommand
 txP autoCommand manualCommand = fmap (mapMode autoCommand (uncurry manualCommand))
-    $ manualModeP ((,) <$> encoinsModeP <*> some requestTermP)
+    $ manualModeP ((,) <$> encoinsModeP <*> requestTermsP)
     <|> autoModeP
 
 submitTxP :: Parser ClientCommand
@@ -113,22 +114,18 @@ encoinsModeP = argument auto $ mconcat
     , metavar "WalletMode | LedgerMode"
     ]
 
-requestTermP :: Parser EncoinsRequestTerm
-requestTermP = mintTermP <|> burnTermP
+requestTermsP :: Parser [EncoinsRequestTerm]
+requestTermsP = some $ flip argument modes $ fmap (either mkMintTerm mkBurnTerm) $ maybeReader $ \str -> if
+        | "0x" `isPrefixOf` str         -> Just $ Right str
+        | Just mintVal <- readMaybe str -> Just $ Left mintVal
+        | otherwise                     -> Nothing
   where
-    mintTermP = RPMint . fromInteger <$> argument auto mintModes
-    mintModes = mconcat
-        [ metavar "₳"
-        , help "Ada value of this token."
+    mkMintTerm = RPMint . fromInteger
+    mkBurnTerm = RPBurn . Right . ("secrets/" <>) . (<> ".json")
+    modes = mconcat
+        [ metavar "₳ | token name"
+        , help "Ada value of this token or token name in 0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef format."
         ]
-    burnTermP = fmap (RPBurn . Right . ("secrets/" <>) . (<> ".json")) $ flip argument burnModes
-        $ readerAsk >>= \str -> str <$ guard ("0x" `isPrefixOf` str)
-    burnModes = mconcat
-        [ metavar "token name"
-        , help "Token name in 0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef format."
-        ]
-
--- Generators
 
 genStatusReqBody :: MonadIO m => m EncoinsStatusReqBody
 genStatusReqBody = randomIO <&> \b -> if b then MaxAdaWithdraw else LedgerEncoins

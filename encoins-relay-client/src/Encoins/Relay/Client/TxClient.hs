@@ -14,39 +14,38 @@
 
 module Encoins.Relay.Client.TxClient where
 
-import           CSL                            (TransactionInputs)
+import           CSL                           (TransactionInputs)
 import qualified CSL
-import           CSL.Class                      (ToCSL (..))
-import           Cardano.Server.Client.Handle   (HasServantClientEnv)
-import           ENCOINS.BaseTypes              (MintingPolarity (Burn, Mint))
-import           ENCOINS.Bulletproofs           (Secret (..), bulletproof, fromSecret, parseBulletproofParams,
-                                                 polarityToInteger)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..), protocolFee, treasuryFee)
-import           ENCOINS.Core.OnChain           (EncoinsRedeemer, TxParams)
-import           ENCOINS.Crypto.Field           (fromFieldElement, toFieldElement)
-import           Encoins.Common.Constant        (newLine, space)
-import           Encoins.Common.Transform       (toText)
+import           CSL.Class                     (ToCSL (..))
+import           Cardano.Server.Client.Handle  (HasServantClientEnv)
+import           ENCOINS.BaseTypes             (MintingPolarity (Burn, Mint))
+import           ENCOINS.Bulletproofs          (Secret (..), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
+import           ENCOINS.Core.OffChain         (EncoinsMode (..), protocolFee, treasuryFee)
+import           ENCOINS.Core.OnChain          (EncoinsRedeemer, TxParams)
+import           ENCOINS.Crypto.Field          (fromFieldElement, toFieldElement)
+import           Encoins.Common.Constant       (newLine, space)
 import           Encoins.Common.Log
-import           Encoins.Relay.Client.Secrets   (HasEncoinsModeAndBulletproofSetup, clientSecretToSecret, confirmTokens,
-                                                 mkSecretFile, readSecretFile, EncoinsRequestTerm (..))
-import           Encoins.Relay.Server.Internal  (getLedgerAddress, EncoinsServerInput (..), EncoinsServerM)
-import           Ledger                         (Address)
-import           Plutus.Script.Utils.Ada        (Ada (..))
-import           Plutus.V2.Ledger.Api           (TokenName (..))
-import           PlutusAppsExtra.IO.ChainIndex  (getRefsAt)
-import           PlutusAppsExtra.IO.Wallet      (getWalletAddr, getWalletRefs)
-import           PlutusTx.Builtins              (sha2_256)
-import           PlutusTx.Extra.ByteString      (ToBuiltinByteString (..))
+import           Encoins.Common.Transform      (toText)
+import           Encoins.Relay.Client.Secrets  (EncoinsRequestTerm (..), HasEncoinsModeAndBulletproofSetup, clientSecretToSecret,
+                                                confirmTokens, mkSecretFile, readSecretFile)
+import           Encoins.Relay.Server.Internal (EncoinsServerInput (..), EncoinsServerM, getLedgerAddress)
+import           Ledger                        (Address)
+import           Plutus.Script.Utils.Ada       (Ada (..))
+import           Plutus.V2.Ledger.Api          (TokenName (..))
+import           PlutusAppsExtra.IO.ChainIndex (getRefsAt)
+import           PlutusAppsExtra.IO.Wallet     (getWalletAddr, getWalletRefs)
+import           PlutusTx.Builtins             (sha2_256)
+import           PlutusTx.Extra.ByteString     (ToBuiltinByteString (..))
 
-import           Control.Applicative            (liftA2)
-import           Control.Monad.Extra            (replicateM, zipWithM)
-import           Control.Monad.IO.Class         (MonadIO (..))
-import           Data.Data                      (Proxy (Proxy))
-import           Data.Maybe                     (fromMaybe)
-import           Data.Text                      (Text)
-import           Servant.Client                 (runClientM, client, ClientM)
-import qualified Servant.Client                 as Servant
-import           System.Random                  (randomIO)
+import           Control.Applicative           (liftA2)
+import           Control.Monad.Extra           (replicateM, zipWithM)
+import           Control.Monad.IO.Class        (MonadIO (..))
+import           Data.Data                     (Proxy (Proxy))
+import           Data.Maybe                    (fromMaybe)
+import           Data.Text                     (Text)
+import           Servant.Client                (ClientM, client, runClientM)
+import qualified Servant.Client                as Servant
+import           System.Random                 (randomIO)
 
 type TxClientCosntraints e res =
     ( HasServantClientEnv
