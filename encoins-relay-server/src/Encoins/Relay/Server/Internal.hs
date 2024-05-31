@@ -12,6 +12,7 @@
 module Encoins.Relay.Server.Internal where
 
 import qualified CSL
+import           Cardano.Api                              (NetworkId)
 import           Cardano.Node.Emulator                    (Params (..), pParamsFromProtocolParams)
 import           Control.Concurrent                       (MVar, newEmptyMVar)
 import           Control.Exception                        (throw)
@@ -54,7 +55,8 @@ import           PlutusAppsExtra.IO.Wallet                (HasWallet (..), HasWa
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Types.Tx                 (UtxoRequirements)
 import           PlutusAppsExtra.Utils.ChainIndex         (MapUTXO)
-import           PlutusAppsExtra.Utils.Network            (HasNetworkId (..))
+import           PlutusAppsExtra.Utils.Network            (HasNetworkId)
+import qualified PlutusAppsExtra.Utils.Network            as PlutusAppsExtra
 import           PlutusTx.Builtins                        (BuiltinByteString)
 import           Servant                                  (Handler)
 import qualified Servant
@@ -213,6 +215,11 @@ instance HasTxProvider EncoinsServerM where
 instance HasMkTxEnv EncoinsServerM where
     getCollateral   = asks envCollateral
     getLedgerParams = asks envLedgerParams
+
+getNetworkId :: EncoinsServerM NetworkId
+getNetworkId = do
+    Params _ _ newtorkId <- getLedgerParams
+    pure newtorkId
 
 getTrackedAddresses :: EncoinsServerM [Address]
 getTrackedAddresses = do
