@@ -218,8 +218,8 @@ instance HasMkTxEnv EncoinsServerM where
 
 getNetworkId :: EncoinsServerM NetworkId
 getNetworkId = do
-    Params _ _ newtorkId <- getLedgerParams
-    pure newtorkId
+    Params _ _ networkId <- getLedgerParams
+    pure networkId
 
 getTrackedAddresses :: EncoinsServerM [Address]
 getTrackedAddresses = do

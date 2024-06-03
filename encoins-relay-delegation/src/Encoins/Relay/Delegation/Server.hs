@@ -22,10 +22,10 @@ import           Cardano.Server.Utils.Wait           (waitTime)
 import           Encoins.Common.Constant             (column, newLine, space)
 import           Encoins.Common.Transform            (toText)
 import           Encoins.Common.Version              (appVersion, showAppVersion)
-import           Encoins.Relay.Delegation.Internal   (Delegation (..), DelegationConfig (..), DelegationEnv (..), DelegationM (..),
-                                                      Progress (..), RelayAddress, concatIpsWithBalances, delegAddress, findDeleg,
-                                                      fromRelayAddress, getBalances, removeDuplicates, runDelegationM, setProgress,
-                                                      setTokenBalance, toRelayAddress, trimIp)
+import           Encoins.Relay.Delegation.Internal   (Delegation (..), DelegationEnv (..), DelegationM (..), Progress (..), RelayAddress,
+                                                      concatIpsWithBalances, delegAddress, findDeleg, fromRelayAddress, getBalances,
+                                                      loadDelegationEnv, removeDuplicates, runDelegationM, setProgress, setTokenBalance,
+                                                      toRelayAddress, trimIp)
 
 import           Control.Applicative                 (liftA2, (<|>))
 import           Control.Concurrent                  (forkIO)
@@ -40,7 +40,7 @@ import qualified Data.ByteString.Char8               as B
 import           Data.Fixed                          (Pico)
 import           Data.Function                       (on)
 import           Data.Functor                        ((<&>))
-import           Data.IORef                          (newIORef, readIORef)
+import           Data.IORef                          (readIORef)
 import           Data.List                           (find, sortBy)
 import           Data.List.Extra                     (notNull, stripSuffix)
 import           Data.Map                            (Map, filterWithKey)
@@ -50,11 +50,10 @@ import           Data.String                         (IsString (..))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as T
 import qualified Data.Text.Encoding                  as TE
-import qualified Data.Text.IO                        as T
 import qualified Data.Time                           as Time
 import           Development.GitRev                  (gitCommitDate, gitHash)
-import           Encoins.Common.Log                  (logErrorS, logInfo, logInfoS, mkLogEnv, withLogEnv)
-import           Encoins.Relay.Common                (decodeOrErrorFromFile, formatTime, janitorFiles, loadMostRecentFile, newProgressBar)
+import           Encoins.Common.Log                  (logErrorS, logInfo, logInfoS)
+import           Encoins.Relay.Common                (decodeOrErrorFromFile, formatTime, janitorFiles, newProgressBar)
 import           Encoins.Relay.Common.Server         (runCardanoServer)
 import           Katip
 import           Ledger                              (Address, PubKeyHash)
@@ -74,53 +73,14 @@ runDelegationServer delegationConfigFp = do
     B.putStrLn
       $ TE.encodeUtf8
       $ showAppVersion "Delegation server" $ appVersion version $(gitHash) $(gitCommitDate)
-    MkDelegationConfig{..} <- decodeOrErrorFromFile delegationConfigFp
-    dEnvProgress <- initProgress cDelegationFolder >>= newIORef
-    dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
-    dEnvBlockfrostToken <- decodeOrErrorFromFile $ fromMaybe "blockfrost.token" cMaestroTokenFilePath
-    dEnvMaestroToken <- decodeOrErrorFromFile $ fromMaybe "maestro.token" cMaestroTokenFilePath
-    let logEnv = mkLogEnv
-            "Delegation server"
-            cEnvironment
-            cVerbosity
-            cSeverity
-    withLogEnv logEnv $ \le -> 
-        let env = MkDelegationEnv
-                { dEnvLogEnv               = le
-                , dEnvKContext             = mempty
-                , dEnvKNamespace           = mempty
-                , dEnvFormatMessage        = cFormatMessage
-                , dEnvNetworkId            = cNetworkId
-                , dEnvHost                 = cHost
-                , dEnvPort                 = cPort
-                , dEnvHyperTextProtocol    = cHyperTextProtocol
-                , dEnvDelegationFolder     = cDelegationFolder
-                , dEnvFrequency            = cFrequency
-                , dEnvMaxDelay             = cMaxDelay
-                , dEnvMinTokenNumber       = cMinTokenNumber
-                , dEnvRewardTokenThreshold = cRewardTokenThreshold
-                , dEnvCurrencySymbol       = cDelegationCurrencySymbol
-                , dEnvTokenName            = cDelegationTokenName
-                , dEnvCheckSig             = True
-                , ..
-                }
-        in runDelegationServer' env
-
-initProgress :: FilePath -> IO (Progress, Time.UTCTime)
-initProgress delegFolder = initFromFile <|> initNew
-    where
-        initFromFile = do
-            Just (t, p) <- loadMostRecentFile delegFolder "delegatorsV2_"
-            T.putStrLn $ "Time of most recent progress file:" <> newLine <> toText t
-            pure (p, t)
-        initNew = do
-            putStrLn "No progress file found."
-            pure (Progress Nothing [], Time.UTCTime (toEnum 0) 0)
+    config <- decodeOrErrorFromFile delegationConfigFp
+    env <- loadDelegationEnv config
+    runDelegationServer' env
 
 runDelegationServer' :: DelegationEnv -> IO ()
 runDelegationServer' env = do
     createDirectoryIfMissing True $ dEnvDelegationFolder env
-    runCardanoServer @DelegApi 
+    runCardanoServer @DelegApi
         (dEnvPort env)
         ((`runReaderT` env) . unDelegationM)
         delegApi
@@ -128,9 +88,9 @@ runDelegationServer' env = do
   where
     beforeMainLoop = do
         void $ liftIO $ forkIO runDelegationSerach
-        say $ showAppVersion "Verifier server" $ appVersion 
-            version 
-            $(gitHash) 
+        say $ showAppVersion "Verifier server" $ appVersion
+            version
+            $(gitHash)
             $(gitCommitDate)
     runDelegationSerach
         = runDelegationM env
@@ -352,7 +312,7 @@ updateProgress = do
         newDelegs <- fmap catMaybes $ forM txIds $ \txId -> do
             liftIO $ incProgress pb 1
             findDeleg txId
-        when (notNull newDelegs) 
+        when (notNull newDelegs)
             $ logInfo $ "New delegations:" <> foldr (prettyDeleg dEnvNetworkId) "" newDelegs
         let p = Progress (listToMaybe txIds <|> pLastTxId) $ removeDuplicates $ pDelgations <> newDelegs
         setProgress p ct

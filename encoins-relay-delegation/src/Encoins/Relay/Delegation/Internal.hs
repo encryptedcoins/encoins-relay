@@ -24,7 +24,7 @@ import           Data.Aeson.Casing              (aesonPrefix, snakeCase)
 import           Data.Aeson.Types               (toJSONKeyText)
 import           Data.Function                  (on)
 import           Data.Functor                   ((<&>))
-import           Data.IORef                     (IORef, atomicWriteIORef)
+import           Data.IORef                     (IORef, atomicWriteIORef, newIORef)
 import           Data.List                      (sortBy)
 import qualified Data.List.NonEmpty             as NonEmpty
 import           Data.Map                       (Map)
@@ -33,9 +33,12 @@ import           Data.Maybe                     (catMaybes, fromMaybe, isJust, i
 import           Data.Ord                       (Down (..))
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
+import qualified Data.Text.IO                   as T
 import qualified Data.Time                      as Time
-import           Encoins.Common.Constant        (column)
+import           Encoins.Common.Constant        (column, newLine)
+import           Encoins.Common.Log             (mkLogEnv)
 import           Encoins.Common.Transform       (toText)
+import           Encoins.Relay.Common           (decodeOrErrorFromFile, loadMostRecentFile)
 import           Encoins.Relay.Common.Server    (HyperTextProtocol)
 import           GHC.Generics                   (Generic)
 import           Katip
@@ -123,6 +126,47 @@ data DelegationEnv = MkDelegationEnv
     , dEnvTokenBalance         :: IORef (Map PubKeyHash Integer, Time.UTCTime)
     -- ^ Last token balance with it's last update time
     }
+
+loadDelegationEnv :: DelegationConfig -> IO DelegationEnv
+loadDelegationEnv MkDelegationConfig{..} = do
+    dEnvProgress <- initProgress cDelegationFolder >>= newIORef
+    dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
+    dEnvBlockfrostToken <- decodeOrErrorFromFile $ fromMaybe "blockfrost.token" cMaestroTokenFilePath
+    dEnvMaestroToken <- decodeOrErrorFromFile $ fromMaybe "maestro.token" cMaestroTokenFilePath
+    dEnvLogEnv <- mkLogEnv
+            "Delegation server"
+            cEnvironment
+            cVerbosity
+            cSeverity
+    pure $ MkDelegationEnv
+        { dEnvKContext             = mempty
+        , dEnvKNamespace           = mempty
+        , dEnvFormatMessage        = cFormatMessage
+        , dEnvNetworkId            = cNetworkId
+        , dEnvHost                 = cHost
+        , dEnvPort                 = cPort
+        , dEnvHyperTextProtocol    = cHyperTextProtocol
+        , dEnvDelegationFolder     = cDelegationFolder
+        , dEnvFrequency            = cFrequency
+        , dEnvMaxDelay             = cMaxDelay
+        , dEnvMinTokenNumber       = cMinTokenNumber
+        , dEnvRewardTokenThreshold = cRewardTokenThreshold
+        , dEnvCurrencySymbol       = cDelegationCurrencySymbol
+        , dEnvTokenName            = cDelegationTokenName
+        , dEnvCheckSig             = True
+        , ..
+        }
+
+initProgress :: FilePath -> IO (Progress, Time.UTCTime)
+initProgress delegFolder = initFromFile <|> initNew
+    where
+        initFromFile = do
+            Just (t, p) <- loadMostRecentFile delegFolder "delegatorsV2_"
+            T.putStrLn $ "Time of most recent progress file:" <> newLine <> toText t
+            pure (p, t)
+        initNew = do
+            putStrLn "No progress file found."
+            pure (Progress Nothing [], Time.UTCTime (toEnum 0) 0)
 
 setProgress :: Progress -> Time.UTCTime -> DelegationM ()
 setProgress p t = asks dEnvProgress >>= (liftIO . flip atomicWriteIORef (p, t))
