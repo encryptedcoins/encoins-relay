@@ -13,8 +13,6 @@
 
 module Encoins.Relay.Verifier.Server where
 
-import           Cardano.Server.Config                     (HyperTextProtocol (..), decodeOrErrorFromFile)
-import           Cardano.Server.Error                      (IsCardanoServerError (..))
 import           Control.Exception                         (Exception, throw)
 import           Control.Monad                             (unless)
 import           Control.Monad.Catch                       (MonadCatch, MonadThrow (..), handle)
@@ -32,7 +30,9 @@ import           ENCOINS.Core.OffChain                     (mkEncoinsRedeemerOnC
 import           ENCOINS.Core.OnChain                      (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           Encoins.Common.Log                        (mkLogEnv, withLogEnv)
 import           Encoins.Common.Version                    (appVersion, showAppVersion)
-import           Encoins.Relay.Common.Server               (runCardanoServer)
+import           Encoins.Relay.Common                      (decodeOrErrorFromFile)
+import           Encoins.Relay.Common.Error                (IsCardanoServerError (..))
+import           Encoins.Relay.Common.Server               (HyperTextProtocol, runCardanoServer)
 import           Encoins.Relay.Common.Server.Endpoint.Ping (PingEndpoint, pingEndpointHandler)
 import           GHC.Generics                              (Generic)
 import           Katip                                     (Environment, Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace,

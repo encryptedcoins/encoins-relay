@@ -15,7 +15,6 @@ import           ENCOINS.BaseTypes             (FieldElementBytes (..), GroupEle
 import           ENCOINS.Bulletproofs          (Proof (..))
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), mkEncoinsRedeemerOnChain)
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, hashRedeemer)
-import           Encoins.Relay.Client.Client   (secretsToReqBody, termsToSecrets)
 import           Encoins.Relay.Client.Secrets  (randomMintTerm)
 import           Encoins.Relay.Verifier.Client (VerifierClientError (..), mkVerifierClientEnv, verifierClient)
 import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifierConfig (..))
@@ -25,10 +24,11 @@ import           PlutusTx.Extra.ByteString     (toBytes)
 import           PlutusTx.Prelude              (sha2_256)
 import           System.Random                 (randomRIO)
 import           Test.Hspec                    (Expectation, Spec, describe, it, runIO, shouldBe, shouldSatisfy)
+import Encoins.Relay.Client.TxClient (termsToSecrets, secretsToReqBody)
 
 spec :: Spec
 spec = describe "encoins-verifier" $ do
-    VerifierConfig{..} <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/verifierConfig.json"
+    MkVerifierConfig{..} <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/verifierConfig.json"
     cEnv             <- runIO $ mkVerifierClientEnv cHost cPort
     bulletproofSetup <- runIO $ decodeOrErrorFromFile "encoins-relay-test/test/configuration/bulletproof_setup.json"
 

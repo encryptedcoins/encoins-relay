@@ -131,7 +131,7 @@ loadDelegationEnv :: DelegationConfig -> IO DelegationEnv
 loadDelegationEnv MkDelegationConfig{..} = do
     dEnvProgress <- initProgress cDelegationFolder >>= newIORef
     dEnvTokenBalance <- newIORef (mempty, Time.UTCTime (toEnum 0) 0)
-    dEnvBlockfrostToken <- decodeOrErrorFromFile $ fromMaybe "blockfrost.token" cMaestroTokenFilePath
+    dEnvBlockfrostToken <- decodeOrErrorFromFile $ fromMaybe "blockfrost.token" cBlockfrostTokenFilePath
     dEnvMaestroToken <- decodeOrErrorFromFile $ fromMaybe "maestro.token" cMaestroTokenFilePath
     dEnvLogEnv <- mkLogEnv
             "Delegation server"

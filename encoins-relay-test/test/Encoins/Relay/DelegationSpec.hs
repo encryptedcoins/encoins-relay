@@ -2,22 +2,21 @@
 
 module Encoins.Relay.DelegationSpec where
 
-import           Cardano.Api                            (NetworkId (Testnet), NetworkMagic (NetworkMagic))
-import           Cardano.Server.Client.Handle           (HasServantClientEnv)
-import           Cardano.Server.Utils.Logger            (mutedLogger)
-import           Cardano.Server.Utils.Wait              (waitTime)
-import qualified Control.Concurrent                     as C
-import           Control.Exception                      (bracket)
-import qualified Data.Map                               as Map
-import           Data.Maybe                             (listToMaybe)
+import           Cardano.Api                       (NetworkId (Testnet), NetworkMagic (NetworkMagic))
+import           Cardano.Server.Client.Handle      (HasServantClientEnv)
+import           Cardano.Server.Utils.Logger       (mutedLogger)
+import           Cardano.Server.Utils.Wait         (waitTime)
+import qualified Control.Concurrent                as C
+import           Control.Exception                 (bracket)
+import qualified Data.Map                          as Map
+import           Data.Maybe                        (listToMaybe)
 import           Encoins.Relay.Delegation.Client   (DelegationClientError (DelegationServerError), currentServersClient,
-                                                         serverDelegatesClient, serversClient)
-import           Encoins.Relay.Delegation.Internal (Delegation (..), DelegationEnv (DelegationEnv), Progress (..),
-                                                         runDelegationM)
+                                                    serverDelegatesClient, serversClient)
+import           Encoins.Relay.Delegation.Internal (Delegation (..), DelegationEnv (..), Progress (..), runDelegationM)
 import           Encoins.Relay.Delegation.Server   (DelegationServerError (..), runDelegationServer)
-import           System.Directory                       (setCurrentDirectory)
-import           Test.Hspec                             (Expectation, Spec, context, describe, hspec, it, shouldBe)
-import           Test.QuickCheck                        (Property, Testable (property))
+import           System.Directory                  (setCurrentDirectory)
+import           Test.Hspec                        (Expectation, Spec, context, describe, hspec, it, shouldBe)
+import           Test.QuickCheck                   (Property, Testable (property))
 
 spec :: HasServantClientEnv => Spec
 spec = describe "Delegation server" $ do

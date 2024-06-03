@@ -2,10 +2,10 @@
 
 unset GTK_PATH
 
-NODE_SOCK_PATH=$(jq -r '.node_file_path' ../configuration/config.json)
-NODE_DB_PATH=$(jq -r '.node_db_file_path' ../configuration/config.json)
-KUPO_DB_PATH=$(jq -r '.kupo_db_file_path' ../configuration/config.json)
-WALLET_PATH=$(jq -r '.wallet_file' ../configuration/config.json)
+NODE_SOCK_PATH=$(jq -r '.node_file_path' ../configuration/relayConfig.json)
+NODE_DB_PATH=$(jq -r '.node_db_file_path' ../configuration/relayConfig.json)
+KUPO_DB_PATH=$(jq -r '.kupo_db_file_path' ../configuration/relayConfig.json)
+WALLET_PATH=$(jq -r '.wallet_file' ../configuration/relayConfig.json)
 
 # Run the scripts
 gnome-terminal --tab --title="cardano-node" -- bash -c "./node.sh $NODE_DB_PATH $NODE_SOCK_PATH;$SHELL"

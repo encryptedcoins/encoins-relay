@@ -8,14 +8,14 @@
 
 module Encoins.Relay.Verifier.Client where
 
-import           Cardano.Server.Client.Handle  (HasServantClientEnv)
-import           Cardano.Server.Error          (IsCardanoServerError (..))
 import           Control.Exception             (Exception)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           ENCOINS.Core.OnChain          (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           Encoins.Common.Constant       (newLine)
 import           Encoins.Common.Transform      (toText)
+import           Encoins.Relay.Common.Client   (HasServantClientEnv)
+import           Encoins.Relay.Common.Error    (IsCardanoServerError (..))
 import           Encoins.Relay.Verifier.Server (VerifierApiError (..), VerifyEndpoint)
 import           Network.HTTP.Client           (defaultManagerSettings, newManager)
 import           Servant                       (Proxy (Proxy), WithStatus (..))
@@ -49,7 +49,7 @@ instance IsCardanoServerError VerifierClientError where
     errStatus _ = toEnum 422
     errMsg = \case
         VerifierApiError    vErr -> errMsg vErr
-        VerifierClientError cErr 
+        VerifierClientError cErr
             -> "Encoins verifier is unavailable:"
             <> newLine
             <> toText cErr

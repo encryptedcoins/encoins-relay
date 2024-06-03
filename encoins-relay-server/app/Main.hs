@@ -1,6 +1,10 @@
 module Main where
 
-import Encoins.Relay.Server.Main (runEncoinsServer)
+import           Encoins.Relay.Server.Config (initializeConfig)
+import           Encoins.Relay.Server.Main   (runEncoinsServer)
 
 main :: IO ()
-main = runEncoinsServer "relayConfig.json"
+main = do
+    let configFp = "relayConfig.json"
+    initializeConfig configFp
+    runEncoinsServer configFp

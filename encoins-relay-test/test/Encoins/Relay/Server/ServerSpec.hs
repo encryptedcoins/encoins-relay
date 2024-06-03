@@ -3,53 +3,57 @@
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE TypeFamilies      #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use =<<"                #-}
-{-# HLINT ignore "Redundant <$>"          #-}
-{-# HLINT ignore "Use fewer imports" #-}
+-- {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+-- {-# HLINT ignore "Use =<<"                #-}
+-- {-# HLINT ignore "Redundant <$>"          #-}
+-- {-# HLINT ignore "Use fewer imports" #-}
 
 module Encoins.Relay.Server.ServerSpec where
 
-import           Cardano.Server.Client.Handle          (HasServantClientEnv)
-import           Cardano.Server.Config                 (ServerEndpoint (ServerTxE), decodeOrErrorFromFile)
-import           Cardano.Server.Internal               (Env (envLogger), ServerM, loadEnv, runServerM)
-import           Cardano.Server.Utils.Logger           (logSmth, mutedLogger, (.<))
-import           Cardano.Server.Utils.Wait             (waitTime)
-import           Control.Exception                     (try)
-import           Control.Monad                         (join, replicateM)
-import           Control.Monad.IO.Class                (MonadIO (..))
-import           Data.Bifunctor                        (Bifunctor (bimap, first))
-import           Data.Either                           (isLeft, isRight)
-import           Data.Fixed                            (Pico)
-import           Data.List                             (partition)
-import           Data.List.Extra                       (dropSuffix, partition)
-import           Data.String                           (IsString (..))
-import qualified Data.Time                             as Time
-import           ENCOINS.BaseTypes                     (MintingPolarity (Mint))
-import           ENCOINS.Core.OffChain                 (EncoinsMode (..))
-import           Encoins.Relay.Common           (encoinsCS, encoinsTokenName)
-import           Encoins.Relay.Client.Client           (TxClientCosntraints, secretsToReqBody, sendTxClientRequest,
-                                                        termsToSecrets, txClientRedeemer)
-import           Encoins.Relay.Client.Opts             (EncoinsRequestTerm (RPBurn))
-import           Encoins.Relay.Client.Secrets          (HasEncoinsModeAndBulletproofSetup, getEncoinsTokensFromMode, mkSecretFile,
-                                                        randomMintTermWithUB)
-import           Encoins.Relay.Server.Config           (EncoinsRelayConfig (..), loadEncoinsRelayConfig)
-import           Encoins.Relay.Server.Server           (EncoinsApi, mkServerHandle)
-import           Internal                              (runEncoinsServerM)
-import           Plutus.V2.Ledger.Api                  (Credential (PubKeyCredential), StakingCredential (..), TokenName (..))
-import           PlutusAppsExtra.IO.ChainIndex         (getAdaAt, getValueAt)
-import           PlutusAppsExtra.IO.Wallet             (getWalletAda, getWalletAddr, getWalletValue)
-import           PlutusAppsExtra.Utils.Address         (getStakeKey)
-import           PlutusAppsExtra.Utils.Time            (utcToSlot)
-import qualified PlutusTx.AssocMap                     as PAM
-import           System.Directory                      (createDirectoryIfMissing, listDirectory, removeDirectoryRecursive)
-import           System.Random                         (randomRIO)
-import           Test.Hspec                            (Expectation, HasCallStack, Spec, context, describe, expectationFailure,
-                                                        hspec, it, pendingWith, runIO, shouldBe, shouldSatisfy)
-import           Test.Hspec.Core.Spec                  (sequential)
-import           Test.QuickCheck                       (Arbitrary (..), choose, generate)
+import           Cardano.Server.Client.Handle           (HasServantClientEnv)
+import           Cardano.Server.Config                  (ServerEndpoint (ServerTxE), decodeOrErrorFromFile)
+import           Cardano.Server.Internal                (Env (envLogger), ServerM, loadEnv, runServerM)
+import           Cardano.Server.Utils.Logger            (logSmth, mutedLogger, (.<))
+import           Cardano.Server.Utils.Wait              (waitTime)
+import           Control.Exception                      (try)
+import           Control.Monad                          (join, replicateM)
+import           Control.Monad.IO.Class                 (MonadIO (..))
+import           Control.Monad.Reader                   (MonadReader (..))
+import           Data.Bifunctor                         (Bifunctor (bimap, first))
+import           Data.Either                            (isLeft, isRight)
+import           Data.Fixed                             (Pico)
+import           Data.List                              (partition)
+import           Data.List.Extra                        (dropSuffix, partition)
+import           Data.String                            (IsString (..))
+import qualified Data.Time                              as Time
+import           ENCOINS.BaseTypes                      (MintingPolarity (Mint))
+import           ENCOINS.Core.OffChain                  (EncoinsMode (..))
+import           Encoins.Relay.Client.Secrets           (EncoinsRequestTerm (RPBurn), HasEncoinsModeAndBulletproofSetup,
+                                                         getEncoinsTokensFromMode, mkSecretFile, randomMintTermWithUB)
+import           Encoins.Relay.Client.TxClient          (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
+                                                         txClientRedeemer)
+import           Encoins.Relay.Common                   (encoinsCS, encoinsTokenName)
+import           Encoins.Relay.Common.Server            (mkServantClientEnv)
+import           Encoins.Relay.Server.Config            (EncoinsRelayConfig (..))
+import           Encoins.Relay.Server.Endpoint.ServerTx (ServerTxEndpoint)
+import           Encoins.Relay.Server.Internal          (EncoinsRelayEnv (..), EncoinsServerM)
+import           Encoins.Relay.Server.Server            (EncoinsApi)
+import           Internal                               (runEncoinsServerM)
+import           Plutus.V2.Ledger.Api                   (Credential (PubKeyCredential), StakingCredential (..), TokenName (..))
+import           PlutusAppsExtra.IO.ChainIndex          (getAdaAt, getValueAt)
+import           PlutusAppsExtra.IO.Wallet              (getWalletAda, getWalletAddr, getWalletValue)
+import           PlutusAppsExtra.Utils.Address          (getStakeKey)
+import           PlutusAppsExtra.Utils.Time             (utcToSlot)
+import qualified PlutusTx.AssocMap                      as PAM
+import           System.Directory                       (createDirectoryIfMissing, listDirectory, removeDirectoryRecursive)
+import           System.Random                          (randomRIO)
+import           Test.Hspec                             (Expectation, HasCallStack, Spec, context, describe, expectationFailure, hspec, it,
+                                                         pendingWith, runIO, shouldBe, shouldSatisfy)
+import           Test.Hspec.Core.Spec                   (sequential)
+import           Test.QuickCheck                        (Arbitrary (..), choose, generate)
 
 spec :: (HasCallStack, HasServantClientEnv) => Spec
 spec = do
@@ -74,13 +78,16 @@ spec = do
                 -- it "burn tokens" propBurn
                 it "burn tokens" $ pendingWith "Pending until encoins-core ledger mode fix."
 
-propMint :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
+propMint :: HasEncoinsModeAndBulletproofSetup => Expectation
 propMint = join $ runEncoinsServerM $ do
+    MkEncoinsRelayEnv{..} <- ask
     l        <- randomRIO (1, 2)
     terms    <- replicateM l $ randomMintTermWithUB 5
     secrets  <- termsToSecrets terms
     liftIO $ createDirectoryIfMissing True "secrets"
-    sendTxClientRequest @ServerTxE secrets >>= \case
+    clientEnv <- mkServantClientEnv envPort envHost envHyperTextProtocol
+    let ?servantClientEnv = clientEnv
+    sendTxClientRequest @ServerTxEndpoint secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
             mapM_ (uncurry mkSecretFile) secrets
@@ -89,12 +96,15 @@ propMint = join $ runEncoinsServerM $ do
             tokensMinted <- confirmTokens currentTime $ map (first TokenName) inputs
             pure $ tokensMinted `shouldBe` True
 
-propBurn :: (TxClientCosntraints ServerTxE, HasEncoinsModeAndBulletproofSetup) => Expectation
+propBurn :: HasEncoinsModeAndBulletproofSetup => Expectation
 propBurn = join $ runEncoinsServerM $ do
+    MkEncoinsRelayEnv{..} <- ask
     terms    <- map (RPBurn . Right . ("secrets/" <>)) <$> liftIO (listDirectory "secrets")
     secrets  <- termsToSecrets terms
     liftIO $ removeDirectoryRecursive "secrets"
-    sendTxClientRequest @ServerTxE secrets >>= \case
+    clientEnv <- mkServantClientEnv envPort envHost envHyperTextProtocol
+    let ?servantClientEnv = clientEnv
+    sendTxClientRequest @ServerTxEndpoint secrets >>= \case
         Left err -> pure $ expectationFailure $ show err
         Right _ -> do
             ((_,(v, inputs),_,_),_) <- secretsToReqBody secrets
