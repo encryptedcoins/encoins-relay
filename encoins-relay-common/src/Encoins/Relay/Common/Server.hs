@@ -29,14 +29,12 @@ import           Network.Wai.Middleware.Cors (CorsResourcePolicy (..), cors, sim
 import           Servant                     (Proxy (..), ServerT, hoistServer, serve)
 import qualified Servant
 import qualified Servant.Client              as Servant
-import           System.IO                   (BufferMode (LineBuffering), hSetBuffering, stdout)
 
 runCardanoServer :: forall api m.
     ( Servant.HasServer api '[]
     , KatipContext m
     ) => Int -> (forall a. m a -> Servant.Handler a) -> ServerT api m -> m () -> IO ()
 runCardanoServer port runApp serverApp beforeMainLoop = do
-    hSetBuffering stdout LineBuffering
     _ <- forkIO $ runHandler $ runApp beforeMainLoop
     Warp.runSettings settings app
   where

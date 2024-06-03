@@ -151,11 +151,8 @@ processQueue env = runEncoinsServerM env
 idleQueue :: Time.UTCTime -> EncoinsServerM Time.UTCTime
 idleQueue st = do
     ct <- liftIO getCurrentTime
-    let delta = Time.diffUTCTime ct st
-        enoughTimePassed = delta > 300
-        firstTime        = delta < 3
-    when (enoughTimePassed || firstTime)
-        $ logInfo "No new inputs to process."
+    let enoughTimePassed = Time.diffUTCTime ct st > 300
+    when enoughTimePassed $ logInfo "No new inputs to process."
     checkForCleanUtxos
     pure $ if enoughTimePassed then ct else st
 
