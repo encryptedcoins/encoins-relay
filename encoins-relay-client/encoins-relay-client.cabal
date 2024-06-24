@@ -40,8 +40,6 @@ library
       , base                          >= 4.9 && < 5
       , aeson
       , bytestring
-      , cardano-server
-      , cardano-server-client
       , csl-types
       , data-default
       , directory
@@ -67,7 +65,6 @@ library
       , text
       , time
       , QuickCheck
-
     hs-source-dirs: src
 
 executable encoins-relay-client
@@ -77,8 +74,6 @@ executable encoins-relay-client
   build-depends:
     base                          >= 4.9 && < 5,
     directory                              -any,
-    cardano-server                         -any,
-    cardano-server-client                  -any,
     encoins-relay-client                   -any,
     encoins-relay-server                   -any,
     encoins-relay-verifier                 -any,

@@ -13,7 +13,6 @@
 module Encoins.Relay.Cloud.Types where
 
 import           Cardano.Api                   (NetworkId, NetworkMagic)
-import           Cardano.Server.Config         (HyperTextProtocol (..))
 import           Control.Exception.Safe        (MonadCatch, MonadThrow)
 import           Control.Monad.IO.Class        (MonadIO)
 import           Control.Monad.Reader          (MonadReader, ReaderT (..), asks,
@@ -27,6 +26,7 @@ import           Data.Aeson.Casing             (aesonPrefix, snakeCase)
 import           Data.Text                     (Text)
 import           Data.Time.Clock               (NominalDiffTime)
 import           Dhall                         (FromDhall (..))
+import           Encoins.Relay.Common.Server   (HyperTextProtocol)
 import           GHC.Generics                  (Generic)
 import qualified Hasql.Pool                    as P
 import           Katip

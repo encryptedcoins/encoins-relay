@@ -3,9 +3,7 @@
 module Encoins.Relay.DelegationSpec where
 
 import           Cardano.Api                       (NetworkId (Testnet), NetworkMagic (NetworkMagic))
-import           Cardano.Server.Client.Handle      (HasServantClientEnv)
-import           Cardano.Server.Utils.Logger       (mutedLogger)
-import           Cardano.Server.Utils.Wait         (waitTime)
+import           Encoins.Relay.Common.Client       (HasServantClientEnv)
 import qualified Control.Concurrent                as C
 import           Control.Exception                 (bracket)
 import qualified Data.Map                          as Map

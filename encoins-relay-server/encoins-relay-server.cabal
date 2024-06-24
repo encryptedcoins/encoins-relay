@@ -59,8 +59,6 @@ library
       , cardano-addresses
       , cardano-api
       , cardano-node-emulator
-      , cardano-server
-      , cardano-server-client
       , containers
       , csl-types
       , data-default

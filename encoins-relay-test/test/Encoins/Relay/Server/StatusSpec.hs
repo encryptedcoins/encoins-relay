@@ -9,8 +9,7 @@
 
 module Encoins.Relay.Server.StatusSpec where
 
-import           Cardano.Server.Client.Handle         (HasServantClientEnv)
-import           Cardano.Server.Client.Internal       (statusC)
+import           Encoins.Relay.Common.Client          (HasServantClientEnv)
 import           Control.Monad                        (join)
 import           Control.Monad.Catch                  (try)
 import           Control.Monad.IO.Class               (liftIO)
@@ -49,29 +48,3 @@ ledgerEncoinsSpec = runEncoinsServerM $ do
     liftIO $ case res of
         Right (SuccEnvelope r) -> r `shouldBe` expected
         err                    -> expectationFailure $ show err
-
-    -- liftIO $ res `shouldBe` Right (SuccEnvelope expected)
-
--- withStatusSpec :: HasServantClientEnv =>
---     EncoinsStatusReqBody -> EncoinsServerM EncoinsStatusResult -> Expectation
--- withStatusSpec reqBody fun = join $ runEncoinsServerM $ do
---     expectation <- try @_ @EncoinsStatusError fun
---     runStatusClient reqBody <&> either id (`shouldBe` expectation)
-
--- runStatusClient :: HasServantClientEnv =>
---     EncoinsStatusReqBody -> EncoinsServerM (Either Expectation (Either EncoinsStatusError EncoinsStatusResult))
--- runStatusClient reqBody = liftIO (runClientM (client (Proxy @StatusEndpoint) reqBody) ?servantClientEnv) >>= \case
---     -- _ -> _
---    Left resp@(FailureResponse _ (responseStatusCode -> code)) ->
---         if code == toEnum 422
---         then pure $ Right $ Left EmptyLedger
---         else pure $ Left $ expectationFailure $ show resp
---    Left err -> pure $ Left $ expectationFailure $ show err
---    Right (ErrEnvelope _) -> _
---    Right (SuccEnvelope res) -> pure $ Right $ Right res
-    -- Left resp@(FailureResponse _ (responseStatusCode -> code)) ->
-    --     if code == toEnum 422
-    --     then pure $ Right $ Left EmptyLedger
-    --     else pure $ Left $ expectationFailure $ show resp
-    -- Left err -> pure $ Left $ expectationFailure $ show err
-    -- Right res -> pure $ Right $ Right res

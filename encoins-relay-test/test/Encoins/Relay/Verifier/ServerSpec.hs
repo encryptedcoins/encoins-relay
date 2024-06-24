@@ -4,8 +4,8 @@
 
 module Encoins.Relay.Verifier.ServerSpec where
 
-import           Cardano.Server.Client.Handle  (HasServantClientEnv)
-import           Cardano.Server.Config         (decodeOrErrorFromFile)
+import           Encoins.Relay.Common          (decodeOrErrorFromFile)
+import           Encoins.Relay.Common.Client   (HasServantClientEnv)
 import           Control.Monad                 (replicateM)
 import           Control.Monad.IO.Class        (MonadIO (..))
 import           Data.Either                   (isLeft)

@@ -47,8 +47,6 @@ library
       , aeson
       , aeson-casing
       , bytestring
-      , cardano-server
-      , cardano-server-client
       , encoins-bulletproofs
       , encoins-common-constant
       , encoins-common-log

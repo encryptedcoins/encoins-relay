@@ -39,7 +39,6 @@ library
     , base                      >=4.9 && <5
     , cardano-api
     , cardano-node-emulator
-    , cardano-server
     , encoins-relay-common
     , extra
     , lens

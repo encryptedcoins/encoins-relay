@@ -6,6 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImplicitParams             #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE NumericUnderscores         #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -18,7 +19,6 @@
 module Encoins.Relay.Delegation.Server where
 
 import           Cardano.Api                         (NetworkId (Mainnet), writeFileJSON)
-import           Cardano.Server.Utils.Wait           (waitTime)
 import           Encoins.Common.Constant             (column, newLine, space)
 import           Encoins.Common.Transform            (toText)
 import           Encoins.Common.Version              (appVersion, showAppVersion)
@@ -28,7 +28,7 @@ import           Encoins.Relay.Delegation.Internal   (Delegation (..), Delegatio
                                                       toRelayAddress, trimIp)
 
 import           Control.Applicative                 (liftA2, (<|>))
-import           Control.Concurrent                  (forkIO)
+import           Control.Concurrent                  (forkIO, threadDelay)
 import           Control.Concurrent.Async            (async, wait)
 import           Control.Exception                   (throw)
 import           Control.Monad                       (forM, forever, void, when, (>=>))
@@ -98,7 +98,7 @@ runDelegationServer' env = do
         $ katipAddNamespace "Delegations search" $ forever searchForDelegations
     withRecovery ma = catch ma $ \(err :: SomeException) -> do
         logErrorS True err
-        waitTime 10
+        liftIO $ threadDelay 10_000_000
         withRecovery ma
 
 ------------------------------------------------------------------- API -------------------------------------------------------------------
@@ -245,7 +245,7 @@ searchForDelegations :: DelegationM ()
 searchForDelegations = do
     MkDelegationEnv{..}  <- ask
     ct                 <- liftIO Time.getCurrentTime
-    delay              <- liftIO $ async $ waitTime dEnvFrequency
+    delay              <- liftIO $ async $ threadDelay $ dEnvFrequency * 1_000_000
     newProgress        <- updateProgress
     _                  <- updateBalances
     newIpsWithBalances <- askIpsWithBalances False

@@ -40,15 +40,6 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/encryptedcoins/cardano-server
-  tag: 86a9f344f475cf9e6a3d916d4b642bd4e0139d01
-  subdir:
-    cardano-server
-    cardano-server-client
-    cardano-server-test
-
-source-repository-package
-  type: git
   location: https://github.com/encryptedcoins/plutus-tx-extra.git
   tag: v1
 

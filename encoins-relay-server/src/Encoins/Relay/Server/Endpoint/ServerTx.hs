@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE ImplicitParams      #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -14,8 +15,7 @@ module Encoins.Relay.Server.Endpoint.ServerTx where
 
 import           CSL                                 (TransactionInputs)
 import           CSL.Class                           (FromCSL (..))
-import           Cardano.Server.Utils.Wait           (waitTime)
-import           Control.Concurrent                  (putMVar, takeMVar)
+import           Control.Concurrent                  (putMVar, takeMVar, threadDelay)
 import           Control.Exception                   (throw)
 import           Control.Monad                       (void, when)
 import           Control.Monad.Catch                 (Exception, SomeException, catch, handle, throwM)
@@ -139,7 +139,7 @@ processQueue env = runEncoinsServerM env
   where
     neverFall ma = catch ma $ \(err :: SomeException) -> do
         logErrorS True err
-        waitTime 3
+        liftIO $ threadDelay 3_000_000
         neverFall ma
     go = liftIO getCurrentTime >>= checkQueue
     checkQueue t = do

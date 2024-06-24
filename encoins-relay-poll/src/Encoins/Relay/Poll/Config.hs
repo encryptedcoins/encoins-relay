@@ -6,7 +6,7 @@ module Encoins.Relay.Poll.Config where
 
 import           Cardano.Api                 (NetworkId (Mainnet))
 import           Cardano.Node.Emulator       (SlotConfig)
-import           Cardano.Server.Config       (decodeOrErrorFromFile)
+import           Encoins.Relay.Common        (decodeOrErrorFromFile)
 import           Control.Applicative         ((<|>))
 import           Control.Lens                ((<&>), (^?))
 import           Data.Aeson                  (withObject, (.:))

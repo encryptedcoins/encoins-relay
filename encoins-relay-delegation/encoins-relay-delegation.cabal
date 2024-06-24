@@ -42,8 +42,6 @@ library
     , base                      >=4.9 && <5
     , bytestring
     , cardano-api
-    , cardano-server
-    , cardano-server-client
     , containers
     , directory
     , encoins-common-constant

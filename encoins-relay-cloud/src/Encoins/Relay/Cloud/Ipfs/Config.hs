@@ -6,10 +6,10 @@ module Encoins.Relay.Cloud.Ipfs.Config where
 
 import           Encoins.Common.Constant            (space)
 import           Encoins.Common.Log                 (mkLogEnv, withLogEnv)
+import           Encoins.Relay.Common               (decodeOrErrorFromFile)
 import           Encoins.Relay.Cloud.Ipfs.Types
 import           PlutusAppsExtra.Api.Maestro        (MaestroToken)
 
-import           Cardano.Server.Config              (decodeOrErrorFromFile)
 import qualified Data.ByteString                    as BS
 import           Data.Text                          (Text)
 import qualified Data.Text                          as T

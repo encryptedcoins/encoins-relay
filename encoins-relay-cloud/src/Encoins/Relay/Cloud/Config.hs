@@ -11,8 +11,8 @@ import           Encoins.Common.Log                            (mkLogEnv,
 import           Encoins.Relay.Cloud.PostgreSQL.Migration      (migration)
 import           Encoins.Relay.Cloud.PostgreSQL.Query          (countEncoinsRowsS)
 import           Encoins.Relay.Cloud.Types
+import           Encoins.Relay.Common                          (decodeOrErrorFromFile)
 
-import           Cardano.Server.Config                         (decodeOrErrorFromFile)
 import           Control.Exception.Safe                        (bracket)
 import           Data.Time                                     (DiffTime)
 import           Dhall (input, auto)

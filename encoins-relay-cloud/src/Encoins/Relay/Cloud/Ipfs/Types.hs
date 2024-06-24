@@ -11,7 +11,6 @@
 module Encoins.Relay.Cloud.Ipfs.Types where
 
 import           Cardano.Api                   (NetworkId)
-import           Cardano.Server.Config         (HyperTextProtocol (..))
 import           Control.Exception.Safe        (Exception, MonadCatch,
                                                 MonadThrow)
 import           Control.Monad.IO.Class        (MonadIO)
@@ -35,6 +34,7 @@ import           Data.Text                     (Text)
 import           Data.Text.Encoding            (decodeUtf8)
 import           Data.Time                     (UTCTime)
 import           Data.Time.Clock.POSIX         (POSIXTime)
+import           Encoins.Relay.Common.Server   (HyperTextProtocol)
 import           GHC.Generics                  (Generic)
 import           Katip
 import           Network.HTTP.Client           (Manager)

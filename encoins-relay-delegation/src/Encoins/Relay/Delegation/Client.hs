@@ -8,7 +8,7 @@
 
 module Encoins.Relay.Delegation.Client where
 
-import           Cardano.Server.Client.Handle      (HasServantClientEnv)
+import           Encoins.Relay.Common.Client       (HasServantClientEnv)
 import           Control.Exception                 (Exception)
 import           Data.Bifunctor                    (Bifunctor (..))
 import qualified Data.ByteString.Lazy              as BS

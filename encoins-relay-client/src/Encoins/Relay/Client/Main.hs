@@ -14,7 +14,6 @@
 module Encoins.Relay.Client.Main where
 
 import qualified CSL
-import           Cardano.Server.Config                        (decodeOrErrorFromFile)
 import           Control.Concurrent                           (threadDelay)
 import           Control.Monad                                (forever, void)
 import           Control.Monad.Catch                          (throwM)
@@ -27,6 +26,7 @@ import           Encoins.Relay.Client.Opts                    (ClientCommand (..
                                                                genUtxosReq)
 import           Encoins.Relay.Client.Secrets                 (genTerms)
 import           Encoins.Relay.Client.TxClient                (TxClientCosntraints, txClientRedeemer)
+import           Encoins.Relay.Common                         (decodeOrErrorFromFile)
 import           Encoins.Relay.Common.Client                  (HasServantClientEnv, autoClientWith, autoPing, autoVersion, manualClient,
                                                                manualPing, manualVersion, pingClient, sendRequest, versionClient)
 import           Encoins.Relay.Common.Client.Opts             (runWithOpts)

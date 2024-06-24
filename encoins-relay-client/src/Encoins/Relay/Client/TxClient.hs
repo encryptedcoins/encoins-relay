@@ -17,7 +17,7 @@ module Encoins.Relay.Client.TxClient where
 import           CSL                           (TransactionInputs)
 import qualified CSL
 import           CSL.Class                     (ToCSL (..))
-import           Cardano.Server.Client.Handle  (HasServantClientEnv)
+import           Encoins.Relay.Common.Client   (HasServantClientEnv)
 import           ENCOINS.BaseTypes             (MintingPolarity (Burn, Mint))
 import           ENCOINS.Bulletproofs          (Secret (..), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), protocolFee, treasuryFee)

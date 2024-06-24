@@ -13,11 +13,6 @@
 
 module Encoins.Relay.Server.ServerSpec where
 
-import           Cardano.Server.Client.Handle           (HasServantClientEnv)
-import           Cardano.Server.Config                  (ServerEndpoint (ServerTxE), decodeOrErrorFromFile)
-import           Cardano.Server.Internal                (Env (envLogger), ServerM, loadEnv, runServerM)
-import           Cardano.Server.Utils.Logger            (logSmth, mutedLogger, (.<))
-import           Cardano.Server.Utils.Wait              (waitTime)
 import           Control.Exception                      (try)
 import           Control.Monad                          (join, replicateM)
 import           Control.Monad.IO.Class                 (MonadIO (..))
@@ -35,8 +30,9 @@ import           Encoins.Relay.Client.Secrets           (EncoinsRequestTerm (RPB
                                                          getEncoinsTokensFromMode, mkSecretFile, randomMintTermWithUB)
 import           Encoins.Relay.Client.TxClient          (TxClientCosntraints, secretsToReqBody, sendTxClientRequest, termsToSecrets,
                                                          txClientRedeemer)
-import           Encoins.Relay.Common                   (encoinsCS, encoinsTokenName)
+import           Encoins.Relay.Common                   (decodeOrErrorFromFile, encoinsCS, encoinsTokenName)
 import           Encoins.Relay.Common.Server            (mkServantClientEnv)
+import           Encoins.Relay.Common.Client            (HasServantClientEnv)
 import           Encoins.Relay.Server.Config            (EncoinsRelayConfig (..))
 import           Encoins.Relay.Server.Endpoint.ServerTx (ServerTxEndpoint)
 import           Encoins.Relay.Server.Internal          (EncoinsRelayEnv (..), EncoinsServerM)
