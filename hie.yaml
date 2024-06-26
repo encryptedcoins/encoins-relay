@@ -15,6 +15,16 @@ cradle:
     - path: "encoins-relay-client/app"
       component: "encoins-relay-client:exe:encoins-relay-client"
 
+    #Cloud
+    - path: "encoins-relay-cloud/src"
+      component: "encoins-relay-cloud:lib:encoins-relay-cloud"
+
+    - path: "encoins-relay-cloud/app_cloud"
+      component: "encoins-relay-cloud:exe:encoins-relay-cloud"
+
+    - path: "encoins-relay-cloud/app_cloud_clean"
+      component: "encoins-relay-cloud:exe:encoins-relay-cloud"
+
     #Common
     - path: "encoins-relay-common/src"
       component: "encoins-relay-common:lib:encoins-relay-common"
