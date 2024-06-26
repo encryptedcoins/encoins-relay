@@ -11,10 +11,10 @@ module Encoins.Relay.Common where
 import           Cardano.Api                        (NetworkId, writeFileJSON)
 import           Encoins.Common.Constant            (newLine)
 import           Ledger                             (Slot (getSlot))
-import           Plutus.V2.Ledger.Api               (CurrencySymbol, TokenName)
 import           PlutusAppsExtra.Api.Kupo           (CreatedOrSpent (..), KupoRequest (..), SpentOrUnspent (..), getKupoResponse)
 import           PlutusAppsExtra.IO.ChainIndex.Kupo ()
 import           PlutusAppsExtra.Utils.Kupo         (KupoResponse (..), kupoResponseToJSON)
+import           PlutusLedgerApi.V2                 (CurrencySymbol, TokenName)
 
 import           Control.Arrow                      (Arrow ((&&&)), (<<<), (>>>))
 import           Control.Concurrent                 (threadDelay)
@@ -26,8 +26,9 @@ import           Data.Aeson                         (FromJSON (parseJSON), ToJSO
 import           Data.Aeson.Types                   (parseMaybe)
 import           Data.Default                       (def)
 import           Data.Either.Extra                  (eitherToMaybe)
-import           Data.List                          (isPrefixOf, sort, stripPrefix)
-import           Data.Maybe                         (catMaybes, listToMaybe, mapMaybe)
+import           Data.List                          (isPrefixOf, sortBy, stripPrefix)
+import           Data.Maybe                         (listToMaybe, mapMaybe)
+import           Data.Ord                           (Down (..), comparing)
 import           Data.Text                          (Text)
 import qualified Data.Text.Lazy                     as TL
 import           Data.Time                          (getCurrentTime)
@@ -35,9 +36,9 @@ import qualified Data.Time                          as Time
 import           GHC.Stack                          (HasCallStack)
 import           System.Directory                   (createDirectoryIfMissing, listDirectory, removeFile)
 import           System.FilePath                    ((</>))
+import qualified System.ProgressBar                 as PB
 import           System.ProgressBar                 (Progress (..), ProgressBar, ProgressBarWidth (..), Style (..), defStyle, exact,
                                                      incProgress, msg)
-import qualified System.ProgressBar                 as PB
 
 decodeOrErrorFromFile :: (HasCallStack, FromJSON a) => FilePath -> IO a
 decodeOrErrorFromFile = fmap (either error id) . eitherDecodeFileStrict
@@ -61,7 +62,7 @@ getResponsesIO networkId slotFrom slotTo slotDelta = do
             fmap (kupoResponseToJSON networkId) <$> getKupoResponse req
         liftIO $ incProgress pb 1
         pure r
-    pure $ catMaybes $ parseMaybe parseJSON <$> resValue
+    pure $ mapMaybe (parseMaybe parseJSON) resValue
     where
         intervals = divideTimeIntoIntervals slotFrom slotTo slotDelta
         mkLog = liftIO . putStrLn
@@ -120,17 +121,17 @@ readTime = Time.parseTimeM True Time.defaultTimeLocale formatString
 loadMostRecentFile :: FromJSON a => FilePath -> String -> IO (Maybe (Time.UTCTime, a))
 loadMostRecentFile dir prefix = do
     files <- listDirectory dir
-    let time = listToMaybe . reverse . sort $ mapMaybe (stripPrefix prefix >=> takeWhile (/= '.') >>> readTime) files
+    let time = listToMaybe . sortBy (comparing Down) $ mapMaybe (stripPrefix prefix >=> takeWhile (/= '.') >>> readTime) files
         fp = (\t -> dir </> prefix <> t <> ".json") . formatTime <$> time
-    res <- fmap join $ sequence $ fmap eitherToMaybe . eitherDecodeFileStrict <$> fp
+    res <- join <$> mapM (fmap eitherToMaybe . eitherDecodeFileStrict) fp
     pure $ (,) <$> time <*> res
 
 janitorFiles :: MonadIO m => FilePath -> String -> m ()
 janitorFiles  dir prefix = liftIO $ do
         files <- listDirectory dir
-        let mbLastTime = listToMaybe . reverse . sort $ mapMaybe (stripPrefix prefix >=> takeWhile (/= '.') >>> readTime) files
+        let mbLastTime = listToMaybe . sortBy (comparing Down) $ mapMaybe (stripPrefix prefix >=> takeWhile (/= '.') >>> readTime) files
             mbLastFile = (\t -> dir </> prefix <> t <> ".json") . formatTime <$> mbLastTime
             toRemove = drop 10 . reverse . (`filterFiles` map (dir </>) files) <$> mbLastFile
-        sequence_ $ mapM_ removeFile <$> toRemove
+        mapM_ (mapM_ removeFile) toRemove
     where
         filterFiles lastFile = filter $ uncurry (&&) <<< (/= lastFile) &&& isPrefixOf (dir </> prefix)

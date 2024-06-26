@@ -8,52 +8,53 @@
 
 module Encoins.Relay.Common.Tx where
 
-import           Cardano.Api                          (BabbageEra, TxMetadataInEra)
-import           Cardano.Node.Emulator                (Params)
-import           Control.Lens                         ((^?))
-import           Control.Monad.Catch                  (Handler (..), MonadCatch, MonadThrow (..), catches, handle)
-import           Control.Monad.Extra                  (guard, mconcatMapM, when)
-import           Control.Monad.IO.Class               (MonadIO (..))
-import           Control.Monad.State                  (execState)
-import           Data.Aeson                           (decode)
-import qualified Data.Aeson                           as J
-import           Data.Aeson.Lens                      (AsValue (_String), key)
-import           Data.Char                            (isDigit, isSpace)
-import           Data.Default                         (def)
-import           Data.List.Extra                      (chunksOf, dropPrefix)
-import qualified Data.Map                             as Map
-import           Data.Maybe                           (fromJust, isNothing, mapMaybe)
-import qualified Data.Set                             as Set
-import qualified Data.Text                            as T
-import           Encoins.Common.Log                   (logInfo, logInfoS)
-import           Encoins.Relay.Common.Error           (ConnectionError (..), MkTxError (..), throwMaybe)
-import           Encoins.Relay.Common.Tx.Input        (InputContext (..))
-import           Katip                                (KatipContext)
-import           Ledger                               (Address, TxOutRef)
-import           Ledger.Tx.CardanoAPI                 as CardanoAPI (CardanoTx, fromCardanoValue, unspentOutputsTx)
-import           Ledger.Tx.Constraints                (ScriptLookups (..), TxConstraints (..))
-import           Ledger.Typed.Scripts                 (Any)
-import qualified Ledger.Value.CardanoAPI              as C
-import           Network.HTTP.Client                  (HttpExceptionContent (..))
-import qualified Plutus.Script.Utils.Ada              as P
-import           Plutus.V2.Ledger.Api                 (CurrencySymbol (..), TokenName (..))
-import qualified Plutus.V2.Ledger.Api                 as P
-import           PlutusAppsExtra.Constraints.Balance  (balanceExternalTx)
-import           PlutusAppsExtra.Constraints.OffChain (useAsCollateralTx', utxoProducedPublicKeyTx)
-import           PlutusAppsExtra.IO.ChainIndex        (getUtxosAt)
-import           PlutusAppsExtra.IO.Time              (currentTime)
-import           PlutusAppsExtra.IO.Tx                (HasTxProvider)
+import           Cardano.Api                              (ConwayEra, TxMetadataInEra)
+import           Cardano.Node.Emulator                    (Params)
+import           Control.Lens                             ((^?))
+import           Control.Monad.Catch                      (Handler (..), MonadCatch, MonadThrow (..), catches, handle)
+import           Control.Monad.Extra                      (guard, mconcatMapM, when)
+import           Control.Monad.IO.Class                   (MonadIO (..))
+import           Control.Monad.State                      (execState)
+import           Data.Aeson                               (decode)
+import qualified Data.Aeson                               as J
+import           Data.Aeson.Lens                          (AsValue (_String), key)
+import           Data.Char                                (isDigit, isSpace)
+import           Data.Default                             (def)
+import           Data.List.Extra                          (chunksOf, dropPrefix)
+import qualified Data.Map                                 as Map
+import           Data.Maybe                               (fromJust, isNothing, mapMaybe)
+import qualified Data.Set                                 as Set
+import qualified Data.Text                                as T
+import           Encoins.Common.Log                       (logInfo, logInfoS)
+import           Encoins.Relay.Common.Error               (ConnectionError (..), MkTxError (..), throwMaybe)
+import           Encoins.Relay.Common.Tx.Input            (InputContext (..))
+import           Katip                                    (KatipContext)
+import           Ledger                                   (Address, TxOutRef, getCardanoTxId)
+import           Ledger.Tx.CardanoAPI                     as CardanoAPI (CardanoTx, fromCardanoTxId, fromCardanoValue, unspentOutputsTx)
+import           Ledger.Typed.Scripts                     (Any)
+import qualified Ledger.Value.CardanoAPI                  as C
+import           Network.HTTP.Client                      (HttpExceptionContent (..))
+import qualified Plutus.Script.Utils.Ada                  as P
+import           PlutusAppsExtra.Constraints.Balance      (balanceExternalTx)
+import           PlutusAppsExtra.Constraints.OffChain     (useAsCollateralTx', utxoProducedPublicKeyTx)
+import           PlutusAppsExtra.IO.ChainIndex            (getUtxosAt)
+import           PlutusAppsExtra.IO.Time                  (currentTime)
+import           PlutusAppsExtra.IO.Tx                    (HasTxProvider)
 import qualified PlutusAppsExtra.IO.Tx
-import           PlutusAppsExtra.Types.Tx             (TransactionBuilder, TxConstructor (..), mkTxConstructor, selectTxConstructor,
-                                                       txBuilderRequirements)
-import           PlutusAppsExtra.Utils.Address        (addressToKeyHashes)
-import           PlutusTx                             (BuiltinData)
-import qualified PlutusTx.AssocMap                    as PAM
-import           PlutusTx.Builtins.Class              (ToBuiltin (..))
-import           Prettyprinter                        (Doc, Pretty (..), hang, vsep)
-import           Servant.Client                       (ClientError (FailureResponse), ResponseF (..))
-import           Text.Hex                             (decodeHex)
-import           Text.Read                            (readMaybe)
+import           PlutusAppsExtra.PlutusApps.ScriptLookups (ScriptLookups (..))
+import           PlutusAppsExtra.PlutusApps.TxConstraints (TxConstraints (..))
+import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder, TxConstructor (..), mkTxConstructor, selectTxConstructor,
+                                                           txBuilderRequirements)
+import           PlutusAppsExtra.Utils.Address            (addressToKeyHashes)
+import           PlutusLedgerApi.V2                       (CurrencySymbol (..), TokenName (..))
+import qualified PlutusLedgerApi.V2                       as P
+import           PlutusTx                                 (BuiltinData)
+import qualified PlutusTx.AssocMap                        as PAM
+import           PlutusTx.Builtins.Class                  (ToBuiltin (..))
+import           Prettyprinter                            (Doc, Pretty (..), hang, vsep)
+import           Servant.Client                           (ClientError (FailureResponse), ResponseF (..))
+import           Text.Hex                                 (decodeHex)
+import           Text.Read                                (readMaybe)
 
 type MkTxConstrains m = (MonadIO m, MonadCatch m, KatipContext m, HasTxProvider m, HasMkTxEnv m)
 
@@ -65,7 +66,7 @@ mkBalanceTx :: MkTxConstrains m
     => [Address]
     -> InputContext
     -> [TransactionBuilder ()]
-    -> Maybe (TxMetadataInEra BabbageEra)
+    -> Maybe (TxMetadataInEra ConwayEra)
     -> m CardanoTx
 mkBalanceTx addressesTracked context txs mbMeta = do
     reqs         <- liftIO $ txBuilderRequirements txs
@@ -93,7 +94,7 @@ signTx :: MkTxConstrains m
     => [Address]
     -> InputContext
     -> [TransactionBuilder ()]
-    -> Maybe (TxMetadataInEra BabbageEra)
+    -> Maybe (TxMetadataInEra ConwayEra)
     -> m CardanoTx
 signTx addressesTracked ctx txs mbMeta = mkTxErrorH $ do
     balancedTx <- mkBalanceTx addressesTracked ctx txs mbMeta
@@ -107,17 +108,17 @@ submitTx :: MkTxConstrains m
     => [Address]
     -> InputContext
     -> [TransactionBuilder ()]
-    -> Maybe (TxMetadataInEra BabbageEra)
+    -> Maybe (TxMetadataInEra ConwayEra)
     -> m CardanoTx
 submitTx addressesTracked ctx txs mbMetadata = mkTxErrorH $ do
     signedTx <- signTx addressesTracked ctx txs mbMetadata
     logInfo "Submitting..."
-    PlutusAppsExtra.IO.Tx.submitTx signedTx
+    _ <- PlutusAppsExtra.IO.Tx.submitTx signedTx
     return signedTx
 
 awaitTxConfirmed :: MkTxConstrains m => CardanoTx -> m CardanoTx
 awaitTxConfirmed ctx = mkTxErrorH $ do
-    handle submitH $ PlutusAppsExtra.IO.Tx.awaitTxConfirmed ctx
+    handle submitH $ PlutusAppsExtra.IO.Tx.awaitTxConfirmed $ fromCardanoTxId $ getCardanoTxId ctx
     logInfo "Submited."
     return ctx
   where
@@ -130,7 +131,7 @@ mkTx :: MkTxConstrains m
     => [Address]
     -> InputContext
     -> [TransactionBuilder ()]
-    -> Maybe (TxMetadataInEra BabbageEra)
+    -> Maybe (TxMetadataInEra ConwayEra)
     -> m CardanoTx
 mkTx addressesTracked ctx txs mbMetadata = submitTx addressesTracked ctx txs mbMetadata >>= awaitTxConfirmed
 

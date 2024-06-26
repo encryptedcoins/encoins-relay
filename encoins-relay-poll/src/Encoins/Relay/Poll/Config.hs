@@ -4,31 +4,31 @@
 
 module Encoins.Relay.Poll.Config where
 
-import           Cardano.Api                 (NetworkId (Mainnet))
-import           Cardano.Node.Emulator       (SlotConfig)
-import           Encoins.Relay.Common        (decodeOrErrorFromFile)
-import           Control.Applicative         ((<|>))
-import           Control.Lens                ((<&>), (^?))
-import           Data.Aeson                  (withObject, (.:))
-import qualified Data.Aeson                  as J
-import           Data.Aeson.Lens             (key)
-import           Data.Aeson.Types            (parseEither)
-import           Data.Maybe                  (fromMaybe)
-import qualified Data.Text                   as T
-import           Encoins.Relay.Common        (defaultSlotConfigFilePath, encoinsCS, encoinsTokenName)
-import           GHC.Stack                   (HasCallStack)
-import           Ledger                      (Slot)
-import           Plutus.V2.Ledger.Api        (CurrencySymbol, TokenName)
-import           PlutusAppsExtra.Utils.Time  (parseSlotConfig, parseSlotOrUtc, utcToSlot)
+import           Cardano.Api                         (NetworkId (Mainnet))
+import           Cardano.Node.Emulator.Internal.Node (SlotConfig)
+import           Control.Applicative                 ((<|>))
+import           Control.Lens                        ((<&>), (^?))
+import           Data.Aeson                          (withObject, (.:))
+import qualified Data.Aeson                          as J
+import           Data.Aeson.Lens                     (key)
+import           Data.Aeson.Types                    (parseEither)
+import           Data.Maybe                          (fromMaybe)
+import qualified Data.Text                           as T
+import           Encoins.Relay.Common                (decodeOrErrorFromFile, defaultSlotConfigFilePath, encoinsCS, encoinsTokenName)
+import           GHC.Stack                           (HasCallStack)
+import           Ledger                              (Slot)
+import           PlutusAppsExtra.Utils.Time          (parseSlotConfig, parseSlotOrUtc, utcToSlot)
+import           PlutusLedgerApi.V2                  (CurrencySymbol, TokenName)
 
 data PollConfig = PollConfig
-    { pcCs                 :: CurrencySymbol
-    , pcTokenName          :: TokenName
-    , pcStart              :: Slot
-    , pcFinish             :: Slot
-    , pcNetworkId          :: NetworkId
-    , pcCheckDatumPkh      :: Bool
-    , pcSlotConfig         :: SlotConfig
+    { pcCs             :: CurrencySymbol
+    , pcTokenName      :: TokenName
+    , pcStart          :: Slot
+    , pcFinish         :: Slot
+    , pcNetworkId      :: NetworkId
+    , pcCheckDatumPkh  :: Bool
+    , pcSlotConfig     :: SlotConfig
+    , pcMaestroTokenFp :: FilePath
     } deriving (Show)
 
 getConfig :: HasCallStack => FilePath -> IO PollConfig
@@ -45,4 +45,5 @@ getConfig fp = do
         pcFinish             <- o .: "finish" >>= parseSlotOrUtc <&> either (utcToSlot pcSlotConfig) id
         pcNetworkId          <- o .: "networkId" <|> pure Mainnet
         pcCheckDatumPkh      <- o .: "checkDatumPkh" <|> pure True
+        pcMaestroTokenFp     <- o .: "maestro_token_file_path"
         pure $ PollConfig{..}

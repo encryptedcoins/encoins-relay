@@ -8,12 +8,14 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
 
 module Encoins.Relay.Server.Internal where
 
-import qualified CSL
 import           Cardano.Api                              (NetworkId)
-import           Cardano.Node.Emulator                    (Params (..), pParamsFromProtocolParams)
+import           Cardano.Api.Shelley                      (sgEpochLength)
+import           Cardano.Node.Emulator                    (Params (..))
+import           Cardano.Node.Emulator.Internal.Node      (Params (..), mkLatestTransitionConfig, pParamsFromProtocolParams)
 import           Control.Concurrent                       (MVar, newEmptyMVar)
 import           Control.Exception                        (throw)
 import           Control.Lens                             ((^?))
@@ -21,19 +23,21 @@ import           Control.Monad.Catch                      (Exception, MonadCatch
 import           Control.Monad.Except                     (MonadError)
 import           Control.Monad.IO.Class                   (MonadIO (..))
 import           Control.Monad.Reader                     (MonadReader, ReaderT (..), asks, local)
+import qualified CSL
 import           Data.Aeson                               (FromJSON, ToJSON)
 import qualified Data.Aeson                               as J
 import           Data.Aeson.Lens                          (key)
 import           Data.Fixed                               (Micro)
 import           Data.Functor                             ((<&>))
 import           Data.IORef                               (IORef, newIORef)
+import           Data.List.NonEmpty                       (NonEmpty)
 import           Data.Maybe                               (fromMaybe)
 import           Data.Sequence                            (Seq)
 import qualified Data.Sequence                            as Seq
 import           Data.Text                                (Text)
+import           Encoins.Common.Log                       (mkLogEnv)
 import           ENCOINS.Core.OffChain                    (EncoinsMode (..))
 import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, EncoinsRedeemer, encoinsSymbol, ledgerValidatorAddress)
-import           Encoins.Common.Log                       (mkLogEnv)
 import           Encoins.Relay.Common                     (decodeOrErrorFromFile)
 import           Encoins.Relay.Common.Server              (HyperTextProtocol, mkServantClientEnv)
 import           Encoins.Relay.Common.Server.Handler      (EndpointNames, HasSwitchedEndpoints (..))
@@ -45,21 +49,20 @@ import           Encoins.Relay.Server.Config              (EncoinsApiTF, Encoins
 import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
 import           Katip                                    (Katip (..), KatipContext (..), LogContexts, LogEnv, Namespace)
-import           Plutus.V2.Ledger.Api                     (Address, CurrencySymbol, TokenName, TxOutRef)
 import           PlutusAppsExtra.Api.Blockfrost           (BlockfrostToken)
 import           PlutusAppsExtra.Api.Maestro              (MaestroToken, MonadMaestro (..))
 import           PlutusAppsExtra.IO.ChainIndex            (ChainIndexProvider, HasChainIndexProvider (..), getUtxosAt)
 import           PlutusAppsExtra.IO.Tx                    (HasTxProvider (getTxProvider), TxProvider)
-import           PlutusAppsExtra.IO.Wallet                (HasWallet (..), HasWalletProvider (getWalletProvider), RestoredWallet,
-                                                           WalletProvider)
+import           PlutusAppsExtra.IO.Wallet                (HasWallet (..), RestoredWallet)
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Types.Tx                 (UtxoRequirements)
 import           PlutusAppsExtra.Utils.ChainIndex         (MapUTXO)
 import           PlutusAppsExtra.Utils.Network            (HasNetworkId)
 import qualified PlutusAppsExtra.Utils.Network            as PlutusAppsExtra
+import           PlutusLedgerApi.V2                       (Address, CurrencySymbol, TokenName, TxOutRef)
 import           PlutusTx.Builtins                        (BuiltinByteString)
-import           Servant                                  (Handler)
 import qualified Servant
+import           Servant                                  (Handler)
 import           Servant.Client                           (ClientEnv)
 
 newtype EncoinsServerM a = MkEncoinsServerM {unEncoinsServerM :: ReaderT EncoinsRelayEnv Handler a}
@@ -120,7 +123,7 @@ data EncoinsRelayEnv = MkEncoinsRelayEnv
 
     -- Walet
     , envWallet                   :: RestoredWallet
-    , envWalletProvider           :: WalletProvider
+    , envWalletAddresses          :: NonEmpty Address
 
     -- ChainIndex
     , envChainIndexProvider       :: ChainIndexProvider
@@ -147,10 +150,15 @@ loadEncoinsRelayEnv MkEncoinsRelayConfig{..} = do
         case val ^? key "cicSlotConfig" <&> J.fromJSON of
             Just (J.Success sc) -> pure sc
             _                   -> error "There is no slot config in chain index config file."
+    alonzoGenesis  <- decodeOrErrorFromFile cAlonzoGenesisFile
+    shelleyGenesis <- decodeOrErrorFromFile cShelleyGenesisFile
+    conwayGenesis  <- decodeOrErrorFromFile cConwayGenesisFile
+    let transitionConfig = mkLatestTransitionConfig shelleyGenesis alonzoGenesis conwayGenesis
+        params = Params slotConfig (pParamsFromProtocolParams pp) cNetworkId (sgEpochLength shelleyGenesis) transitionConfig
     envDelegationIp <- decodeOrErrorFromFile cDelegationIpFile
-    envBlockfrostToken <- sequence $ decodeOrErrorFromFile <$> cBfTokenFilePath
-    envMaestroToken    <- sequence $ decodeOrErrorFromFile <$> cMaestroTokenFilePath
-    (envWalletProvider, envChainIndexProvider, envTxProvider) <- dataProvidersFromConfigDataProviders cDataProviders
+    envBlockfrostToken <- mapM decodeOrErrorFromFile cBfTokenFilePath
+    envMaestroToken    <- mapM decodeOrErrorFromFile cMaestroTokenFilePath
+    (envWalletAddresses, envChainIndexProvider, envTxProvider) <- dataProvidersFromConfigDataProviders cDataProviders envWallet cNetworkId
     envLogEnv <- mkLogEnv "Encoins relay server" cEnvironment cVerbosity cSeverity
     envVerifierClientEnv <- mkServantClientEnv cVerifierPort cVerifierHost cVerifierProtocol
     pure MkEncoinsRelayEnv
@@ -173,7 +181,7 @@ loadEncoinsRelayEnv MkEncoinsRelayConfig{..} = do
         , envMinUtxosNumber           = cMinUtxosNumber
         , envMaxUtxosNumber           = cMaxUtxosNumber
         , envDiagnosticsInterval      = fromMaybe 300 cDiagnosticsInterval
-        , envLedgerParams             = Params slotConfig (pParamsFromProtocolParams pp) cNetworkId
+        , envLedgerParams             = params
         , envCollateral               = cCollateral
         , ..
         }
@@ -206,9 +214,6 @@ instance HasChainIndexProvider EncoinsServerM where
 instance MonadMaestro EncoinsServerM where
     getMaestroToken = asks envMaestroToken >>= maybe (throwM NoMaestroToken) pure
 
-instance HasWalletProvider EncoinsServerM where
-    getWalletProvider = asks envWalletProvider
-
 instance HasTxProvider EncoinsServerM where
     getTxProvider = asks envTxProvider
 
@@ -218,7 +223,7 @@ instance HasMkTxEnv EncoinsServerM where
 
 getNetworkId :: EncoinsServerM NetworkId
 getNetworkId = do
-    Params _ _ networkId <- getLedgerParams
+    Params _ _ networkId _ _<- getLedgerParams
     pure networkId
 
 getTrackedAddresses :: EncoinsServerM [Address]

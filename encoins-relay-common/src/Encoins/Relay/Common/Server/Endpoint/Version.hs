@@ -13,8 +13,7 @@ import           Servant                (Get, JSON, type (:>))
 type VersionEndpoint = "version"
     :> Get '[JSON] AppVersion
 
-versionEndpointHandler :: (Monad m, KatipContext m) => Version -> Text -> String -> m AppVersion
+versionEndpointHandler :: (KatipContext m) => Version -> Text -> String -> m AppVersion
 versionEndpointHandler version commit time = do
     logInfo "Received version request."
-    -- checkEndpointAvailability VersionE
     pure $ appVersion version commit time

@@ -13,24 +13,24 @@
 
 module Encoins.Relay.Server.Endpoint.ServerTx where
 
-import           CSL                                 (TransactionInputs)
-import           CSL.Class                           (FromCSL (..))
 import           Control.Concurrent                  (putMVar, takeMVar, threadDelay)
 import           Control.Exception                   (throw)
 import           Control.Monad                       (void, when)
 import           Control.Monad.Catch                 (Exception, SomeException, catch, handle, throwM)
 import           Control.Monad.IO.Class              (MonadIO (..))
 import           Control.Monad.Reader                (MonadReader (..), asks)
+import           CSL                                 (TransactionInputs)
+import           CSL.Class                           (FromCSL (..))
 import           Data.IORef                          (atomicModifyIORef, atomicWriteIORef, readIORef)
 import           Data.Maybe                          (fromMaybe)
 import           Data.Sequence                       (Seq (..), (|>))
 import qualified Data.Text                           as T
 import           Data.Time                           (getCurrentTime)
 import qualified Data.Time                           as Time
-import           ENCOINS.Core.OffChain               (EncoinsMode (..), delegateTx, encoinsSendTx, encoinsTx)
-import           ENCOINS.Core.OnChain                (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           Encoins.Common.Log                  (logErrorS, logInfo, logInfoS)
 import           Encoins.Common.Transform            (toText)
+import           ENCOINS.Core.OffChain               (EncoinsMode (..), delegateTx, encoinsSendTx, encoinsTx)
+import           ENCOINS.Core.OnChain                (EncoinsRedeemer, EncoinsRedeemerOnChain)
 import           Encoins.Relay.Common.Error          (ConnectionError, IsCardanoServerError (..), Throws)
 import           Encoins.Relay.Common.Server.Handler (wrapHandler)
 import           Encoins.Relay.Common.Tx             (mkTxErrorH, mkWalletTxOutRefs, submitTx)
@@ -42,11 +42,13 @@ import           Encoins.Relay.Server.Internal       (EncoinsRelayEnv (..), Enco
 import           Encoins.Relay.Verifier.Client       (VerifierClientError (..), verifierClient)
 import           Encoins.Relay.Verifier.Server       (VerifierApiError (..))
 import           Katip                               (katipAddNamespace)
-import           Ledger                              (TxId (..), TxOutRef (..))
+import           Ledger                              (TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex       (getMapUtxoFromRefs)
-import           PlutusAppsExtra.IO.Wallet           (HasWalletProvider (getWalletAddr), getWalletUtxos)
+import           PlutusAppsExtra.IO.Wallet           (getWalletUtxos)
+import           PlutusAppsExtra.IO.Wallet.Internal  (getWalletAddr)
 import           PlutusAppsExtra.Types.Tx            (TransactionBuilder, txBuilderRequirements)
 import           PlutusAppsExtra.Utils.ChainIndex    (filterCleanUtxos)
+import qualified PlutusLedgerApi.V2                  as PV2
 import           Servant                             (JSON, NoContent (..), Post, ReqBody, (:>))
 import qualified Servant.Client                      as Servant
 
@@ -101,10 +103,10 @@ processRequest req = sequence $ case req of
         case mode of
             WalletMode -> do
                 utxos    <- getMapUtxoFromRefs reqs $ fromMaybe (throw CorruptedExternalInputs) (fromCSL inputsCSL)
-                pure $ InputContextClient utxos utxos (TxOutRef (TxId "") 1) addr
+                pure $ InputContextClient utxos utxos (TxOutRef (PV2.TxId "") 1) addr
             LedgerMode -> do
                 utxos    <- getWalletUtxos reqs
-                InputContextClient mempty utxos (TxOutRef (TxId "") 1) <$> getWalletAddr
+                InputContextClient mempty utxos (TxOutRef (PV2.TxId "") 1) <$> getWalletAddr
 
 txBuilders :: EncoinsServerInput -> EncoinsServerM [TransactionBuilder ()]
 txBuilders (InputRedeemer red mode) = do
@@ -174,7 +176,7 @@ processQueueElem qRef QueueElem{..} elems = handle h $ do
 
 checkForCleanUtxos :: EncoinsServerM ()
 checkForCleanUtxos = mkTxErrorH $ do
-    addr       <- PlutusAppsExtra.IO.Wallet.getWalletAddr
+    addr       <- getWalletAddr
     cleanUtxos <- length . filterCleanUtxos <$> PlutusAppsExtra.IO.Wallet.getWalletUtxos mempty
     minUtxos   <- asks envMinUtxosNumber
     maxUtxos   <- asks envMaxUtxosNumber

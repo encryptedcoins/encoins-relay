@@ -6,29 +6,26 @@
 
 module Encoins.Relay.Common.Error.Class where
 
-import           Control.Exception                    (Exception (..), SomeException)
-import           Control.Lens                         ((^?))
-import           Control.Monad                        (join)
-import           Data.Aeson                           (KeyValue ((.=)), (.:))
-import qualified Data.Aeson                           as J
-import           Data.Aeson.Lens                      (_String, key)
-import           Data.Aeson.Types                     (parseMaybe)
-import qualified Data.ByteString.Lazy                 as LBS
-import           Data.Text                            (Text)
-import qualified Data.Text                            as T
+import           Control.Exception           (Exception (..), SomeException)
+import           Control.Lens                ((^?))
+import           Control.Monad               (join)
+import           Data.Aeson                  (KeyValue ((.=)), (.:))
+import qualified Data.Aeson                  as J
+import           Data.Aeson.Lens             (_String, key)
+import           Data.Aeson.Types            (parseMaybe)
+import qualified Data.ByteString.Lazy        as LBS
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Encoins.Common.Log
 import           Encoins.Common.Transform
 import           Katip
-import           Network.HTTP.Client                  (HttpException (..), HttpExceptionContent (..), Response (..))
-import           Network.HTTP.Types                   (Status)
+import           Network.HTTP.Client         (HttpException (..), HttpExceptionContent (..), Response (..))
+import           Network.HTTP.Types          (Status)
 import qualified Network.HTTP.Types.Header
-import           PlutusAppsExtra.Api.Kupo             (pattern KupoConnectionError)
-import           PlutusAppsExtra.IO.ChainIndex.Plutus (pattern PlutusChainIndexConnectionError)
-import           PlutusAppsExtra.IO.Wallet.Cardano    (pattern CardanoWalletApiConnectionError)
-import           PlutusAppsExtra.Types.Error          (BalanceExternalTxError (..), ConnectionError (..), MkTxError (..),
-                                                       SubmitTxToLocalNodeError (..))
+import           PlutusAppsExtra.Api.Kupo    (pattern KupoConnectionError)
+import           PlutusAppsExtra.Types.Error (BalanceExternalTxError (..), ConnectionError (..), MkTxError (..), SubmitTxError (..))
 import qualified Servant
-import qualified Servant.Client                       as Servant
+import qualified Servant.Client              as Servant
 
 class Exception e => IsCardanoServerError e where
 
@@ -130,9 +127,7 @@ data InternalServerError
 instance IsCardanoServerError ConnectionError where
     errStatus _ = toEnum 503
     errMsg = \case
-        PlutusChainIndexConnectionError{} -> toMsg "Caradno chain index API"
         KupoConnectionError{}             -> toMsg "Kupo chain index API"
-        CardanoWalletApiConnectionError{} -> toMsg "Cardano wallet API"
         _                                 -> toMsg "Some external API"
         where toMsg = (<> " is currently unavailable. Try again later.")
 
@@ -147,18 +142,22 @@ instance IsCardanoServerError BalanceExternalTxError where
             -> "Unable to build an UnbalancedTx."
         NonBabbageEraChangeAddress{}
             -> "Change address is not from Babbage era."
-        MakeUtxoProviderError err _
+        MakeUtxoProviderError err
             -> "Unable to extract an utxoProvider from wallet outputs:\n" <> toText err
-        MakeAutoBalancedTxError err _
+        MakeAutoBalancedTxError err
             -> "Unable to build an auto balanced tx:\n" <> toText err
+        UtxoIndexConversionError err
+            -> "Utxo index conversion error:\n" <> toText err
 
-instance IsCardanoServerError SubmitTxToLocalNodeError where
+instance IsCardanoServerError SubmitTxError where
     errStatus = \case
-        NoConnectionToLocalNode{} -> toEnum 503
-        FailedSumbit{}            -> toEnum 422
+        NoConnectionToLocalNode{}   -> toEnum 503
+        AwaiTxMaxAttemptsExceeded{} -> toEnum 403
+        FailedSumbit{}              -> toEnum 422
     errMsg = \case
-        NoConnectionToLocalNode{} -> "Server local node is currently unavailable."
-        FailedSumbit err          -> "An error occurred while sending tx to local node. Reason: " <> toText err
+        NoConnectionToLocalNode{}   -> "Server local node is currently unavailable."
+        AwaiTxMaxAttemptsExceeded{} -> "Await tx max attempts exceeded."
+        FailedSumbit err            -> "An error occurred while sending tx to local node. Reason: " <> toText err
 
 data CslError
     = CslConversionError

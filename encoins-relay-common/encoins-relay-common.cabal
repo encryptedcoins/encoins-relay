@@ -11,7 +11,7 @@ build-type:    Custom
 custom-setup
   setup-depends:
     , base       >=4.9
-    , Cabal      >=3.2 && <3.3
+    , Cabal      >=3.2
     , directory  >=1.3 && <1.4
 
 -- Plutus language settings
@@ -54,7 +54,6 @@ library
     , cardano-addresses
     , cardano-crypto-class
     , cardano-crypto-tests
-    , cardano-wallet-core
     , cryptonite
     , bytestring
     , cardano-api
@@ -69,6 +68,7 @@ library
     , exceptions
     , extra
     , filepath
+    , generic-arbitrary
     , hex-text
     , http-client
     , http-client-tls
@@ -80,12 +80,11 @@ library
     , lens-aeson
     , optparse-applicative
     , plutus-apps-extra
+    , plutus-apps-extra-test-utils
     , plutus-ledger
     , plutus-ledger-api
-    , plutus-pab
     , plutus-script-utils
     , plutus-tx
-    , plutus-tx-constraints
     , prettyprinter
     , random
     , servant
@@ -94,7 +93,6 @@ library
     , servant-client-core
     , terminal-progress-bar
     , text
-    , text-class
     , time
     , wai
     , wai-cors

@@ -10,15 +10,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Encoins.Relay.Client.Main where
 
-import qualified CSL
 import           Control.Concurrent                           (threadDelay)
 import           Control.Monad                                (forever, void)
 import           Control.Monad.Catch                          (throwM)
 import           Control.Monad.IO.Class                       (MonadIO (..))
 import           Control.Monad.Reader                         (MonadReader (..))
+import qualified CSL
 import           Data.Data                                    (Proxy (..))
 import           Data.Text                                    (Text)
 import           ENCOINS.Bulletproofs                         (BulletproofSetup)
@@ -98,17 +99,9 @@ runCommand = \case
 
 autoTxMonadicClient :: forall e res.
     ( ?bulletproofSetup :: BulletproofSetup
-    -- , ClientConstraints e m
     , TxClientCosntraints e res
-    , Client ClientM e ~ ((EncoinsServerInput, CSL.TransactionInputs) -> ClientM res)
     , EndpointEnvelope e ~ res
     , KnownSymbol (GetEndpointName e)
-    -- , HasServantClientEnv
-    -- , HasClient ClientM e
-    -- , Show res
-    -- , EndpointEnvelope e ~ res
-    -- , MonadIO m
-    -- , MonadCatch m
     ) => EncoinsServerM res
 autoTxMonadicClient = do
     env <- ask

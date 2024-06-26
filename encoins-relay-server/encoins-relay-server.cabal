@@ -10,7 +10,7 @@ build-type:         Custom
 
 custom-setup
     setup-depends: base >= 4.9,
-                   Cabal == 3.2.*,
+                   Cabal >= 3.2,
                    directory == 1.3.*
 
 -- Plutus language settings
@@ -84,7 +84,6 @@ library
       , optparse-applicative
       , plutus-apps-extra
       , plutus-tx
-      , plutus-tx-constraints
       , plutus-ledger
       , plutus-ledger-api
       , plutus-script-utils

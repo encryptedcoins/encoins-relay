@@ -32,7 +32,7 @@ import qualified Hasql.Pool                    as P
 import           Katip
 import           Network.HTTP.Client           (Manager)
 import           Numeric.Natural               (Natural)
-import           Plutus.V1.Ledger.Api          (CurrencySymbol)
+import           PlutusLedgerApi.V1            (CurrencySymbol)
 import           PlutusAppsExtra.Api.Maestro   (MaestroToken, MonadMaestro (..))
 import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
 import           PlutusTx.Builtins.Internal    (BuiltinByteString (BuiltinByteString))

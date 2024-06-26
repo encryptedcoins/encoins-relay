@@ -28,8 +28,8 @@ import           Encoins.Relay.Server.Internal (EncoinsServerM, getEncoinsSymbol
 import           GHC.Generics                  (Generic)
 import           Ledger                        (fromCardanoValue)
 import           Plutus.Script.Utils.Ada       (Ada (..), lovelaceOf)
-import           Plutus.V2.Ledger.Api          (TokenName (..))
-import qualified Plutus.V2.Ledger.Api          as P
+import           PlutusLedgerApi.V2            (TokenName (..))
+import qualified PlutusLedgerApi.V2            as P
 import           PlutusAppsExtra.IO.ChainIndex (getValueAt)
 import           PlutusAppsExtra.IO.Wallet     (getWalletValue)
 import qualified PlutusTx.AssocMap             as PAM

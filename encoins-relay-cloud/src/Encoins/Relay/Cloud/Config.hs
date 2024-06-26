@@ -1,29 +1,27 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RankNTypes         #-}
-{-# LANGUAGE RecordWildCards    #-}
 
 
 module Encoins.Relay.Cloud.Config where
 
-import           Encoins.Common.Log                            (mkLogEnv,
-                                                                withLogEnv)
-import           Encoins.Relay.Cloud.PostgreSQL.Migration      (migration)
-import           Encoins.Relay.Cloud.PostgreSQL.Query          (countEncoinsRowsS)
+import           Encoins.Common.Log                       (mkLogEnv, withLogEnv)
+import           Encoins.Relay.Cloud.PostgreSQL.Migration (migration)
+import           Encoins.Relay.Cloud.PostgreSQL.Query     (countEncoinsRowsS)
 import           Encoins.Relay.Cloud.Types
-import           Encoins.Relay.Common                          (decodeOrErrorFromFile)
+import           Encoins.Relay.Common                     (decodeOrErrorFromFile)
 
-import           Control.Exception.Safe                        (bracket)
-import           Data.Time                                     (DiffTime)
-import           Dhall (input, auto)
-import qualified Hasql.Connection                              as Conn
-import qualified Hasql.Pool                                    as P
+import           Control.Exception.Safe                   (bracket)
+import           Data.Time                                (DiffTime)
+import           Dhall                                    (auto, input)
+import qualified Hasql.Connection                         as Conn
+import qualified Hasql.Pool                               as P
+import qualified Hasql.Pool.Config                        as P
 import           Katip
-import           Network.HTTP.Client                           hiding (Proxy)
+import           Network.HTTP.Client                      hiding (Proxy)
 import           Network.HTTP.Client.TLS
-import           PlutusAppsExtra.Api.Maestro                   (MaestroToken)
-import           Text.Pretty.Simple                            (pPrint,
-                                                                pPrintString)
+import           PlutusAppsExtra.Api.Maestro              (MaestroToken)
+import           Text.Pretty.Simple                       (pPrint, pPrintString)
 
 withCloudEnv :: (CloudEnv -> IO ()) -> IO ()
 withCloudEnv action = do
@@ -56,8 +54,15 @@ withPool :: Int
   -> Conn.Settings
   -> (P.Pool -> IO ())
   -> IO ()
-withPool poolSize acqTimeout maxLifetime connSettings = bracket
-  ( P.acquire poolSize acqTimeout maxLifetime connSettings )
+withPool poolSize acqTimeout maxLifetime connSettings =
+  let conf = P.settings
+        [ P.size poolSize
+        , P.acquisitionTimeout acqTimeout
+        , P.agingTimeout maxLifetime
+        , P.staticConnectionSettings connSettings
+        ]
+  in bracket
+  ( P.acquire conf )
   P.release
 
 withDefaultPool :: Conn.Settings -> (P.Pool -> IO ()) -> IO ()

@@ -38,7 +38,7 @@ import           Encoins.Relay.Common.Server   (HyperTextProtocol)
 import           GHC.Generics                  (Generic)
 import           Katip
 import           Network.HTTP.Client           (Manager)
-import           Plutus.V1.Ledger.Api          (CurrencySymbol)
+import           PlutusLedgerApi.V1            (CurrencySymbol)
 import           PlutusAppsExtra.Api.Maestro   (MaestroToken, MonadMaestro (..))
 import           PlutusAppsExtra.Utils.Network (HasNetworkId (..))
 import           Servant.API                   (ToHttpApiData)

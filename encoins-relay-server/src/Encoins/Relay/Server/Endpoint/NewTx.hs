@@ -10,10 +10,10 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE TypeApplications #-}
 
 
 module Encoins.Relay.Server.Endpoint.NewTx where
@@ -25,18 +25,20 @@ import           Data.Aeson                             (ToJSON)
 import           Data.Text                              (Text)
 import           Encoins.Common.Log                     (logInfo, logInfoS)
 import           Encoins.Common.Transform               (toText)
-import           Encoins.Relay.Common.Error             (BalanceExternalTxError, ConnectionError,
-                                                         IsCardanoServerError (errMsg, errStatus), MkTxError, Throws)
+import           Encoins.Relay.Common.Error             (BalanceExternalTxError, ConnectionError, IsCardanoServerError (errMsg, errStatus),
+                                                         MkTxError, Throws)
+import           Encoins.Relay.Common.Server.Handler    (wrapHandler)
 import           Encoins.Relay.Common.Tx                (mkBalanceTx)
 import           Encoins.Relay.Server.Endpoint.ServerTx (EncoinsTxApiError, processRequest, txBuilders)
 import           Encoins.Relay.Server.Internal          (EncoinsServerInput, EncoinsServerM, getTrackedAddresses)
 import           GHC.Generics                           (Generic)
-import           Ledger                                 (CardanoTx, TxId (..), getCardanoTxId)
+import           Ledger                                 (CardanoTx, getCardanoTxId)
+import           Ledger.Tx.CardanoAPI                   (fromCardanoTxId)
 import           PlutusAppsExtra.Utils.Tx               (cardanoTxToText)
+import qualified PlutusLedgerApi.V2                     as PV2
 import           PlutusTx.Prelude                       (fromBuiltin)
 import           Servant                                (JSON, Post, ReqBody, type (:>))
 import           Text.Hex                               (encodeHex)
-import Encoins.Relay.Common.Server.Handler (wrapHandler)
 
 type NewTxEndpoint = "newTx"
     :> Throws EncoinsTxApiError
@@ -66,6 +68,6 @@ newTxEndpointHandler req = wrapHandler @NewTxEndpoint $ do
     balancedTx <- mkBalanceTx addrs context txBuilder Nothing
     case cardanoTxToText balancedTx of
         Just res ->
-            let txId = encodeHex $ fromBuiltin $ getTxId $ getCardanoTxId balancedTx
+            let txId = encodeHex $ fromBuiltin $ PV2.getTxId $ fromCardanoTxId $ getCardanoTxId balancedTx
             in pure (txId, res)
         Nothing -> throwM $ UnserialisableCardanoTx balancedTx

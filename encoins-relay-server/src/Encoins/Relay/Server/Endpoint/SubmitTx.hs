@@ -17,21 +17,19 @@ import           Data.Either.Extra                   (maybeToEither)
 import           Data.Text                           (Text)
 import           Encoins.Common.Log                  (logInfo, logInfoS)
 import           Encoins.Common.Transform            (toText)
-import           Encoins.Relay.Common.Error          (ConnectionError, IsCardanoServerError (errMsg, errStatus), SubmitTxToLocalNodeError,
-                                                      Throws)
+import           Encoins.Relay.Common.Error          (ConnectionError, IsCardanoServerError (errMsg, errStatus), SubmitTxError, Throws)
 import           Encoins.Relay.Common.Server.Handler (wrapHandler)
 import           Encoins.Relay.Server.Internal       (EncoinsServerM)
 import           GHC.Generics                        (Generic)
 import           Ledger                              (CardanoTx)
 import           Ledger.Crypto                       (PubKey, Signature)
-import           PlutusAppsExtra.IO.Tx               (sumbitTxToNodeLocal)
+import           PlutusAppsExtra.IO.Tx               (HasTxProvider (..))
 import           PlutusAppsExtra.Utils.Tx            (addCardanoTxSignature, textToCardanoTx, textToPubkey, textToSignature)
 import           Servant                             (JSON, NoContent (..), Post, ReqBody, (:>))
-
 type SubmitTxEndpoint
     = "submitTx"
     :> Throws SubmitTxApiError
-    :> Throws SubmitTxToLocalNodeError
+    :> Throws SubmitTxError
     :> Throws ConnectionError
     :> ReqBody '[JSON] SubmitTxReqBody
     :> Post '[JSON] NoContent
@@ -57,7 +55,7 @@ submitTxEndpointHandler req = wrapHandler @SubmitTxEndpoint $ do
     logInfoS True req
     (ctx, wtns) <- either throwM pure $ parseSubmitTxReqBody req
     let ctx' = foldr (uncurry addCardanoTxSignature) ctx wtns
-    sumbitTxToNodeLocal ctx'
+    submitTx ctx'
     pure NoContent
 
 parseSubmitTxReqBody :: SubmitTxReqBody -> Either SubmitTxApiError (CardanoTx, [(PubKey, Signature)])

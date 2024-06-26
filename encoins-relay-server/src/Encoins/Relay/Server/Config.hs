@@ -16,7 +16,6 @@ module Encoins.Relay.Server.Config where
 
 import           Cardano.Api                         (NetworkId, prettyPrintJSON, writeFileJSON)
 import           Cardano.Mnemonic                    (MkSomeMnemonic (..))
-import           Control.Applicative                 (Applicative (..))
 import           Control.Exception                   (SomeException)
 import           Control.Lens                        ((&), (.~))
 import           Control.Monad                       (join, when, (<=<), (>=>))
@@ -27,12 +26,14 @@ import qualified Data.Aeson                          as J
 import           Data.Aeson.Casing                   (aesonPrefix, snakeCase)
 import           Data.Aeson.Lens                     (key)
 import qualified Data.ByteString                     as BS
+import           Data.Default                        (Default (..))
 import           Data.Either.Extra                   (eitherToMaybe)
 import           Data.Fixed                          (Micro)
 import           Data.Kind                           (Type)
 import           Data.List.Extra                     (breakOnEnd, notNull)
 import           Data.List.NonEmpty                  (NonEmpty ((:|)), nonEmpty)
-import           Data.Maybe                          (fromJust, fromMaybe, isJust, isNothing)
+import qualified Data.List.NonEmpty                  as NonEmpty
+import           Data.Maybe                          (fromJust, isJust, isNothing)
 import           Data.Text                           (Text)
 import qualified Data.Text                           as T
 import qualified Data.Text.IO                        as T
@@ -41,15 +42,14 @@ import           Encoins.Relay.Common.Server         (HyperTextProtocol)
 import           Encoins.Relay.Common.Server.Handler (EndpointNames, GetEdpointNames)
 import           GHC.Generics                        (Generic)
 import           Katip                               (Environment, Severity, Verbosity)
-import           Plutus.V2.Ledger.Api                (Address, CurrencySymbol, TokenName, TxOutRef (..))
 import           PlutusAppsExtra.IO.ChainIndex       (ChainIndexProvider)
 import qualified PlutusAppsExtra.IO.ChainIndex       as CI
 import           PlutusAppsExtra.IO.Tx               (TxProvider)
 import qualified PlutusAppsExtra.IO.Tx               as Tx
-import           PlutusAppsExtra.IO.Wallet           (RestoredWallet (..), WalletProvider, restoreWalletFromFile)
-import qualified PlutusAppsExtra.IO.Wallet           as Wallet
+import           PlutusAppsExtra.IO.Wallet           (RestoredWallet (..), restoreWalletFromFile)
 import           PlutusAppsExtra.IO.Wallet.Internal  (addressFromMnemonic)
 import           PlutusAppsExtra.Utils.Address       (addressToBech32, bech32ToAddress)
+import           PlutusLedgerApi.V2                  (Address, CurrencySymbol, TokenName, TxOutRef (..))
 import           PlutusTx.Builtins                   (BuiltinByteString)
 import           System.Directory                    (createDirectoryIfMissing, doesFileExist)
 
@@ -100,7 +100,11 @@ data EncoinsRelayConfig = MkEncoinsRelayConfig
     -- Providers
     , cProtocolParametersFile   :: FilePath
     , cSlotConfigFile           :: FilePath
+    , cAlonzoGenesisFile        :: FilePath
+    , cShelleyGenesisFile       :: FilePath
+    , cConwayGenesisFile        :: FilePath
     , cWalletFile               :: FilePath
+    , cWalletAddressesFile      :: FilePath
     , cNetworkId                :: NetworkId
     , cCollateral               :: Maybe TxOutRef
     , cDataProviders            :: ConfigDataProviders
@@ -125,14 +129,24 @@ data ConfigDataProviders
     -- ^ Node file path
     deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
-dataProvidersFromConfigDataProviders :: ConfigDataProviders -> IO (WalletProvider, ChainIndexProvider, TxProvider)
-dataProvidersFromConfigDataProviders = \case
-    Lightweight fp -> do
-        addrs <- fromMaybe (error "Unparsable addresses for lightweight wallet provider.") <$> readAddrs fp
-        pure (Wallet.Lightweight addrs, CI.Maestro, Tx.Maestro)
-    Cardano fp -> pure (Wallet.Cardano, CI.Kupo, Tx.Cardano fp)
+dataProvidersFromConfigDataProviders :: ConfigDataProviders -> RestoredWallet -> NetworkId -> IO (NonEmpty Address, ChainIndexProvider, TxProvider)
+dataProvidersFromConfigDataProviders confProviders wallet network = do
+    case confProviders of
+        Lightweight fp -> do
+            addrs <- readAddrs fp >>= \case
+                Nothing -> genAddr
+                Just as -> pure as
+            pure (addrs, CI.Maestro, Tx.Maestro def)
+        Cardano fp -> do
+            addrs <- genAddr
+            pure (addrs, CI.Kupo, Tx.Cardano fp def)
   where
     readAddrs = fmap (>>= (mapM bech32ToAddress >=> nonEmpty)) . J.decodeFileStrict @[Text]
+    genAddr = do
+        putStrLn "Can not find file with wallet addresses. Address will be generated from mnemonic."
+        addr <- addressFromMnemonic network $ mnemonicSentence wallet
+        maybe (print addr) T.putStrLn $ addressToBech32 network addr
+        pure $ NonEmpty.singleton addr
 
 ------------------------------------------------------------------- Inintialisation -------------------------------------------------------------------
 
@@ -140,8 +154,8 @@ dataProvidersFromConfigDataProviders = \case
 initializeConfig :: (GetEdpointNames EncoinsApiTF) => FilePath -> IO ()
 initializeConfig configFp = do
     MkEncoinsRelayConfig{..} <- decodeOrErrorFromFile configFp
-    sequence_ $ initializeToken "blockfrost" <$> cBfTokenFilePath
-    sequence_ $ initializeToken "maestro" <$> cMaestroTokenFilePath
+    mapM_ (initializeToken "blockfrost") cBfTokenFilePath
+    mapM_ (initializeToken "maestro") cMaestroTokenFilePath
     initializeNode configFp MkEncoinsRelayConfig{..}
     initializeWallet cWalletFile
     initializeWalletProvider MkEncoinsRelayConfig{..}

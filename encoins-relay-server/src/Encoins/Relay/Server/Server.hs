@@ -42,9 +42,11 @@ import           Encoins.Relay.Server.Endpoint.SubmitTx       (SubmitTxEndpoint,
 import           Encoins.Relay.Server.Endpoint.Utxos          (UtxosEndpoint, utxosEndpointHandler)
 import           Encoins.Relay.Server.Internal                (EncoinsRelayEnv (..), EncoinsServerM, getEncoinsProtocolParams,
                                                                runEncoinsServerM)
-import           Ledger                                       (TxId (TxId), TxOutRef (..))
+import           Ledger                                       (TxOutRef (..))
 import           Paths_encoins_relay_server                   (version)
-import           PlutusAppsExtra.IO.Wallet                    (getWalletAddr, getWalletUtxos)
+import           PlutusAppsExtra.IO.Wallet                    (getWalletUtxos)
+import           PlutusAppsExtra.IO.Wallet.Internal           (getWalletAddr)
+import qualified PlutusLedgerApi.V2                           as PV2
 import           Servant                                      (HasServer (ServerT), (:<|>) (..))
 import           Servant.Client                               (client)
 
@@ -88,10 +90,10 @@ serverSetup = void $ do
     -- Mint the stake owner token
     utxos <- getWalletUtxos mempty
     let utxos' = Map.delete refBeacon utxos
-    mkTx [] (InputContextClient utxos' utxos' (TxOutRef (TxId "") 1) addr) [stakeOwnerTx encoinsProtocolParams] Nothing
+    mkTx [] (InputContextClient utxos' utxos' (TxOutRef (PV2.TxId "") 1) addr) [stakeOwnerTx encoinsProtocolParams] Nothing
     -- Mint and send the beacon
     utxos'' <-  getWalletUtxos mempty
-    mkTx [] (InputContextClient utxos'' utxos'' (TxOutRef (TxId "") 1) addr) [beaconTx encoinsProtocolParams] Nothing
+    mkTx [] (InputContextClient utxos'' utxos'' (TxOutRef (PV2.TxId "") 1) addr) [beaconTx encoinsProtocolParams] Nothing
     -- Post the ENCOINS minting policy
     mkTx [] (InputContextServer def) [postEncoinsPolicyTx encoinsProtocolParams referenceScriptSalt] Nothing
     -- Post the staking validator policy

@@ -10,8 +10,7 @@ import           Servant            (Get, JSON, NoContent (..), type (:>))
 
 type PingEndpoint = "ping" :> Get '[JSON] NoContent
 
-pingEndpointHandler :: (Monad m, KatipContext m) => m NoContent
+pingEndpointHandler :: (KatipContext m) => m NoContent
 pingEndpointHandler = do
     logInfo "Received ping request"
-    -- checkEndpointAvailability PingE
     pure NoContent

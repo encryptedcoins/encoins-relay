@@ -27,7 +27,7 @@ import           Encoins.Relay.Delegation.Internal   (Delegation (..), Delegatio
                                                       loadDelegationEnv, removeDuplicates, runDelegationM, setProgress, setTokenBalance,
                                                       toRelayAddress, trimIp)
 
-import           Control.Applicative                 (liftA2, (<|>))
+import           Control.Applicative                 ((<|>))
 import           Control.Concurrent                  (forkIO, threadDelay)
 import           Control.Concurrent.Async            (async, wait)
 import           Control.Exception                   (throw)

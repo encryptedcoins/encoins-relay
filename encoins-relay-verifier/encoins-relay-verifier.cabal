@@ -10,7 +10,7 @@ build-type: Custom
 
 custom-setup
     setup-depends: base >= 4.9,
-                   Cabal == 3.2.*,
+                   Cabal >= 3.2,
                    directory == 1.3.*
 
 -- Plutus language settings

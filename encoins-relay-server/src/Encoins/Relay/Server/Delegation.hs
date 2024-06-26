@@ -11,40 +11,40 @@
 
 module Encoins.Relay.Server.Delegation where
 
-import           Cardano.Api                     (writeFileJSON)
-import           Control.Applicative             ((<|>))
-import           Control.Monad                   (void, when)
-import           Control.Monad.IO.Class          (MonadIO (..))
-import           Control.Monad.Reader            (MonadReader (..), asks)
-import           Control.Monad.State             (modify)
-import           Data.Bifunctor                  (Bifunctor (..))
-import           Data.Char                       (toUpper)
-import           Data.Default                    (Default (..))
-import           Data.Function                   (on)
-import           Data.Functor                    ((<&>))
-import           Data.List.Extra                 (chunksOf, partition, sort)
-import qualified Data.List.NonEmpty              as NonEmpty
-import qualified Data.Map                        as Map
-import           Data.Maybe                      (fromMaybe, mapMaybe)
-import qualified Data.Text                       as T
-import           Encoins.Common.Constant         (newLine)
-import           Encoins.Common.Log              (logInfo, logInfoS)
-import           Encoins.Relay.Common            (decodeOrErrorFromFile)
-import           Encoins.Relay.Common.Server     (mkServantClientEnv)
-import           Encoins.Relay.Common.Tx         (mkBalanceTx, mkTx)
-import           Encoins.Relay.Common.Tx.Input   (InputContext (..))
-import           Encoins.Relay.Delegation.Client (serverDelegatesClient)
-import           Encoins.Relay.Server.Internal   (EncoinsRelayEnv (..), EncoinsServerM)
-import           Ledger                          (Address (..), PaymentPubKeyHash (..), TxOutRef (TxOutRef), minAdaTxOutEstimated)
-import           Ledger.Tx.Constraints           (mustPayToPubKeyAddress)
-import           Plutus.Script.Utils.Ada         (Ada)
-import qualified Plutus.Script.Utils.Ada         as Ada
-import           Plutus.V2.Ledger.Api            (Credential (..))
-import           PlutusAppsExtra.IO.Wallet       (HasWalletProvider (..), getWalletUtxos)
-import           PlutusAppsExtra.Types.Tx        (TxConstructor (..))
-import           PlutusAppsExtra.Utils.Address   (addressToBech32, bech32ToAddress)
-import           PlutusAppsExtra.Utils.Network   (HasNetworkId (..))
-import           PlutusAppsExtra.Utils.Tx        (mkCip20Metadata)
+import           Cardano.Api                              (writeFileJSON)
+import           Control.Applicative                      ((<|>))
+import           Control.Monad                            (void, when)
+import           Control.Monad.IO.Class                   (MonadIO (..))
+import           Control.Monad.Reader                     (MonadReader (..), asks)
+import           Control.Monad.State                      (modify)
+import           Data.Bifunctor                           (Bifunctor (..))
+import           Data.Char                                (toUpper)
+import           Data.Default                             (Default (..))
+import           Data.Function                            (on)
+import           Data.Functor                             ((<&>))
+import           Data.List.Extra                          (chunksOf, partition, sort)
+import qualified Data.List.NonEmpty                       as NonEmpty
+import qualified Data.Map                                 as Map
+import           Data.Maybe                               (fromMaybe, mapMaybe)
+import qualified Data.Text                                as T
+import           Encoins.Common.Constant                  (newLine)
+import           Encoins.Common.Log                       (logInfo, logInfoS)
+import           Encoins.Relay.Common                     (decodeOrErrorFromFile)
+import           Encoins.Relay.Common.Server              (mkServantClientEnv)
+import           Encoins.Relay.Common.Tx                  (mkBalanceTx, mkTx)
+import           Encoins.Relay.Common.Tx.Input            (InputContext (..))
+import           Encoins.Relay.Delegation.Client          (serverDelegatesClient)
+import           Encoins.Relay.Server.Internal            (EncoinsRelayEnv (..), EncoinsServerM)
+import           Ledger                                   (Address (..), PaymentPubKeyHash (..), TxOutRef (TxOutRef), minAdaTxOutEstimated)
+import           Plutus.Script.Utils.Ada                  (Ada)
+import qualified Plutus.Script.Utils.Ada                  as Ada
+import           PlutusAppsExtra.IO.Wallet                (HasWallet (..), getWalletUtxos)
+import           PlutusAppsExtra.PlutusApps.TxConstraints (mustPayToPubKeyAddress)
+import           PlutusAppsExtra.Types.Tx                 (TxConstructor (..))
+import           PlutusAppsExtra.Utils.Address            (addressToBech32, bech32ToAddress)
+import           PlutusAppsExtra.Utils.Network            (HasNetworkId (..))
+import           PlutusAppsExtra.Utils.Tx                 (mkCip20Metadata)
+import           PlutusLedgerApi.V2                       (Credential (..))
 
 distributeRewards :: Ada -> EncoinsServerM ()
 distributeRewards totalReward = void $ do
@@ -68,10 +68,10 @@ distributeRewards totalReward = void $ do
             addrs <- getWalletAddresses
             metaData <- either (error . show) (pure . Just) $ mkCip20Metadata ["ENCOINS", "Reward", relayUrl, T.pack $ show $ toInteger reward]
             let txBuilder = [modify $ \constr -> constr{txConstructorResult = Just (mempty, constrs)}]
-                ctx = InputContextClient mempty utxos (TxOutRef "" 0) (head addrs)
-            tx <- mkBalanceTx addrs ctx txBuilder metaData
+                ctx = InputContextClient mempty utxos (TxOutRef "" 0) (NonEmpty.head addrs)
+            tx <- mkBalanceTx (NonEmpty.toList addrs) ctx txBuilder metaData
             logInfoS True tx
-            mkTx addrs def txBuilder metaData
+            mkTx (NonEmpty.toList addrs) def txBuilder metaData
 
         debtFile = "debts.json"
 

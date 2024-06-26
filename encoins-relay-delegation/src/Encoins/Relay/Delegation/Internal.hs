@@ -42,11 +42,9 @@ import           Encoins.Relay.Common           (decodeOrErrorFromFile, loadMost
 import           Encoins.Relay.Common.Server    (HyperTextProtocol)
 import           GHC.Generics                   (Generic)
 import           Katip
-import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
-                                                 TxId (..), TxOutRef (..))
+import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot, TxId,
+                                                 TxOutRef (..))
 import           Network.URI                    (isIPv4address, isURI)
-import           Plutus.V1.Ledger.Api           (Credential (..), CurrencySymbol, FromData (..), StakingCredential (..), TokenName,
-                                                 fromBuiltin)
 import           PlutusAppsExtra.Api.Blockfrost (BlockfrostToken, MonadBlockfrost (..))
 import           PlutusAppsExtra.Api.Maestro    (MaestroToken, MonadMaestro (..))
 import qualified PlutusAppsExtra.IO.Blockfrost  as Bf
@@ -54,6 +52,9 @@ import qualified PlutusAppsExtra.IO.Maestro     as Maestro
 import           PlutusAppsExtra.Utils.Address  (getStakeKey)
 import           PlutusAppsExtra.Utils.Maestro  (TxDetailsOutput (..), TxDetailsResponse (..))
 import           PlutusAppsExtra.Utils.Network  (HasNetworkId (..))
+import           PlutusLedgerApi.V1             (Credential (..), CurrencySymbol, FromData (..), StakingCredential (..), TokenName,
+                                                 fromBuiltin)
+import qualified PlutusLedgerApi.V2             as PV2
 import           PlutusTx.Builtins              (decodeUtf8)
 import           Servant                        (Handler, ServerError, runHandler)
 import           Text.Read                      (readMaybe)
@@ -204,11 +205,11 @@ instance FromJSON DelegationConfig where
 ------------------------------------------------------------------ Helpers ------------------------------------------------------------------
 
 data Progress = Progress
-    { pLastTxId   :: Maybe TxId
+    { pLastTxId   :: Maybe PV2.TxId
     , pDelgations :: [Delegation]
     } deriving (Show, Generic, FromJSON, ToJSON)
 
-findDeleg :: TxId -> DelegationM (Maybe Delegation)
+findDeleg :: PV2.TxId -> DelegationM (Maybe Delegation)
 findDeleg txId = runMaybeT $ do
     MkDelegationEnv{..} <- ask
     TxDetailsResponse{..} <- MaybeT $ Maestro.getTxDetails txId
@@ -222,7 +223,8 @@ findDeleg txId = runMaybeT $ do
         ["ENCOINS", "Delegate", skBbs, ipBbs] <- hoistMaybe $ fromBuiltinData dat
         let ipAddr = fromBuiltin $ decodeUtf8 ipBbs
         when dEnvCheckSig $ guard $ PubKeyHash skBbs `elem` tdrAdditionalSigners && isValidIp ipAddr
-        pure $ Delegation (addressCredential tdoAddress) stakeKey (TxOutRef tdoTxHash tdoIndex) tdrSlot ipAddr
+        let ref = PV2.TxOutRef tdoTxHash tdoIndex
+        pure $ Delegation (addressCredential tdoAddress) stakeKey ref tdrSlot ipAddr
     where
         hoistMaybe = MaybeT . pure
 
@@ -230,7 +232,7 @@ getBalances :: MonadMaestro m => CurrencySymbol -> TokenName -> m (Map PubKeyHas
 getBalances = Maestro.getAccountAddressesHoldingAssets
 
 isValidIp :: Text -> Bool
-isValidIp txt = or $ [isSimpleURI, isURI, isIPv4address] <&> ($ T.unpack txt)
+isValidIp txt = any ($ T.unpack txt) [isSimpleURI, isURI, isIPv4address]
     where
         isSimpleURI  = isURI . ("http://" <>)
 
@@ -243,7 +245,7 @@ instance Eq RelayAddress where
     r1 == r2 = eqAddresses && eqPorts
         where
             eqAddresses = raAddress r1 == raAddress r2
-            eqPorts     = any isNothing (raPort <$> [r1, r2]) || raPort r1 == raPort r2
+            eqPorts     = any (isNothing . raPort) [r1, r2] || raPort r1 == raPort r2
 
 instance FromJSON RelayAddress where
     parseJSON = fmap toRelayAddress . parseJSON

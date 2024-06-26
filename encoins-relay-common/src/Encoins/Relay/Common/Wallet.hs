@@ -32,13 +32,14 @@ import           Data.Either.Extra         (maybeToEither)
 import           Data.String               (IsString (..))
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
-import           Data.Text.Class           (FromText (fromText), TextDecodingError, ToText (toText))
 import qualified Data.Text.Encoding        as T
 import qualified Data.Text.IO              as T
 import           Encoins.Relay.Common      (decodeOrErrorFromFile)
 import           GHC.Generics              (Generic)
+import           Ledger                    (Passphrase (..))
 import           PlutusAppsExtra.IO.Wallet (RestoredWallet (..))
 import qualified Text.Hex                  as T
+import           Text.Hex                  (encodeHex)
 
 data ServerWallet
     = UnEncrypted RestoredWallet
@@ -92,7 +93,7 @@ instance Show EncryptedWallet where
 data WalletEncryptionError
     = IVInitializingError
     | SomeCryptoError CryptoError
-    | PassphraseDecodingError TextDecodingError
+    | PassphraseDecodingError -- TextDecodingError
     | MnemonicDecodingError (MkSomeMnemonicError '[24])
     deriving (Show, Exception, Eq)
 
@@ -105,15 +106,15 @@ encryptWallet RestoredWallet{..} = do
     pure $ do
         iV <- eitherIV
         let mnemonicBS = mnemonicToBytes mnemonicSentence
-            secretKey = passphraseTextToKey $ toText passphrase
+            secretKey = passphraseTextToKey $ encodeHex $ unPassphrase passphrase
         mnemonicE <- bimap SomeCryptoError (\c -> ctrCombine c iV mnemonicBS) $ initCipher secretKey
         pure $ EncryptedWallet name iV mnemonicE
 
 decryptWallet :: EncryptedWallet -> Text -> Either WalletEncryptionError RestoredWallet
 decryptWallet EncryptedWallet{..} passphraseText = do
     let secretKey = passphraseTextToKey passphraseText
+        passphrase = fromString $ T.unpack passphraseText
     mnemonicBS <- bimap SomeCryptoError (\c -> ctrCombine c ewIVAES256 ewMnemonic) $ initCipher secretKey
-    passphrase <- first PassphraseDecodingError $ fromText passphraseText
     mnemonic   <- first MnemonicDecodingError $ bytesToMnemonic mnemonicBS
     pure $ RestoredWallet ewName mnemonic passphrase
 
