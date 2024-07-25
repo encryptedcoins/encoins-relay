@@ -22,8 +22,8 @@ import           Data.Aeson                     (FromJSON (..), FromJSONKey (..)
                                                  genericParseJSON)
 import           Data.Aeson.Casing              (aesonPrefix, snakeCase)
 import           Data.Aeson.Types               (toJSONKeyText)
+import           Data.Foldable                  (minimumBy)
 import           Data.Function                  (on)
-import           Data.Functor                   ((<&>))
 import           Data.IORef                     (IORef, atomicWriteIORef, newIORef)
 import           Data.List                      (sortBy)
 import qualified Data.List.NonEmpty             as NonEmpty
@@ -42,7 +42,7 @@ import           Encoins.Relay.Common           (decodeOrErrorFromFile, loadMost
 import           Encoins.Relay.Common.Server    (HyperTextProtocol)
 import           GHC.Generics                   (Generic)
 import           Katip
-import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot, TxId,
+import           Ledger                         (Address (..), Credential, Datum (..), DatumFromQuery (..), PubKeyHash (..), Slot,
                                                  TxOutRef (..))
 import           Network.URI                    (isIPv4address, isURI)
 import           PlutusAppsExtra.Api.Blockfrost (BlockfrostToken, MonadBlockfrost (..))
@@ -310,6 +310,6 @@ lastDelegation :: [Delegation] -> Maybe Delegation
 lastDelegation = listToMaybe . sortBy (compare `on` Down . delegCreated)
 
 removeDuplicates :: [Delegation] -> [Delegation]
-removeDuplicates = fmap (NonEmpty.head . NonEmpty.sortBy (compare `on` Down . delegCreated))
+removeDuplicates = fmap (minimumBy (compare `on` Down . delegCreated))
                  . NonEmpty.groupBy ((==) `on` delegStakeKey)
                  . sortBy (compare `on` delegStakeKey)

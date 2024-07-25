@@ -40,7 +40,7 @@ import           Encoins.Relay.Server.Server            (EncoinsApi)
 import           Internal                               (runEncoinsServerM)
 import           PlutusLedgerApi.V2                     (Credential (PubKeyCredential), StakingCredential (..), TokenName (..))
 import           PlutusAppsExtra.IO.ChainIndex          (getAdaAt, getValueAt)
-import           PlutusAppsExtra.IO.Wallet              (getWalletAda, getWalletAddr, getWalletValue)
+import           PlutusAppsExtra.IO.Wallet              (getWalletAda, getWalletValue)
 import           PlutusAppsExtra.Utils.Address          (getStakeKey)
 import           PlutusAppsExtra.Utils.Time             (utcToSlot)
 import qualified PlutusTx.AssocMap                      as PAM

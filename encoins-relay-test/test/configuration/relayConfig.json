@@ -7,17 +7,6 @@
 , "severity"                    : "error"
 , "format_message"              : true
 
-, "wallet_file"                 : "encoins-relay-test/test/configuration/wallets/test-wallet.json"
-, "node_db_file_path"           : "../../../../encoins-tools/testnet-preprod/data/chain"
-, "kupo_db_file_path"           : "../../../../encoins-tools/testnet-preprod/data"
-, "min_utxos_number"            : 1
-, "max_utxos_number"            : 15
-, "network_id"                  : {"tag" : "Testnet", "contents" : 1}
-, "collateral"                  : {"txOutRefId" : {"getTxId" : ""}, "txOutRefIdx" : 0}
-, "protocol_parameters_file"    : "encoins-relay-test/test/configuration/protocol-parameters.json"
-, "data_providers"              : {"tag" : "Cardano", "contents" : "../../../../encoins-tools/testnet-preprod/apps/cardano-node/node.sock"}
-, "slot_config_file"            : "encoins-relay-test/test/configuration/slotConfig.json"
-, "active_endpoints"            : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status"]
 , "ref_stake_owner"             : {"txOutRefId"  : {"getTxId" : "0f27a9384e175a98784932813bc087fbfe10afbb87d4c2bae7c3da2357a0effc"}, "txOutRefIdx" : 5}
 , "ref_beacon"                  : {"txOutRefId"  : {"getTxId" : "f25655007d89a1459fc0b2933e89888a7955dc8560e0440cb371a5c0a45d5967"}, "txOutRefIdx" : 2}
 , "validator_stake_key"         : "0bd016f8ba5857d2e2026da550e4b724a3e1e8d5598cbfab19ce756c"
@@ -31,4 +20,25 @@
 , "delegation_server_port"      : 3002
 , "delegation_server_protocol"  : "HTTP"
 , "delegation_ip_file"          : "encoins-relay-test/test/configuration/delegation.ip"
+
+, "min_utxos_number"            : 0
+, "max_utxos_number"            : 1
+, "protocol_parameters_file"    : "encoins-relay-test/test/configuration/protocol-parameters.json"
+, "alonzo_genesis_file"         : "encoins-relay-test/test/configuration/node/alonzo-genesis.json"
+, "shelley_genesis_file"        : "encoins-relay-test/test/configuration/node/shelley-genesis.json"
+, "conway_genesis_file"         : "encoins-relay-test/test/configuration/node/conway-genesis.json"
+
+, "slot_config_file"            : "encoins-relay-test/test/configuration/slotConfig.json"
+, "wallet_file"                 : "encoins-relay-test/test/configuration/wallets/test-wallet.json"
+, "wallet_addresses_file"       : "encoins-relay-test/test/configuration/wallets/addresses.json"
+, "network_id"                  : 1
+, "bf_token_file_path"          : "encoins-relay-test/test/configuration/blockfrost.token"
+, "maestro_token_file_path"     : "encoins-relay-test/test/configuration/maestro.token"
+
+, "chain_index_provider"     : "Maestro"
+, "tx_provider"              : "Maestro"
+, "collateral"               : null
+, "active_endpoints"         : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status", "version"]
+, "data_providers"           : {"tag" : "Lightweight", "contents" : "encoins-relay-test/test/configuration/wallets/addresses.json"}
+, "diagnostics_interval"     : 100000000000
 }

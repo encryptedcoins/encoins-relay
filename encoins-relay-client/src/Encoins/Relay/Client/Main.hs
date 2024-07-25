@@ -45,7 +45,7 @@ import           Encoins.Relay.Server.Endpoint.Utxos          (UtxosEndpoint)
 import           Encoins.Relay.Server.Internal                (EncoinsServerInput, EncoinsServerM, loadEncoinsRelayEnv, runEncoinsServerM)
 import           Encoins.Relay.Server.Server                  ()
 import           GHC.TypeLits                                 (KnownSymbol)
-import           Servant.Client                               (ClientM, HasClient (..), client)
+import           Servant.Client                               (ClientM, client)
 import           System.Directory                             (createDirectoryIfMissing)
 import           System.Random                                (randomIO, randomRIO)
 

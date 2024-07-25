@@ -7,7 +7,7 @@
 , "severity"                    : "error"
 , "format_message"              : true
 
-, "network_id"                 : {"tag" : "Testnet", "contents" : 1}
+, "network_id"                 : 1
 , "delegation_currency_symbol" : {"unCurrencySymbol" : "f2cbed8817eee9bfa37e80a0a2f4e0dfcf661bb1298003a2e77cb237"}
 , "delegation_token_name"      : {"unTokenName" : "454e435344656c65676174696f6e54657374"}
 , "delegation_folder"          : "delegations"

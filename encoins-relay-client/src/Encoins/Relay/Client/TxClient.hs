@@ -20,6 +20,7 @@ import           Control.Monad.IO.Class             (MonadIO (..))
 import           CSL                                (TransactionInputs)
 import qualified CSL
 import           CSL.Class                          (ToCSL (..))
+import           Data.Aeson                         (encode)
 import           Data.Data                          (Proxy (Proxy))
 import           Data.Maybe                         (fromMaybe)
 import           Data.Text                          (Text)
@@ -94,8 +95,9 @@ sendTxClientRequest secrets = do
             <> foldl prettyInput "" (zip (map fst secrets) inputs)
             <> "\n= "
             <> toText v
-    res <- liftIO (flip runClientM ?servantClientEnv $ client (Proxy @e) $ (InputRedeemer red ?mode, txInputs))
+    res <- liftIO (flip runClientM ?servantClientEnv $ client (Proxy @e) (InputRedeemer red ?mode, txInputs))
     logInfo $ "Received response:\n" <> either toText toText res
+    logInfoS True $ encode red
     pure res
     where
         prettyInput acc (Secret _ v,(bbs, p)) = mconcat
@@ -131,6 +133,6 @@ termsToSecrets terms = do
     where
         toSecret g = \case
             RPMint a          -> pure $ (, Mint) $ Secret g $ toFieldElement $ getLovelace a
-            RPBurn (Left s)   -> pure $ (, Burn) s
+            RPBurn (Left s)   -> pure (s, Burn)
             RPBurn (Right fp) -> (, Burn) . clientSecretToSecret . fromMaybe (fpError fp) <$> readSecretFile fp
         fpError = error . ("Secret file doesn't exists:\n" <>)

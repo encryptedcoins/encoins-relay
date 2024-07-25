@@ -207,6 +207,7 @@ instance HasNetworkId EncoinsServerM where
 
 instance HasWallet EncoinsServerM where
     getRestoredWallet = asks envWallet
+    getWalletAddresses = asks envWalletAddresses
 
 instance HasChainIndexProvider EncoinsServerM where
     getChainIndexProvider = asks envChainIndexProvider

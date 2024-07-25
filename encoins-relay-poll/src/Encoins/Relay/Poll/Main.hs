@@ -34,7 +34,7 @@ import           Encoins.Relay.Poll.Config          (PollConfig (..), getConfig)
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Datum (..), PubKeyHash (..), Slot (..))
 import qualified PlutusAppsExtra.Api.Kupo           as Kupo
-import           PlutusAppsExtra.Api.Maestro        (MaestroToken, runMonadMaestroWrapper)
+import           PlutusAppsExtra.Api.Maestro        (MaestroToken)
 import           PlutusAppsExtra.IO.ChainIndex.Kupo (getTokenBalanceToSlot)
 import qualified PlutusAppsExtra.IO.Maestro         as Maestro
 import           PlutusAppsExtra.Utils.Address      (getStakeKey)
@@ -98,7 +98,7 @@ getResult folderName pollNo PollConfig{..} = do
             pkh            <- MaybeT . pure $ getStakeKey krAddress
             -- Check that tx signed by key specified in datum
             when pcCheckDatumPkh $ do
-                response <- MaybeT $ runMonadMaestroWrapper pcNetworkId ?pollEnvMaestroToken $ Maestro.getTxDetails krTxId
+                response <- MaybeT $ runMaestroInIO pcNetworkId ?pollEnvMaestroToken $ Maestro.getTxDetails krTxId
                 let sigs = tdrAdditionalSigners response
                 guard $ PubKeyHash pkhBbs `elem` sigs
             let res = Vote pkh (swhhSlot krCreatedAt) krTxId krOutputIndex (fromBuiltin $ decodeUtf8 vote)
