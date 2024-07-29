@@ -10,9 +10,9 @@
 , "network_id"                 : 1
 , "delegation_currency_symbol" : {"unCurrencySymbol" : "f2cbed8817eee9bfa37e80a0a2f4e0dfcf661bb1298003a2e77cb237"}
 , "delegation_token_name"      : {"unTokenName" : "454e435344656c65676174696f6e54657374"}
-, "delegation_folder"          : "delegations"
-, "blockfrost_token_file_path" : "encoins-relay-test/test/configuration/blockfrost.token"
-, "maestro_token_file_path"    : "encoins-relay-test/test/configuration/maestro.token"
+, "delegation_folder"          : "encoins-relay-test/test/delegations"
+, "blockfrost_token_file_path" : "../../encoins-relay-test/test/configuration/blockfrost.token"
+, "maestro_token_file_path"    : "../../encoins-relay-test/test/configuration/maestro.token"
 , "frequency"                  : 10
 , "max_delay"                  : 300
 , "min_token_number"           : 3

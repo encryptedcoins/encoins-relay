@@ -35,7 +35,6 @@ test-suite encoins-relay-test
   Ghc-Options:          -rtsopts
   Main-Is:              Main.hs
   Other-Modules:
-    Encoins.Relay.DelegationSpec
     Encoins.Relay.Server.ServerSpec
     Encoins.Relay.Server.StatusSpec
     Encoins.Relay.Verifier.ServerSpec
@@ -50,7 +49,6 @@ test-suite encoins-relay-test
     encoins-core                           -any,
     encoins-relay-client                   -any,
     encoins-relay-common                   -any,
-    encoins-relay-delegation               -any,
     encoins-relay-server                   -any,
     encoins-relay-verifier                 -any,
     exceptions                             -any,
