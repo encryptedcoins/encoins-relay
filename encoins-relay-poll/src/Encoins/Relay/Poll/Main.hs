@@ -34,7 +34,7 @@ import           Encoins.Relay.Poll.Config          (PollConfig (..), getConfig)
 import           GHC.Generics                       (Generic)
 import           Ledger                             (Datum (..), PubKeyHash (..), Slot (..))
 import qualified PlutusAppsExtra.Api.Kupo           as Kupo
-import           PlutusAppsExtra.Api.Maestro        (MaestroToken)
+import           PlutusAppsExtra.Api.Maestro        (MaestroToken, runMaestroInIO)
 import           PlutusAppsExtra.IO.ChainIndex.Kupo (getTokenBalanceToSlot)
 import qualified PlutusAppsExtra.IO.Maestro         as Maestro
 import           PlutusAppsExtra.Utils.Address      (getStakeKey)
