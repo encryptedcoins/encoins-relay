@@ -35,10 +35,9 @@
 , "bf_token_file_path"          : "encoins-relay-test/test/configuration/blockfrost.token"
 , "maestro_token_file_path"     : "encoins-relay-test/test/configuration/maestro.token"
 
-, "chain_index_provider"     : "Cardano"
-, "tx_provider"              : "Cardano"
+
 , "collateral"               : null
 , "active_endpoints"         : ["ping", "utxos", "submitTx", "newTx", "serverTx", "status", "version"]
-, "data_providers"           : {"tag" : "Cardano", "contents" : "encoins-relay-test/test/configuration/wallets/addresses.json"}
+, "data_providers"           : {"tag" : "Lightweight", "contents" : "encoins-relay-test/test/configuration/wallets/addresses.json"}
 , "diagnostics_interval"     : 100000000000
 }
