@@ -1,5 +1,5 @@
 #!/bin/bash
-
+./fix-dhall.sh
 ./build-server.sh
 ./build-client.sh
 ./build-verifier.sh

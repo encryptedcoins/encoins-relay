@@ -3,6 +3,7 @@
 , "hyper_text_protocol"      : "HTTP"
 , "min_utxos_number"         : 0
 , "max_utxos_number"         : 1
+, "diagnostics_interval"     : 2400
 , "protocol_parameters_file" : "protocol-parameters.json"
 , "slot_config_file"         : "slot-config.json"
 , "wallet_file"              : "../../wallets/wallet.json"
